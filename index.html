@@ -23,7 +23,6 @@
             font-weight: bold;
         }
 
-        /* タブ切り替えメニュー */
         .tab-menu {
             display: flex;
             background-color: #333;
@@ -191,7 +190,6 @@
 
 <header>Sprint Timer Pro</header>
 
-<!-- タブ切り替えメニュー -->
 <div class="tab-menu">
     <button class="tab-btn active" onclick="switchTab('sound-only')">スタート音のみ (SD)</button>
     <button class="tab-btn" onclick="switchTab('camera-analysis')">カメラ解析＋計測</button>
@@ -300,6 +298,24 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
 <script>
+    // 音声ファイルの読み込み（パスやファイル名は必要に応じて調整してください）
+    const audioOnYourMarks = new Audio('sounds/on_your_marks.mp3');
+    const audioSet = new Audio('sounds/set.mp3');
+    const audioGunShot = new Audio('sounds/bang.mp3');
+
+    function playOnYourMarks() {
+        audioOnYourMarks.currentTime = 0;
+        audioOnYourMarks.play();
+    }
+    function playSet() {
+        audioSet.currentTime = 0;
+        audioSet.play();
+    }
+    function playGunShot() {
+        audioGunShot.currentTime = 0;
+        audioGunShot.play();
+    }
+
     function updateValueDisplay(displayId, val) {
         document.getElementById(displayId).innerText = parseFloat(val).toFixed(1) + " 秒";
     }
@@ -315,7 +331,6 @@
         }
     }
 
-    // 初期化表示調整
     toggleRandom('sd-set-random', 'sd-set-slider', 'sd-set-val');
     toggleRandom('cam-set-random', 'cam-set-slider', 'cam-set-val');
 
@@ -333,34 +348,11 @@
         }
     }
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-    function playTone(freq, type, duration) {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.value = freq;
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        gain.gain.setValueAtTime(1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-        osc.stop(audioCtx.currentTime + duration);
-    }
-
-    function playOnYourMarks() { playTone(880, 'sine', 0.2); }
-    function playSet() { playTone(440, 'sine', 0.4); }
-    function playGunShot() {
-        playTone(150, 'sawtooth', 0.3);
-        playTone(1200, 'square', 0.15);
-    }
-
     // タブ1: スタート音のみモード
     const soundStatus = document.getElementById('sound-status');
     const sdStartBtn = document.getElementById('sd-start-btn');
 
     sdStartBtn.addEventListener('click', () => {
-        audioCtx.resume();
         sdStartBtn.disabled = true;
 
         const marksToSetDelay = parseFloat(document.getElementById('sd-marks-slider').value) * 1000;
@@ -371,20 +363,20 @@
         soundStatus.style.color = "#007bff";
         playOnYourMarks();
 
-        // 設定時間後に Set
         setTimeout(() => {
+            // 2. Set
             soundStatus.innerText = "Set... (用意)";
             soundStatus.style.color = "#fd7e14";
             playSet();
 
             let setToGunDelay = 2000;
             if (isSetRandom) {
-                setToGunDelay = Math.floor(Math.random() * 1000) + 1500; // 1.5秒〜2.5秒
+                setToGunDelay = Math.floor(Math.random() * 1000) + 1500;
             } else {
                 setToGunDelay = parseFloat(document.getElementById('sd-set-slider').value) * 1000;
             }
 
-            // 設定時間後に Bang!
+            // 3. BANG!
             setTimeout(() => {
                 soundStatus.innerText = "BANG!! (スタート)";
                 soundStatus.style.color = "#dc3545";
@@ -520,7 +512,6 @@
     }
 
     camStartBtn.addEventListener('click', () => {
-        audioCtx.resume();
         startTime = null;
         sprintDetected = false;
         firstStepLanded = false;
