@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Sprint Timer Pro</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#222">
+    <meta name="theme-color" content="#111">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -21,13 +21,45 @@
             padding: 15px;
             font-size: 20px;
             font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+
+        /* タブ切り替えメニュー */
+        .tab-menu {
+            display: flex;
+            background-color: #333;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: bold;
+            color: #aaa;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            border-radius: 0;
+            margin: 0;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            color: #fff;
+            border-bottom: 3px solid #28a745;
+            background-color: #222;
+        }
+
         #main-container {
             padding: 15px;
             max-width: 600px;
             margin: 0 auto;
         }
+
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
         #video-container {
             position: relative;
             width: 100%;
@@ -47,7 +79,7 @@
             top: 0;
             left: 0;
         }
-        /* グリッドレイアウトで計測値をカード表示 */
+
         .results-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -77,6 +109,7 @@
             color: #666;
             font-weight: normal;
         }
+
         .settings-card {
             background-color: #fff;
             border-radius: 10px;
@@ -92,23 +125,38 @@
             padding-bottom: 8px;
             margin-bottom: 12px;
         }
-        .setting-row {
+        .setting-item {
+            margin-bottom: 15px;
+        }
+        .setting-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
             font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
         }
-        .setting-row input, .setting-row select {
-            padding: 5px 8px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            font-size: 14px;
+        .setting-value {
+            color: #007bff;
+            font-size: 15px;
         }
-        button {
+        input[type="range"] {
             width: 100%;
-            padding: 14px;
-            font-size: 16px;
+            margin: 5px 0;
+        }
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        button.action-btn {
+            width: 100%;
+            padding: 16px;
+            font-size: 18px;
             font-weight: bold;
             border: none;
             border-radius: 10px;
@@ -116,18 +164,24 @@
             transition: background-color 0.2s, transform 0.1s;
             margin-bottom: 10px;
         }
-        button:active {
+        button.action-btn:active {
             transform: scale(0.98);
         }
-        #start-session-btn {
+        .btn-green {
             background-color: #28a745;
             color: white;
-            font-size: 18px;
         }
-        #view-history-btn {
-            background-color: #007bff;
-            color: white;
+
+        .status-box {
+            background-color: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #495057;
         }
+
         .detected-frame {
             border: 4px solid #e74c3c;
         }
@@ -137,106 +191,237 @@
 
 <header>Sprint Timer Pro</header>
 
+<!-- タブ切り替えメニュー -->
+<div class="tab-menu">
+    <button class="tab-btn active" onclick="switchTab('sound-only')">スタート音のみ (SD)</button>
+    <button class="tab-btn" onclick="switchTab('camera-analysis')">カメラ解析＋計測</button>
+</div>
+
 <div id="main-container">
 
-    <div id="video-container">
-        <video id="input-video" playsinline></video>
-        <canvas id="output-canvas"></canvas>
-    </div>
+    <!-- タブ1: スタート音のみモード -->
+    <div id="tab-sound-only" class="tab-content active">
+        <div class="status-box" id="sound-status">準備完了</div>
 
-    <!-- 4つの計測指標を表示 -->
-    <div class="results-grid">
-        <div class="data-card">
-            <div class="data-label">リアクションタイム</div>
-            <div class="data-value" id="reaction-time-display">0.000 <span class="unit">s</span></div>
-        </div>
+        <div class="settings-card">
+            <h3>タイミング設定</h3>
+            
+            <div class="setting-item">
+                <div class="setting-header">
+                    <span>On your marks 〜 Set 間隔</span>
+                    <span class="setting-value" id="sd-marks-val">3.0 秒</span>
+                </div>
+                <input type="range" id="sd-marks-slider" min="1.0" max="20.0" step="0.5" value="3.0" oninput="updateValueDisplay('sd-marks-val', this.value)">
+            </div>
 
-        <div class="data-card">
-            <div class="data-label">飛び出し角度</div>
-            <div class="data-value" id="start-angle-display">0.0 <span class="unit">°</span></div>
-        </div>
-
-        <div class="data-card">
-            <div class="data-label">1歩目の距離</div>
-            <div class="data-value" id="step-distance-display">0.00 <span class="unit">m</span></div>
-        </div>
-
-        <div class="data-card">
-            <div class="data-label">1歩目の接地時間</div>
-            <div class="data-value" id="contact-time-display">0.000 <span class="unit">s</span></div>
-        </div>
-    </div>
-
-    <!-- タイマー＆カメラ詳細設定 -->
-    <div class="settings-card">
-        <h3>タイマー詳細設定</h3>
-        <div class="setting-row">
-            <label for="start-delay-mode">スタート音設定:</label>
-            <select id="start-delay-mode">
-                <option value="random">ランダム (1.0~2.5秒)</option>
-                <option value="fixed">固定 (2.0秒)</option>
-            </select>
-        </div>
-        <div class="setting-row">
-            <label for="athlete-height">選手身長 (距離補正用):</label>
-            <div>
-                <input type="number" id="athlete-height" value="170" style="width: 60px;"> <span class="unit">cm</span>
+            <div class="setting-item">
+                <div class="setting-header">
+                    <span>Set 〜 号砲(Bang!) 間隔</span>
+                    <span class="setting-value" id="sd-set-val">2.0 秒</span>
+                </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="sd-set-random" checked onchange="toggleRandom('sd-set-random', 'sd-set-slider', 'sd-set-val')">
+                    <label for="sd-set-random">ランダムにする (1.5秒〜2.5秒)</label>
+                </div>
+                <input type="range" id="sd-set-slider" min="1.0" max="20.0" step="0.5" value="2.0" disabled oninput="updateValueDisplay('sd-set-val', this.value)">
             </div>
         </div>
-        <div class="setting-row">
-            <label for="sensitivity">動き検知感度:</label>
-            <select id="sensitivity">
-                <option value="high">高感度 (競技者向け)</option>
-                <option value="medium" selected>標準</option>
-                <option value="low">低感度 (誤作動防止)</option>
-            </select>
-        </div>
+
+        <button class="action-btn btn-green" id="sd-start-btn">スタート合図を鳴らす</button>
     </div>
 
-    <button id="start-session-btn">計測を開始 (テストモード)</button>
-    <button id="view-history-btn" onclick="alert('履歴機能は開発中です')">計測履歴を表示</button>
+    <!-- タブ2: カメラ解析＋計測モード -->
+    <div id="tab-camera-analysis" class="tab-content">
+        <div id="video-container">
+            <video id="input-video" playsinline></video>
+            <canvas id="output-canvas"></canvas>
+        </div>
+
+        <div class="results-grid">
+            <div class="data-card">
+                <div class="data-label">リアクションタイム</div>
+                <div class="data-value" id="reaction-time-display">0.000 <span class="unit">s</span></div>
+            </div>
+            <div class="data-card">
+                <div class="data-label">飛び出し角度</div>
+                <div class="data-value" id="start-angle-display">0.0 <span class="unit">°</span></div>
+            </div>
+            <div class="data-card">
+                <div class="data-label">1歩目の距離</div>
+                <div class="data-value" id="step-distance-display">0.00 <span class="unit">m</span></div>
+            </div>
+            <div class="data-card">
+                <div class="data-label">1歩目の接地時間</div>
+                <div class="data-value" id="contact-time-display">0.000 <span class="unit">s</span></div>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <h3>計測＆タイミング設定</h3>
+
+            <div class="setting-item">
+                <div class="setting-header">
+                    <span>On your marks 〜 Set 間隔</span>
+                    <span class="setting-value" id="cam-marks-val">3.0 秒</span>
+                </div>
+                <input type="range" id="cam-marks-slider" min="1.0" max="20.0" step="0.5" value="3.0" oninput="updateValueDisplay('cam-marks-val', this.value)">
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-header">
+                    <span>Set 〜 号砲(Bang!) 間隔</span>
+                    <span class="setting-value" id="cam-set-val">2.0 秒</span>
+                </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="cam-set-random" checked onchange="toggleRandom('cam-set-random', 'cam-set-slider', 'cam-set-val')">
+                    <label for="cam-set-random">ランダムにする (1.5秒〜2.5秒)</label>
+                </div>
+                <input type="range" id="cam-set-slider" min="1.0" max="20.0" step="0.5" value="2.0" disabled oninput="updateValueDisplay('cam-set-val', this.value)">
+            </div>
+
+            <div class="setting-item" style="margin-bottom: 0;">
+                <div class="setting-header">
+                    <span>選手身長 (距離補正)</span>
+                    <div>
+                        <input type="number" id="athlete-height" value="170" style="width: 50px; text-align: center; font-size: 14px;"> <span class="unit">cm</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="action-btn btn-green" id="cam-start-btn">計測を開始</button>
+    </div>
 
 </div>
 
-<!-- MediaPipe required scripts -->
+<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
 <script>
+    function updateValueDisplay(displayId, val) {
+        document.getElementById(displayId).innerText = parseFloat(val).toFixed(1) + " 秒";
+    }
+
+    function toggleRandom(checkboxId, sliderId, displayId) {
+        const isRandom = document.getElementById(checkboxId).checked;
+        const slider = document.getElementById(sliderId);
+        slider.disabled = isRandom;
+        if (isRandom) {
+            document.getElementById(displayId).innerText = "ランダム";
+        } else {
+            updateValueDisplay(displayId, slider.value);
+        }
+    }
+
+    // 初期化表示調整
+    toggleRandom('sd-set-random', 'sd-set-slider', 'sd-set-val');
+    toggleRandom('cam-set-random', 'cam-set-slider', 'cam-set-val');
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        if (tabName === 'sound-only') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            document.getElementById('tab-sound-only').classList.add('active');
+        } else {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            document.getElementById('tab-camera-analysis').classList.add('active');
+            startCamera();
+        }
+    }
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playTone(freq, type, duration) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        gain.gain.setValueAtTime(1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playOnYourMarks() { playTone(880, 'sine', 0.2); }
+    function playSet() { playTone(440, 'sine', 0.4); }
+    function playGunShot() {
+        playTone(150, 'sawtooth', 0.3);
+        playTone(1200, 'square', 0.15);
+    }
+
+    // タブ1: スタート音のみモード
+    const soundStatus = document.getElementById('sound-status');
+    const sdStartBtn = document.getElementById('sd-start-btn');
+
+    sdStartBtn.addEventListener('click', () => {
+        audioCtx.resume();
+        sdStartBtn.disabled = true;
+
+        const marksToSetDelay = parseFloat(document.getElementById('sd-marks-slider').value) * 1000;
+        const isSetRandom = document.getElementById('sd-set-random').checked;
+
+        // 1. On your marks
+        soundStatus.innerText = "On your marks (位置について)";
+        soundStatus.style.color = "#007bff";
+        playOnYourMarks();
+
+        // 設定時間後に Set
+        setTimeout(() => {
+            soundStatus.innerText = "Set... (用意)";
+            soundStatus.style.color = "#fd7e14";
+            playSet();
+
+            let setToGunDelay = 2000;
+            if (isSetRandom) {
+                setToGunDelay = Math.floor(Math.random() * 1000) + 1500; // 1.5秒〜2.5秒
+            } else {
+                setToGunDelay = parseFloat(document.getElementById('sd-set-slider').value) * 1000;
+            }
+
+            // 設定時間後に Bang!
+            setTimeout(() => {
+                soundStatus.innerText = "BANG!! (スタート)";
+                soundStatus.style.color = "#dc3545";
+                playGunShot();
+
+                setTimeout(() => {
+                    soundStatus.innerText = "準備完了";
+                    soundStatus.style.color = "#495057";
+                    sdStartBtn.disabled = false;
+                }, 1500);
+            }, setToGunDelay);
+
+        }, marksToSetDelay);
+    });
+
+    // タブ2: カメラ解析＋計測モード
     const videoElement = document.getElementById('input-video');
     const canvasElement = document.getElementById('output-canvas');
     const canvasCtx = canvasElement.getContext('2d');
     
-    // 表示要素
     const reactionTimeDisplay = document.getElementById('reaction-time-display');
     const startAngleDisplay = document.getElementById('start-angle-display');
     const stepDistanceDisplay = document.getElementById('step-distance-display');
     const contactTimeDisplay = document.getElementById('contact-time-display');
-    const startSessionBtn = document.getElementById('start-session-btn');
+    const camStartBtn = document.getElementById('cam-start-btn');
     const videoContainer = document.getElementById('video-container');
-
-    // 設定要素
-    const startDelayMode = document.getElementById('start-delay-mode');
     const athleteHeightInput = document.getElementById('athlete-height');
-    const sensitivitySelect = document.getElementById('sensitivity');
 
     let startTime = null;
     let sprintDetected = false;
     let firstStepLanded = false;
     let firstStepLifted = false;
     let contactStartTime = 0;
-    
     let startAnklePos = null;
-    let landingAnklePos = null;
+    let cameraStarted = false;
 
-    // 音声
-    const beepSound = new Audio('https://www.soundjay.com/buttons/sounds/beep-01a.mp3');
-
-    // MediaPipe Pose 設定
-    const pose = new Pose({locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-    }});
+    const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
     pose.setOptions({
         modelComplexity: 1,
         smoothLandmarks: true,
@@ -246,34 +431,32 @@
     });
     pose.onResults(onResults);
 
-    // カメラ起動
-    const camera = new Camera(videoElement, {
-        onFrame: async () => {
-            await pose.send({image: videoElement});
-        },
-        width: 1280,
-        height: 720,
-        facingMode: 'environment'
-    });
+    let camera = null;
+    function startCamera() {
+        if (cameraStarted) return;
+        camera = new Camera(videoElement, {
+            onFrame: async () => { await pose.send({image: videoElement}); },
+            width: 1280,
+            height: 720,
+            facingMode: 'environment'
+        });
+        camera.start().then(() => { cameraStarted = true; }).catch(err => alert("カメラの起動に失敗しました"));
+    }
 
-    // 角度計算 (地面からの軸角度)
     function calculateAngle(shoulder, hip) {
         const radians = Math.atan2(hip.y - shoulder.y, hip.x - shoulder.x);
         let angle = Math.abs(radians * 180.0 / Math.PI);
-        return Math.min(Math.max(angle, 0), 90); // 0~90度の範囲に補正
+        return Math.min(Math.max(angle, 0), 90);
     }
 
-    // 解析処理
     function onResults(results) {
         if (!results.poseLandmarks) return;
 
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        
         canvasElement.width = videoElement.videoWidth;
         canvasElement.height = videoElement.videoHeight;
 
-        // 骨格を描画
         drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffffaa', lineWidth: 1.5});
         drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#00ff00', lineWidth: 1, radius: 2});
 
@@ -287,11 +470,9 @@
         const leftFootIndex = landmarks[31];
         const rightFootIndex = landmarks[32];
 
-        // 計測判定中
         if (startTime) {
             const currentTime = Date.now();
 
-            // 1. 飛び出し検知 ＆ リアクションタイム ＆ 飛び出し角度
             if (!sprintDetected) {
                 const shoulder = rightShoulder.visibility > 0.6 ? rightShoulder : leftShoulder;
                 const hip = rightHip.visibility > 0.6 ? rightHip : leftHip;
@@ -299,18 +480,12 @@
                 if (shoulder && hip) {
                     const currentAngle = calculateAngle(shoulder, hip);
 
-                    // 動き出しの判定
                     if (currentAngle > 35) {
                         sprintDetected = true;
-                        
-                        // リアクションタイム (秒表記)
                         const reactionTimeSec = ((currentTime - startTime) / 1000).toFixed(3);
                         reactionTimeDisplay.innerHTML = `${reactionTimeSec} <span class="unit">s</span>`;
-                        
-                        // 飛び出し角度
                         startAngleDisplay.innerHTML = `${currentAngle.toFixed(1)} <span class="unit">°</span>`;
 
-                        // 基準となる足首位置（スタート位置）
                         startAnklePos = { x: (leftAnkle.x + rightAnkle.x) / 2, y: (leftAnkle.y + rightAnkle.y) / 2 };
 
                         videoContainer.classList.add('detected-frame');
@@ -318,30 +493,25 @@
                     }
                 }
             } 
-            // 2. 1歩目の接地 ＆ 距離 ＆ 接地時間
             else if (sprintDetected && !firstStepLifted) {
-                // 足のY座標（高さ）変化から着地・離地を簡易計算
                 if (!firstStepLanded) {
-                    // 足が地面に着地した瞬間を推定
                     if (leftFootIndex.y > 0.85 || rightFootIndex.y > 0.85) {
                         firstStepLanded = true;
                         contactStartTime = currentTime;
-                        landingAnklePos = { x: (leftAnkle.x + rightAnkle.x) / 2, y: (leftAnkle.y + rightAnkle.y) / 2 };
+                        const landingAnklePos = { x: (leftAnkle.x + rightAnkle.x) / 2, y: (leftAnkle.y + rightAnkle.y) / 2 };
 
-                        // 1歩目の距離計算 (身長データから推定)
                         const athleteHeightM = parseFloat(athleteHeightInput.value) / 100;
                         const pixelDistance = Math.hypot(landingAnklePos.x - startAnklePos.x, landingAnklePos.y - startAnklePos.y);
                         const estimatedStepDist = (pixelDistance * athleteHeightM * 1.8).toFixed(2);
                         stepDistanceDisplay.innerHTML = `${estimatedStepDist} <span class="unit">m</span>`;
                     }
                 } else {
-                    // 足が離地した瞬間（接地終了）
                     if (leftFootIndex.y < 0.80 && rightFootIndex.y < 0.80) {
                         firstStepLifted = true;
                         const contactTimeSec = ((currentTime - contactStartTime) / 1000).toFixed(3);
                         contactTimeDisplay.innerHTML = `${contactTimeSec} <span class="unit">s</span>`;
-                        startSessionBtn.disabled = false;
-                        startSessionBtn.innerText = '計測を開始 (テストモード)';
+                        camStartBtn.disabled = false;
+                        camStartBtn.innerText = '計測を開始';
                     }
                 }
             }
@@ -349,52 +519,50 @@
         canvasCtx.restore();
     }
 
-    // 計測ボタン処理
-    startSessionBtn.addEventListener('click', () => {
+    camStartBtn.addEventListener('click', () => {
+        audioCtx.resume();
         startTime = null;
         sprintDetected = false;
         firstStepLanded = false;
         firstStepLifted = false;
 
-        // リセット表示
         reactionTimeDisplay.innerHTML = '0.000 <span class="unit">s</span>';
         startAngleDisplay.innerHTML = '0.0 <span class="unit">°</span>';
         stepDistanceDisplay.innerHTML = '0.00 <span class="unit">m</span>';
         contactTimeDisplay.innerHTML = '0.000 <span class="unit">s</span>';
-        
-        startSessionBtn.disabled = true;
+        camStartBtn.disabled = true;
 
-        // スタート遅延の設定取得
-        let delayMs = 2000;
-        if (startDelayMode.value === 'random') {
-            delayMs = Math.floor(Math.random() * 1500) + 1000; // 1.0~2.5秒
-        }
+        const marksToSetDelay = parseFloat(document.getElementById('cam-marks-slider').value) * 1000;
+        const isSetRandom = document.getElementById('cam-set-random').checked;
 
-        // スタート音（ピ・ピ・ピ・ピーン）
-        let count = 0;
-        const intervalId = setInterval(() => {
-            beepSound.play();
-            count++;
-            if (count === 3) {
-                clearInterval(intervalId);
-                startSessionBtn.innerText = 'Set...';
-                setTimeout(() => {
-                    beepSound.play();
-                    startTime = Date.now();
-                    startSessionBtn.innerText = 'Go! (計測中)';
-                }, delayMs);
+        // 1. On your marks
+        camStartBtn.innerText = 'On your marks...';
+        playOnYourMarks();
+
+        setTimeout(() => {
+            // 2. Set
+            camStartBtn.innerText = 'Set...';
+            playSet();
+
+            let setToGunDelay = 2000;
+            if (isSetRandom) {
+                setToGunDelay = Math.floor(Math.random() * 1000) + 1500;
+            } else {
+                setToGunDelay = parseFloat(document.getElementById('cam-set-slider').value) * 1000;
             }
-        }, 600);
-    });
 
-    camera.start().catch((err) => {
-        alert('カメラの起動に失敗しました。アクセス権限をご確認ください。');
+            // 3. BANG!
+            setTimeout(() => {
+                playGunShot();
+                startTime = Date.now();
+                camStartBtn.innerText = 'Go! (検知中)';
+            }, setToGunDelay);
+
+        }, marksToSetDelay);
     });
 
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('sw.js');
-        });
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
     }
 </script>
 
