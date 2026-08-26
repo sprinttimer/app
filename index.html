@@ -298,22 +298,43 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
 <script>
-    // 音声ファイルの読み込み（パスやファイル名は必要に応じて調整してください）
-    const audioOnYourMarks = new Audio('sounds/on_your_marks.mp3');
-    const audioSet = new Audio('sounds/set.mp3');
-    const audioGunShot = new Audio('sounds/bang.mp3');
+    let audioCtx = null;
 
-    function playOnYourMarks() {
-        audioOnYourMarks.currentTime = 0;
-        audioOnYourMarks.play();
+    // 音声発声 (英語発音)
+    function speak(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const uttr = new SpeechSynthesisUtterance(text);
+            uttr.lang = 'en-US';
+            uttr.rate = 0.9;
+            window.speechSynthesis.speak(uttr);
+        }
     }
-    function playSet() {
-        audioSet.currentTime = 0;
-        audioSet.play();
-    }
-    function playGunShot() {
-        audioGunShot.currentTime = 0;
-        audioGunShot.play();
+
+    // 号砲ピストル音生成
+    function playGunshot() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const bufferSize = audioCtx.sampleRate * 0.4;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1200;
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start();
     }
 
     function updateValueDisplay(displayId, val) {
@@ -359,15 +380,15 @@
         const isSetRandom = document.getElementById('sd-set-random').checked;
 
         // 1. On your marks
-        soundStatus.innerText = "On your marks (位置について)";
+        soundStatus.innerText = "On your marks";
         soundStatus.style.color = "#007bff";
-        playOnYourMarks();
+        speak('On your marks');
 
         setTimeout(() => {
             // 2. Set
-            soundStatus.innerText = "Set... (用意)";
+            soundStatus.innerText = "Set...";
             soundStatus.style.color = "#fd7e14";
-            playSet();
+            speak('Set');
 
             let setToGunDelay = 2000;
             if (isSetRandom) {
@@ -378,9 +399,9 @@
 
             // 3. BANG!
             setTimeout(() => {
-                soundStatus.innerText = "BANG!! (スタート)";
+                soundStatus.innerText = "BANG!!";
                 soundStatus.style.color = "#dc3545";
-                playGunShot();
+                playGunshot();
 
                 setTimeout(() => {
                     soundStatus.innerText = "準備完了";
@@ -528,12 +549,12 @@
 
         // 1. On your marks
         camStartBtn.innerText = 'On your marks...';
-        playOnYourMarks();
+        speak('On your marks');
 
         setTimeout(() => {
             // 2. Set
             camStartBtn.innerText = 'Set...';
-            playSet();
+            speak('Set');
 
             let setToGunDelay = 2000;
             if (isSetRandom) {
@@ -544,7 +565,7 @@
 
             // 3. BANG!
             setTimeout(() => {
-                playGunShot();
+                playGunshot();
                 startTime = Date.now();
                 camStartBtn.innerText = 'Go! (検知中)';
             }, setToGunDelay);
