@@ -73,11 +73,14 @@
             background: #000;
             margin-bottom: 15px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            touch-action: none; /* スワイプシーク用のタッチイベント干渉防止 */
+            user-select: none;
         }
         video, canvas {
             width: 100%;
             height: auto;
             display: block;
+            pointer-events: none; /* スラブ操作を受け取るため動画自体の直接操作を無効化 */
         }
         canvas.overlay {
             position: absolute;
@@ -216,16 +219,6 @@
             overflow: hidden;
             margin-bottom: 15px;
             touch-action: manipulation;
-        }
-        .tap-target {
-            position: absolute;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background-color: #ff4757;
-            box-shadow: 0 0 12px #ff4757;
-            transform: translate(-50%, -50%);
-            cursor: pointer;
         }
 
         /* MyJump用コマ送りフレームコントローラー */
@@ -374,7 +367,8 @@
             注釈: 正面を向いて撮影すること<br>
             <span style="color:#dc3545; font-weight:bold;">※空中では足を曲げないこと（離地と着地の姿勢を揃える）</span>
         </div>
-        <div class="video-container">
+        <!-- 画面左右スワイプで動画をシーク可能 -->
+        <div class="video-container" id="jump-video-container">
             <video id="jump-video" playsinline muted controls></video>
             <canvas id="jump-canvas" class="overlay"></canvas>
         </div>
@@ -382,7 +376,8 @@
         
         <!-- コマ送り＆手動指定コントローラー -->
         <div class="frame-control-box">
-            <div style="font-size:13px; font-weight:bold; margin-bottom:5px;">手動コマ指定（フレーム単位）</div>
+            <div style="font-size:13px; font-weight:bold; margin-bottom:2px;">手動コマ指定（フレーム単位）</div>
+            <div style="font-size:11px; color:#888; margin-bottom:6px;">💡 画面上を左右にスライドで高速シークできます</div>
             <div style="font-size:12px; color:#666;" id="jump-frame-status">現在の再生位置: 0.000s</div>
             <div class="frame-btn-group">
                 <button class="frame-btn" onclick="stepJumpVideo(-0.033)">-1コマ</button>
@@ -427,7 +422,7 @@
                 <div class="data-value" id="jump-rsi">0.00</div>
             </div>
         </div>
-        <button class="action-btn btn-green" id="jump-start-btn">録画・計測開始</button>
+        <button class="action-btn btn-green" id="jump-start-btn" onclick="toggleJumpMeasurement()">録画・計測開始</button>
     </div>
 
     <!-- 5. SPRINTPEAK（中間走解析） -->
@@ -534,6 +529,30 @@
 
     // --- 音響処理 ---
     let audioCtx = null;
+    function initAudioContext() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    // 録画開始の通知音（ピッ：高めの単音）
+    function playStartSound() {
+        initAudioContext();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = 1200;
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    // 録画停止の通知音（ピピッ：2連音）
+    function playStopSound() {
+        initAudioContext();
+        playBeep(800, 0.1);
+        setTimeout(() => playBeep(600, 0.15), 120);
+    }
+
     function speak(text) {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
@@ -543,9 +562,9 @@
             window.speechSynthesis.speak(uttr);
         }
     }
+
     function playGunshot() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+        initAudioContext();
         const bufferSize = audioCtx.sampleRate * 0.3;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -563,9 +582,9 @@
         noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
         noise.start();
     }
+
     function playBeep(freq = 800, duration = 0.15) {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+        initAudioContext();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.frequency.value = freq;
@@ -573,11 +592,6 @@
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.start(); osc.stop(audioCtx.currentTime + duration);
-    }
-    function playFinishAlarm() {
-        playBeep(1000, 0.2);
-        setTimeout(() => playBeep(1200, 0.2), 200);
-        setTimeout(() => playBeep(1500, 0.4), 400);
     }
 
     function updateValueDisplay(id, val) { document.getElementById(id).innerText = parseFloat(val).toFixed(1) + " 秒"; }
@@ -598,7 +612,6 @@
     };
 
     async function startCameraForTab(tabId) {
-        // 既存ストリームを安全に解放
         if (currentStream) {
             currentStream.getTracks().forEach(track => track.stop());
             currentStream = null;
@@ -648,21 +661,81 @@
         const targetContent = document.getElementById('tab-' + tabId);
         if (targetContent) targetContent.classList.add('active');
 
-        // タブ切替時にカメラを更新・起動
         startCameraForTab(tabId);
     }
 
     function toggleCameraFacing(tabName) {
-        tabCameraFacing[tabName] = tabCameraFacing[tabName] === 'user' ? 'environment' : 'user';
+        tabCameraFacing[tabName] = tabName === 'user' ? 'environment' : 'user';
         startCameraForTab(tabName);
     }
 
-    // --- MyJump 手動コマ指定ロジック ---
-    let jumpTakeoffTime = null;
-    let jumpLandingTime = null;
+    // --- MyJump 録画計測ボタン状態管理 & 音声フィードバック ---
+    let isRecordingJump = false;
+    function toggleJumpMeasurement() {
+        const btn = document.getElementById('jump-start-btn');
+        if (!isRecordingJump) {
+            isRecordingJump = true;
+            btn.innerText = "計測停止";
+            btn.className = "action-btn btn-red";
+            playStartSound(); // 開始音
+        } else {
+            isRecordingJump = false;
+            btn.innerText = "録画・計測開始";
+            btn.className = "action-btn btn-green";
+            playStopSound(); // 停止音
+        }
+    }
 
+    // --- MyJump 動画スライドスクラブ（手動シーク）ロジック ---
+    const jumpVideoContainer = document.getElementById('jump-video-container');
     const jumpVideo = document.getElementById('jump-video');
-    if (jumpVideo) {
+    let isDraggingVideo = false;
+    let startX = 0;
+    let startTime = 0;
+
+    if (jumpVideoContainer && jumpVideo) {
+        // タッチイベント
+        jumpVideoContainer.addEventListener('touchstart', (e) => {
+            if (!jumpVideo.duration) return;
+            isDraggingVideo = true;
+            startX = e.touches[0].clientX;
+            startTime = jumpVideo.currentTime;
+            jumpVideo.pause();
+        }, { passive: true });
+
+        jumpVideoContainer.addEventListener('touchmove', (e) => {
+            if (!isDraggingVideo || !jumpVideo.duration) return;
+            const deltaX = e.touches[0].clientX - startX;
+            // 横幅の移動距離を動画時間のスクラブへ変換 (画面幅いっぱいのドラッグで10秒シーク)
+            const sensitivity = 10 / jumpVideoContainer.clientWidth;
+            let targetTime = startTime + (deltaX * sensitivity);
+            targetTime = Math.max(0, Math.min(jumpVideo.duration, targetTime));
+            jumpVideo.currentTime = targetTime;
+        }, { passive: true });
+
+        jumpVideoContainer.addEventListener('touchend', () => { isDraggingVideo = false; });
+
+        // マウスイベント (PCブラウザ検証用)
+        jumpVideoContainer.addEventListener('mousedown', (e) => {
+            if (!jumpVideo.duration) return;
+            isDraggingVideo = true;
+            startX = e.clientX;
+            startTime = jumpVideo.currentTime;
+            jumpVideo.pause();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingVideo || !jumpVideo.duration) return;
+            const deltaX = e.clientX - startX;
+            const sensitivity = 10 / jumpVideoContainer.clientWidth;
+            let targetTime = startTime + (deltaX * sensitivity);
+            targetTime = Math.max(0, Math.min(jumpVideo.duration, targetTime));
+            jumpVideo.currentTime = targetTime;
+        });
+
+        window.addEventListener('mouseup', () => { isDraggingVideo = false; });
+
+        // 時間更新時の数値表示
         jumpVideo.addEventListener('timeupdate', () => {
             const statusEl = document.getElementById('jump-frame-status');
             if (statusEl) {
@@ -670,6 +743,10 @@
             }
         });
     }
+
+    // --- MyJump コマ送り & 計測ロジック ---
+    let jumpTakeoffTime = null;
+    let jumpLandingTime = null;
 
     function stepJumpVideo(seconds) {
         if (jumpVideo) {
