@@ -381,7 +381,7 @@
         <button class="action-btn btn-blue" id="vbt-toggle-btn">VBT計測開始</button>
     </div>
 
-    <!-- 4. MyJump（CMJ & RSI） -->
+    <!-- 4. MyJump（CMJ計測） -->
     <div id="tab-myjump" class="tab-content">
         <div class="annotation-box">
             注釈: 正面を向いて撮影すること<br>
@@ -424,33 +424,14 @@
             </div>
         </div>
 
-        <div class="settings-card">
-            <div class="setting-item" style="margin:0;">
-                <div class="setting-header">
-                    <span>モード選択</span>
-                    <select id="jump-mode-select">
-                        <option value="cmj">CMJ (単発ジャンプ)</option>
-                        <option value="rsi">RSI (10回連続ジャンプ)</option>
-                    </select>
-                </div>
-            </div>
-        </div>
         <div class="results-grid">
-            <div class="data-card">
-                <div class="data-label">ジャンプ高 / 平均高</div>
-                <div class="data-value" id="jump-height">0.0 <span class="unit">cm</span></div>
+            <div class="data-card" style="grid-column: span 2;">
+                <div class="data-label">ジャンプ高 (CMJ)</div>
+                <div class="data-value" id="jump-height" style="font-size: 28px;">0.0 <span class="unit">cm</span></div>
             </div>
-            <div class="data-card">
-                <div class="data-label">滞空時間 (Flight)</div>
-                <div class="data-value" id="jump-ft">0.000 <span class="unit">s</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">接地時間 (Contact)</div>
-                <div class="data-value" id="jump-ct">0.000 <span class="unit">s</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">RSI 指数 (3~7位平均)</div>
-                <div class="data-value" id="jump-rsi">0.00</div>
+            <div class="data-card" style="grid-column: span 2;">
+                <div class="data-label">滞空時間 (Flight Time)</div>
+                <div class="data-value" id="jump-ft" style="font-size: 24px;">0.000 <span class="unit">s</span></div>
             </div>
         </div>
         <button class="action-btn btn-green" id="jump-start-btn" onclick="toggleJumpMeasurement()">録画開始</button>
@@ -535,7 +516,7 @@
         <button class="action-btn btn-blue" id="save-settings-btn">設定を保存</button>
     </div>
 
-    <div class="version-footer">バージョン: v2.0.1 (最新)</div>
+    <div class="version-footer">バージョン: v2.0.2 (最新)</div>
 
 </div>
 
@@ -699,6 +680,8 @@
     let recordedChunks = [];
     let recordedVideoUrl = null;
     let isRecordingJump = false;
+    let jumpTakeoffTime = null;
+    let jumpLandingTime = null;
 
     function resetJumpToLiveMode() {
         const indicator = document.getElementById('jump-mode-indicator');
@@ -719,6 +702,15 @@
             recordedVideoUrl = null;
         }
 
+        // 過去の計測数値および時間表示を完全クリア
+        jumpTakeoffTime = null;
+        jumpLandingTime = null;
+        document.getElementById('val-takeoff-time').innerText = "未指定";
+        document.getElementById('val-landing-time').innerText = "未指定";
+        document.getElementById('jump-ft').innerHTML = '0.000 <span class="unit">s</span>';
+        document.getElementById('jump-height').innerHTML = '0.0 <span class="unit">cm</span>';
+        document.getElementById('jump-frame-status').innerText = "現在の再生位置: 0.000s";
+
         startCameraForTab('myjump');
     }
 
@@ -727,7 +719,9 @@
         const indicator = document.getElementById('jump-mode-indicator');
 
         if (!isRecordingJump) {
-            // --- 録画開始 ---
+            // --- 録画開始（前回のデータを完全リセット＆ライブモニター表示へ戻す） ---
+            resetJumpToLiveMode();
+
             if (!currentStream) {
                 alert("カメラが準備できていません。");
                 return;
@@ -830,10 +824,7 @@
         });
     }
 
-    // --- MyJump コマ指定＆計算ロジック ---
-    let jumpTakeoffTime = null;
-    let jumpLandingTime = null;
-
+    // --- MyJump コマ指定＆計算ロジック (CMJ専用) ---
     function setJumpPoint(type) {
         const playVideoEl = document.getElementById('jump-play-video');
         if (!playVideoEl || !recordedVideoUrl) {
