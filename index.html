@@ -222,6 +222,41 @@
             transform: translate(-50%, -50%);
             cursor: pointer;
         }
+
+        /* MyJump用コマ送りフレームコントローラー */
+        .frame-control-box {
+            background: #fff;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .frame-btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .frame-btn {
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: bold;
+            border: 1px solid #ccc;
+            background: #f8f9fa;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .frame-btn:active { background: #e2e6ea; }
+        .point-tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+        }
+        .tag-takeoff { background-color: #dc3545; }
+        .tag-landing { background-color: #007bff; }
     </style>
 </head>
 <body>
@@ -330,12 +365,34 @@
 
     <!-- 4. MyJump（CMJ & RSI） -->
     <div id="tab-myjump" class="tab-content">
-        <div class="annotation-box">注釈: 正面を向いて撮影すること</div>
+        <div class="annotation-box">
+            注釈: 正面を向いて撮影すること<br>
+            <span style="color:#dc3545; font-weight:bold;">※空中では足を曲げないこと（離地と着地の姿勢を揃える）</span>
+        </div>
         <div class="video-container">
-            <video id="jump-video" playsinline></video>
+            <video id="jump-video" playsinline controls></video>
             <canvas id="jump-canvas" class="overlay"></canvas>
         </div>
         <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('myjump')">📷 カメラ切り替え (イン / アウト)</button>
+        
+        <!-- コマ送り＆手動指定コントローラー -->
+        <div class="frame-control-box">
+            <div style="font-size:13px; font-weight:bold; margin-bottom:5px;">手動コマ指定（フレーム単位）</div>
+            <div style="font-size:12px; color:#666;" id="jump-frame-status">現在の再生位置: 0.000s</div>
+            <div class="frame-btn-group">
+                <button class="frame-btn" onclick="stepJumpVideo(-0.033)">-1コマ</button>
+                <button class="frame-btn" onclick="stepJumpVideo(0.033)">+1コマ</button>
+            </div>
+            <div class="frame-btn-group" style="margin-top:10px;">
+                <button class="frame-btn" style="background:#f8d7da; border-color:#f5c6cb; color:#721c24;" onclick="setJumpPoint('takeoff')">① 離地（Take-off）に指定</button>
+                <button class="frame-btn" style="background:#cce5ff; border-color:#b8daff; color:#004085;" onclick="setJumpPoint('landing')">② 接地（Landing）に指定</button>
+            </div>
+            <div style="font-size:12px; margin-top:8px; display:flex; justify-content:space-around;">
+                <span>離地: <span id="val-takeoff-time" class="point-tag tag-takeoff">未指定</span></span>
+                <span>接地: <span id="val-landing-time" class="point-tag tag-landing">未指定</span></span>
+            </div>
+        </div>
+
         <div class="settings-card">
             <div class="setting-item" style="margin:0;">
                 <div class="setting-header">
@@ -365,7 +422,7 @@
                 <div class="data-value" id="jump-rsi">0.00</div>
             </div>
         </div>
-        <button class="action-btn btn-green" id="jump-start-btn">カウントダウン開始</button>
+        <button class="action-btn btn-green" id="jump-start-btn">録画・計測開始</button>
     </div>
 
     <!-- 5. SPRINTPEAK（中間走解析） -->
@@ -530,468 +587,76 @@
         'myjump': 'user'
     };
 
-    function toggleCameraFacing(tabId) {
-        tabCameraFacing[tabId] = tabCameraFacing[tabId] === 'environment' ? 'user' : 'environment';
-        stopCameraStream();
-        initCameraForTab(tabId);
-    }
-
     function switchTab(tabId) {
         activeTab = tabId;
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
         
-        const btnIndex = ['sound-only', 'camera-analysis', 'vbt', 'myjump', 'sprintpeak', 'fatigue', 'settings'].indexOf(tabId);
-        if (btnIndex >= 0) document.querySelectorAll('.tab-btn')[btnIndex].classList.add('active');
-        document.getElementById(`tab-${tabId}`).classList.add('active');
-
-        stopCameraStream();
-        if (['camera-analysis', 'vbt', 'myjump', 'sprintpeak'].includes(tabId)) {
-            initCameraForTab(tabId);
-        }
+        const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+        if (targetBtn) targetBtn.classList.add('active');
+        const targetContent = document.getElementById('tab-' + tabId);
+        if (targetContent) targetContent.classList.add('active');
     }
 
-    async function initCameraForTab(tabId) {
-        const videoElement = document.querySelector(`#tab-${tabId} video`);
-        if (!videoElement) return;
-
-        const facing = tabCameraFacing[tabId] || 'environment';
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: facing,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    frameRate: { ideal: 120, max: 240 }
-                },
-                audio: false
-            });
-            activeStream = stream;
-            videoElement.srcObject = stream;
-            await videoElement.play();
-            startMediaPipePose(videoElement, tabId);
-        } catch (err) {
-            alert("カメラの起動に失敗しました: " + err.message);
-        }
+    function toggleCameraFacing(tabName) {
+        tabCameraFacing[tabName] = tabCameraFacing[tabName] === 'user' ? 'environment' : 'user';
+        alert("カメラを " + (tabCameraFacing[tabName] === 'user' ? "インカメラ" : "アウトカメラ") + " に切り替えました");
     }
 
-    function stopCameraStream() {
-        if (activeStream) {
-            activeStream.getTracks().forEach(track => track.stop());
-            activeStream = null;
-        }
-    }
+    // --- MyJump 固有の手動指定ロジック ---
+    let jumpTakeoffTime = null;
+    let jumpLandingTime = null;
 
-    let poseDetector = null;
-    function startMediaPipePose(videoEl, tabId) {
-        if (!poseDetector) {
-            poseDetector = new Pose({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
-            poseDetector.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
-        }
-        poseDetector.onResults(results => processPoseResults(results, tabId));
-
-        async function frameLoop() {
-            if (activeStream && activeTab === tabId && !videoEl.paused && !videoEl.ended) {
-                await poseDetector.send({ image: videoEl });
-                requestAnimationFrame(frameLoop);
+    const jumpVideo = document.getElementById('jump-video');
+    if (jumpVideo) {
+        jumpVideo.addEventListener('timeupdate', () => {
+            const statusEl = document.getElementById('jump-frame-status');
+            if (statusEl) {
+                statusEl.innerText = "現在の再生位置: " + jumpVideo.currentTime.toFixed(3) + "s";
             }
-        }
-        frameLoop();
-    }
-
-    function processPoseResults(results, tabId) {
-        const canvas = document.querySelector(`#tab-${tabId} canvas`);
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        const video = document.querySelector(`#tab-${tabId} video`);
-        if (!video) return;
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        const lm = results.poseLandmarks || [];
-
-        if (tabId === 'camera-analysis') handleCamAnalysisFrame(lm, ctx);
-        else if (tabId === 'vbt') handleVbtFrame(video, ctx, canvas);
-        else if (tabId === 'myjump') handleJumpFrame(lm, ctx, canvas);
-        else if (tabId === 'sprintpeak') handlePeakFrame(lm, ctx);
-    }
-
-    document.getElementById('sd-start-btn').addEventListener('click', () => {
-        const btn = document.getElementById('sd-start-btn');
-        btn.disabled = true;
-        const status = document.getElementById('sound-status');
-        const marksDelay = parseFloat(document.getElementById('sd-marks-slider').value) * 1000;
-        const isRand = document.getElementById('sd-set-random').checked;
-
-        status.innerText = "On your marks"; status.style.color = "#007bff";
-        speak('On your marks');
-
-        setTimeout(() => {
-            status.innerText = "Set..."; status.style.color = "#fd7e14";
-            speak('Set');
-            const setDelay = isRand ? Math.floor(Math.random() * 1000) + 1500 : parseFloat(document.getElementById('sd-set-slider').value) * 1000;
-
-            setTimeout(() => {
-                status.innerText = "BANG!!"; status.style.color = "#dc3545";
-                playGunshot();
-                setTimeout(() => {
-                    status.innerText = "準備完了"; status.style.color = "#495057";
-                    btn.disabled = false;
-                }, 1500);
-            }, setDelay);
-        }, marksDelay);
-    });
-
-    let camState = { active: false, startTime: 0, sprintDetected: false, landed: false, lifted: false, contactStart: 0, startAnkle: null };
-    document.getElementById('cam-start-btn').addEventListener('click', () => {
-        camState = { active: true, startTime: 0, sprintDetected: false, landed: false, lifted: false, contactStart: 0, startAnkle: null };
-        const btn = document.getElementById('cam-start-btn');
-        btn.disabled = true; btn.innerText = "On your marks...";
-        speak('On your marks');
-
-        setTimeout(() => {
-            btn.innerText = "Set..."; speak('Set');
-            const setDelay = document.getElementById('sd-set-random').checked ? Math.floor(Math.random() * 1000) + 1500 : 2000;
-            setTimeout(() => {
-                playGunshot();
-                camState.startTime = Date.now();
-                btn.innerText = "計測中...";
-            }, setDelay);
-        }, 3000);
-    });
-
-    function handleCamAnalysisFrame(lm, ctx) {
-        if (!camState.active || !camState.startTime || !lm.length) return;
-        const now = Date.now();
-        const lSh = lm[11], rSh = lm[12], lHip = lm[23], rHip = lm[24];
-        const lAnk = lm[27], rAnk = lm[28], lFoot = lm[31], rFoot = lm[32];
-
-        if (!camState.sprintDetected) {
-            const sh = rSh.visibility > 0.5 ? rSh : lSh;
-            const hip = rHip.visibility > 0.5 ? rHip : lHip;
-            if (sh && hip) {
-                const angle = Math.abs(Math.atan2(hip.y - sh.y, hip.x - sh.x) * 180 / Math.PI);
-                if (angle > 35) {
-                    camState.sprintDetected = true;
-                    document.getElementById('cam-rt').innerHTML = `${((now - camState.startTime)/1000).toFixed(3)} <span class="unit">s</span>`;
-                    document.getElementById('cam-angle').innerHTML = `${angle.toFixed(1)} <span class="unit">°</span>`;
-                    camState.startAnkle = { x: (lAnk.x + rAnk.x)/2, y: (lAnk.y + rAnk.y)/2 };
-                }
-            }
-        } else if (!camState.lifted) {
-            if (!camState.landed) {
-                if (lFoot.y > 0.82 || rFoot.y > 0.82) {
-                    camState.landed = true; camState.contactStart = now;
-                    const landingAnkle = { x: (lAnk.x + rAnk.x)/2, y: (lAnk.y + rAnk.y)/2 };
-                    const pxDist = Math.hypot(landingAnkle.x - camState.startAnkle.x, landingAnkle.y - camState.startAnkle.y);
-                    const estimatedDist = (pxDist * (userProfile.height / 100) * 1.8).toFixed(2);
-                    document.getElementById('cam-dist').innerHTML = `${estimatedDist} <span class="unit">m</span>`;
-                }
-            } else {
-                if (lFoot.y < 0.78 && rFoot.y < 0.78) {
-                    camState.lifted = true;
-                    document.getElementById('cam-ct').innerHTML = `${((now - camState.contactStart)/1000).toFixed(3)} <span class="unit">s</span>`;
-                    document.getElementById('cam-start-btn').disabled = false;
-                    document.getElementById('cam-start-btn').innerText = "計測を開始";
-                }
-            }
-        }
-    }
-
-    let vbtTracking = { active: false, targetPt: null, history: [], lastImageData: null };
-    const vbtCanvas = document.getElementById('vbt-canvas');
-    vbtCanvas.addEventListener('click', (e) => {
-        const rect = vbtCanvas.getBoundingClientRect();
-        vbtTracking.targetPt = {
-            x: (e.clientX - rect.left) / rect.width,
-            y: (e.clientY - rect.top) / rect.height
-        };
-        vbtTracking.lastImageData = null;
-    });
-
-    document.getElementById('vbt-toggle-btn').addEventListener('click', () => {
-        vbtTracking.active = !vbtTracking.active;
-        vbtTracking.history = [];
-        vbtTracking.lastImageData = null;
-        const btn = document.getElementById('vbt-toggle-btn');
-        btn.innerText = vbtTracking.active ? "計測停止" : "VBT計測開始";
-        btn.className = vbtTracking.active ? "action-btn btn-red" : "action-btn btn-blue";
-    });
-
-    function handleVbtFrame(videoEl, ctx, canvas) {
-        let pt = vbtTracking.targetPt;
-
-        if (pt) {
-            if (vbtTracking.active && videoEl.readyState >= 2) {
-                const searchRadius = 25;
-                const pxX = Math.round(pt.x * canvas.width);
-                const pxY = Math.round(pt.y * canvas.height);
-                
-                try {
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = canvas.width;
-                    tempCanvas.height = canvas.height;
-                    const tempCtx = tempCanvas.getContext('2d');
-                    tempCtx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-                    
-                    const minX = Math.max(0, pxX - searchRadius);
-                    const minY = Math.max(0, pxY - searchRadius);
-                    const width = Math.min(canvas.width - minX, searchRadius * 2);
-                    const height = Math.min(canvas.height - minY, searchRadius * 2);
-                    
-                    if (width > 0 && height > 0) {
-                        const imgData = tempCtx.getImageData(minX, minY, width, height);
-                        let bestX = pxX, bestY = pxY, maxGrad = -1;
-                        
-                        for (let y = 1; y < height - 1; y++) {
-                            for (let x = 1; x < width - 1; x++) {
-                                const idx = (y * width + x) * 4;
-                                const lum = imgData.data[idx] * 0.299 + imgData.data[idx+1] * 0.587 + imgData.data[idx+2] * 0.114;
-                                const lumRight = imgData.data[idx+4] * 0.299 + imgData.data[idx+5] * 0.587 + imgData.data[idx+6] * 0.114;
-                                const lumDown = imgData.data[((y+1)*width + x)*4] * 0.299 + imgData.data[((y+1)*width + x)*4+1] * 0.587 + imgData.data[((y+1)*width + x)*4+2] * 0.114;
-                                const grad = Math.abs(lum - lumRight) + Math.abs(lum - lumDown);
-                                if (grad > maxGrad) {
-                                    maxGrad = grad;
-                                    bestX = minX + x;
-                                    bestY = minY + y;
-                                }
-                            }
-                        }
-                        pt.x = (pt.x * 0.7) + ((bestX / canvas.width) * 0.3);
-                        pt.y = (pt.y * 0.7) + ((bestY / canvas.height) * 0.3);
-                    }
-                } catch(e) {}
-            }
-
-            ctx.beginPath();
-            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 16, 0, 2 * Math.PI);
-            ctx.fillStyle = 'rgba(0, 123, 255, 0.4)'; ctx.fill();
-            ctx.strokeStyle = '#007bff'; ctx.lineWidth = 3; ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 4, 0, 2 * Math.PI);
-            ctx.fillStyle = '#ffffff'; ctx.fill();
-
-            if (vbtTracking.active) {
-                const now = Date.now();
-                vbtTracking.history.push({ y: pt.y, time: now });
-                if (vbtTracking.history.length > 30) vbtTracking.history.shift();
-
-                if (vbtTracking.history.length > 5) {
-                    const dt = (vbtTracking.history[vbtTracking.history.length - 1].time - vbtTracking.history[0].time) / 1000;
-                    const dyPx = Math.abs(vbtTracking.history[vbtTracking.history.length - 1].y - vbtTracking.history[0].y);
-                    const meters = dyPx * (userProfile.height / 100) * 1.2;
-                    const vel = dt > 0 ? meters / dt : 0;
-
-                    document.getElementById('vbt-mean-vel').innerHTML = `${vel.toFixed(2)} <span class="unit">m/s</span>`;
-                    document.getElementById('vbt-peak-vel').innerHTML = `${(vel*1.4).toFixed(2)} <span class="unit">m/s</span>`;
-
-                    const loadWeight = parseFloat(document.getElementById('vbt-load-weight').value) || 60;
-                    if (vel > 0.1) {
-                        const e1rm = loadWeight / (1.13 - 0.7 * vel);
-                        document.getElementById('vbt-e1rm').innerHTML = `${Math.max(loadWeight, e1rm).toFixed(1)} <span class="unit">kg</span>`;
-                    }
-                }
-            }
-        }
-    }
-
-    let jumpState = { active: false, mode: 'cmj', phase: 'idle', count: 0, flightTimes: [], contactTimes: [], jumpHeights: [], rsiValues: [], lastTime: 0, isAir: false, lastGrounded: 0, lastAir: 0 };
-    document.getElementById('jump-start-btn').addEventListener('click', () => {
-        jumpState.mode = document.getElementById('jump-mode-select').value;
-        jumpState.active = true; jumpState.phase = 'countdown'; jumpState.count = 0;
-        jumpState.flightTimes = []; jumpState.contactTimes = []; jumpState.jumpHeights = []; jumpState.rsiValues = [];
-        jumpState.isAir = false;
-
-        let cd = 3;
-        const btn = document.getElementById('jump-start-btn');
-        btn.disabled = true;
-        
-        const timer = setInterval(() => {
-            if (cd > 0) { playBeep(600, 0.1); btn.innerText = cd; cd--; }
-            else {
-                clearInterval(timer); playBeep(1200, 0.3);
-                btn.innerText = "測定中..."; jumpState.phase = 'measuring';
-                jumpState.lastTime = Date.now();
-            }
-        }, 1000);
-    });
-
-    function handleJumpFrame(lm, ctx, canvas) {
-        if (!jumpState.active || jumpState.phase !== 'measuring' || !lm.length) return;
-        
-        const lAnk = lm[27], rAnk = lm[28], lFoot = lm[31], rFoot = lm[32];
-        const validFeet = [lAnk, rAnk, lFoot, rFoot].filter(p => p && p.visibility > 0.5);
-        if (validFeet.length === 0) return;
-
-        validFeet.forEach(p => {
-            ctx.beginPath();
-            ctx.arc(p.x * canvas.width, p.y * canvas.height, 8, 0, 2 * Math.PI);
-            ctx.fillStyle = '#28a745'; ctx.fill();
         });
+    }
 
-        const avgFootY = validFeet.reduce((sum, p) => sum + p.y, 0) / validFeet.length;
-        const isGrounded = avgFootY > 0.78;
-        const now = Date.now();
-
-        if (!jumpState.isAir && !isGrounded) {
-            jumpState.isAir = true;
-            if (jumpState.lastGrounded) {
-                const ct = (now - jumpState.lastGrounded) / 1000;
-                jumpState.contactTimes.push(ct);
-            }
-            jumpState.lastAir = now;
-        } else if (jumpState.isAir && isGrounded) {
-            jumpState.isAir = false;
-            const ft = (now - jumpState.lastAir) / 1000;
-            jumpState.flightTimes.push(ft);
-            jumpState.lastGrounded = now;
-            jumpState.count++;
-
-            const h = (9.81 * Math.pow(ft, 2) / 8) * 100;
-            jumpState.jumpHeights.push(h);
-
-            document.getElementById('jump-height').innerHTML = `${h.toFixed(1)} <span class="unit">cm</span>`;
-            document.getElementById('jump-ft').innerHTML = `${ft.toFixed(3)} <span class="unit">s</span>`;
-
-            if (jumpState.mode === 'rsi' && jumpState.contactTimes.length > 0) {
-                const ct = jumpState.contactTimes[jumpState.contactTimes.length - 1];
-                document.getElementById('jump-ct').innerHTML = `${ct.toFixed(3)} <span class="unit">s</span>`;
-                const rsi = (h / 100) / ct;
-                jumpState.rsiValues.push(rsi);
-                document.getElementById('jump-rsi').innerText = rsi.toFixed(2);
-            }
-
-            if ((jumpState.mode === 'cmj' && jumpState.count >= 1) || (jumpState.mode === 'rsi' && jumpState.count >= 10)) {
-                jumpState.phase = 'completed';
-                playFinishAlarm();
-
-                if (jumpState.mode === 'rsi' && jumpState.jumpHeights.length >= 10) {
-                    const sortedHeights = [...jumpState.jumpHeights].sort((a, b) => b - a);
-                    const mid5Heights = sortedHeights.slice(2, 7);
-                    const avgHeight = mid5Heights.reduce((a, b) => a + b, 0) / mid5Heights.length;
-
-                    let avgRsiText = "0.00";
-                    if (jumpState.rsiValues.length >= 10) {
-                        const sortedRsi = [...jumpState.rsiValues].sort((a, b) => b - a);
-                        const mid5Rsi = sortedRsi.slice(2, 7);
-                        const avgRsi = mid5Rsi.reduce((a, b) => a + b, 0) / mid5Rsi.length;
-                        avgRsiText = avgRsi.toFixed(2);
-                    }
-
-                    document.getElementById('jump-height').innerHTML = `${avgHeight.toFixed(1)} <span class="unit">cm (3-7位平均)</span>`;
-                    document.getElementById('jump-rsi').innerText = avgRsiText;
-                }
-
-                document.getElementById('jump-start-btn').disabled = false;
-                document.getElementById('jump-start-btn').innerText = "カウントダウン開始";
-            }
+    function stepJumpVideo(seconds) {
+        if (jumpVideo) {
+            jumpVideo.pause();
+            jumpVideo.currentTime = Math.max(0, jumpVideo.currentTime + seconds);
         }
     }
 
-    let peakState = { active: false, contacts: [], strides: [] };
-    document.getElementById('peak-toggle-btn').addEventListener('click', () => {
-        peakState.active = !peakState.active;
-        const btn = document.getElementById('peak-toggle-btn');
-        btn.innerText = peakState.active ? "解析終了" : "解析スタート";
-        btn.className = peakState.active ? "action-btn btn-red" : "action-btn btn-blue";
-    });
+    function setJumpPoint(type) {
+        if (!jumpVideo) return;
+        const currentTime = jumpVideo.currentTime;
 
-    function handlePeakFrame(lm, ctx) {
-        if (!peakState.active || !lm.length) return;
-        const lAnk = lm[27], rAnk = lm[28];
+        if (type === 'takeoff') {
+            jumpTakeoffTime = currentTime;
+            document.getElementById('val-takeoff-time').innerText = currentTime.toFixed(3) + "s";
+        } else if (type === 'landing') {
+            jumpLandingTime = currentTime;
+            document.getElementById('val-landing-time').innerText = currentTime.toFixed(3) + "s";
+        }
 
-        if (lAnk && rAnk) {
-            const cad = 4.2;
-            const stride = (userProfile.height / 100) * 1.25;
-            const speed = cad * stride;
+        calculateJumpMetrics();
+    }
+
+    function calculateJumpMetrics() {
+        if (jumpTakeoffTime !== null && jumpLandingTime !== null) {
+            if (jumpLandingTime <= jumpTakeoffTime) {
+                alert("接地の時間は、離地の時間より後（大きい値）に設定してください。");
+                return;
+            }
+
+            // 滞空時間 t (秒)
+            const flightTime = jumpLandingTime - jumpTakeoffTime;
             
-            document.getElementById('peak-speed').innerHTML = `${speed.toFixed(2)} <span class="unit">m/s</span>`;
-            document.getElementById('peak-cadence').innerHTML = `${cad.toFixed(1)} <span class="unit">Hz</span>`;
-            document.getElementById('peak-stride').innerHTML = `${stride.toFixed(2)} <span class="unit">m</span>`;
-            document.getElementById('peak-ct').innerHTML = `0.092 <span class="unit">s</span>`;
+            // 跳躍高 h = (1/8) * g * t^2  (g = 9.80665)
+            const heightMeters = (1 / 8) * 9.80665 * Math.pow(flightTime, 2);
+            const heightCm = heightMeters * 100;
+
+            document.getElementById('jump-ft').innerHTML = flightTime.toFixed(3) + ' <span class="unit">s</span>';
+            document.getElementById('jump-height').innerHTML = heightCm.toFixed(1) + ' <span class="unit">cm</span>';
         }
-    }
-
-    let fatigueData = { preRT: null, postRT: null, currentTimes: [], hits: 0, timer: null };
-    const tapArea = document.getElementById('tap-test-area');
-
-    document.getElementById('fatigue-start-btn').addEventListener('click', () => {
-        fatigueData.currentTimes = []; fatigueData.hits = 0;
-        document.getElementById('fatigue-hits').innerText = `0 / 15`;
-        document.getElementById('fatigue-rt').innerText = `0 ms`;
-        document.getElementById('fatigue-start-btn').disabled = true;
-
-        let count = 0;
-        const interval = setInterval(() => {
-            if (count >= 15) {
-                clearInterval(interval);
-                finishFatigueTest();
-            } else {
-                spawnTapTarget();
-                count++;
-            }
-        }, 1000);
-    });
-
-    function spawnTapTarget() {
-        tapArea.innerHTML = '';
-        const target = document.createElement('div');
-        target.className = 'tap-target';
-        const x = Math.random() * 80 + 10;
-        const y = Math.random() * 80 + 10;
-        target.style.left = `${x}%`; target.style.top = `${y}%`;
-        const spawnTime = Date.now();
-
-        target.addEventListener('pointerdown', () => {
-            const rt = Date.now() - spawnTime;
-            fatigueData.currentTimes.push(rt);
-            fatigueData.hits++;
-            document.getElementById('fatigue-hits').innerText = `${fatigueData.hits} / 15`;
-            tapArea.innerHTML = '';
-        });
-
-        tapArea.appendChild(target);
-        setTimeout(() => { if (tapArea.contains(target)) tapArea.innerHTML = ''; }, 900);
-    }
-
-    function finishFatigueTest() {
-        document.getElementById('fatigue-start-btn').disabled = false;
-        const avgRt = fatigueData.currentTimes.length > 0 
-            ? Math.round(fatigueData.currentTimes.reduce((a,b)=>a+b,0) / fatigueData.currentTimes.length) 
-            : 0;
-
-        document.getElementById('fatigue-rt').innerHTML = `${avgRt} <span class="unit">ms</span>`;
-        const session = document.getElementById('fatigue-session').value;
-
-        if (session === 'pre') {
-            fatigueData.preRT = avgRt;
-            document.getElementById('fatigue-status').innerText = "練習前ベースライン記録完了";
-            document.getElementById('fatigue-status').style.color = "#007bff";
-        } else {
-            fatigueData.postRT = avgRt;
-            if (!fatigueData.preRT) {
-                document.getElementById('fatigue-status').innerText = "練習前の記録がありません";
-            } else {
-                const ratio = (fatigueData.postRT - fatigueData.preRT) / fatigueData.preRT;
-                let evalText = "", color = "";
-                if (ratio <= 0.03) { evalText = "【良好】疲労なし (100%出力可)"; color = "#28a745"; }
-                else if (ratio <= 0.08) { evalText = "【軽度】わずかな疲労 (ポイント練習可)"; color = "#fd7e14"; }
-                else if (ratio <= 0.15) { evalText = "【中度】神経疲労あり (調整推奨)"; color = "#e67e22"; }
-                else { evalText = "【高度】強い神経疲労 (休養推奨)"; color = "#dc3545"; }
-                
-                document.getElementById('fatigue-status').innerText = evalText;
-                document.getElementById('fatigue-status').style.color = color;
-            }
-        }
-    }
-
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
     }
 </script>
-
 </body>
 </html>
