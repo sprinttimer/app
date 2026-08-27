@@ -3,8 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <!-- キャッシュ自動更新・無効化設定 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     <title>Sprint Timer Pro</title>
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json?v=2">
     <meta name="theme-color" content="#111">
     <style>
         body {
@@ -305,7 +310,7 @@
     <!-- 2. カメラ解析 -->
     <div id="tab-camera-analysis" class="tab-content">
         <div class="video-container">
-            <video id="cam-video" playsinline></video>
+            <video id="cam-video" playsinline muted></video>
             <canvas id="cam-canvas" class="overlay"></canvas>
         </div>
         <div class="results-grid">
@@ -333,7 +338,7 @@
     <div id="tab-vbt" class="tab-content">
         <div class="annotation-box">注釈: 横からの撮影とプレートをタップで精度向上</div>
         <div class="video-container">
-            <video id="vbt-video" playsinline></video>
+            <video id="vbt-video" playsinline muted></video>
             <canvas id="vbt-canvas" class="overlay"></canvas>
         </div>
         <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('vbt')">📷 カメラ切り替え (イン / アウト)</button>
@@ -370,7 +375,7 @@
             <span style="color:#dc3545; font-weight:bold;">※空中では足を曲げないこと（離地と着地の姿勢を揃える）</span>
         </div>
         <div class="video-container">
-            <video id="jump-video" playsinline controls></video>
+            <video id="jump-video" playsinline muted controls></video>
             <canvas id="jump-canvas" class="overlay"></canvas>
         </div>
         <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('myjump')">📷 カメラ切り替え (イン / アウト)</button>
@@ -428,7 +433,7 @@
     <!-- 5. SPRINTPEAK（中間走解析） -->
     <div id="tab-sprintpeak" class="tab-content">
         <div class="video-container">
-            <video id="peak-video" playsinline></video>
+            <video id="peak-video" playsinline muted></video>
             <canvas id="peak-canvas" class="overlay"></canvas>
         </div>
         <div class="results-grid">
@@ -511,6 +516,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
 <script>
+    // --- ユーザー設定 ---
     let userProfile = { height: 170, weight: 65 };
     function loadProfile() {
         const saved = localStorage.getItem('sprint_pro_profile');
@@ -526,6 +532,7 @@
     });
     loadProfile();
 
+    // --- 音響処理 ---
     let audioCtx = null;
     function speak(text) {
         if ('speechSynthesis' in window) {
@@ -580,12 +587,56 @@
         document.getElementById(displayId).innerText = isRand ? "ランダム" : parseFloat(document.getElementById(sliderId).value).toFixed(1) + " 秒";
     }
 
-    let activeStream = null;
+    // --- カメラストリーム制御ロジック ---
+    let currentStream = null;
     let activeTab = 'sound-only';
     let tabCameraFacing = {
+        'camera-analysis': 'environment',
         'vbt': 'environment',
-        'myjump': 'user'
+        'myjump': 'user',
+        'sprintpeak': 'environment'
     };
+
+    async function startCameraForTab(tabId) {
+        // 既存ストリームを安全に解放
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+
+        const cameraTabs = {
+            'camera-analysis': 'cam-video',
+            'vbt': 'vbt-video',
+            'myjump': 'jump-video',
+            'sprintpeak': 'peak-video'
+        };
+
+        const videoId = cameraTabs[tabId];
+        if (!videoId) return;
+
+        const facingMode = tabCameraFacing[tabId] || 'user';
+        const constraints = {
+            video: {
+                facingMode: { ideal: facingMode },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        };
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            currentStream = stream;
+            const videoEl = document.getElementById(videoId);
+            if (videoEl) {
+                videoEl.srcObject = stream;
+                await videoEl.play();
+            }
+        } catch (err) {
+            console.error("カメラ起動失敗:", err);
+            alert("カメラを起動できませんでした。ブラウザのカメラアクセス権限およびHTTPS接続をご確認ください。");
+        }
+    }
 
     function switchTab(tabId) {
         activeTab = tabId;
@@ -596,14 +647,17 @@
         if (targetBtn) targetBtn.classList.add('active');
         const targetContent = document.getElementById('tab-' + tabId);
         if (targetContent) targetContent.classList.add('active');
+
+        // タブ切替時にカメラを更新・起動
+        startCameraForTab(tabId);
     }
 
     function toggleCameraFacing(tabName) {
         tabCameraFacing[tabName] = tabCameraFacing[tabName] === 'user' ? 'environment' : 'user';
-        alert("カメラを " + (tabCameraFacing[tabName] === 'user' ? "インカメラ" : "アウトカメラ") + " に切り替えました");
+        startCameraForTab(tabName);
     }
 
-    // --- MyJump 固有の手動指定ロジック ---
+    // --- MyJump 手動コマ指定ロジック ---
     let jumpTakeoffTime = null;
     let jumpLandingTime = null;
 
@@ -646,16 +700,24 @@
                 return;
             }
 
-            // 滞空時間 t (秒)
             const flightTime = jumpLandingTime - jumpTakeoffTime;
-            
-            // 跳躍高 h = (1/8) * g * t^2  (g = 9.80665)
             const heightMeters = (1 / 8) * 9.80665 * Math.pow(flightTime, 2);
             const heightCm = heightMeters * 100;
 
             document.getElementById('jump-ft').innerHTML = flightTime.toFixed(3) + ' <span class="unit">s</span>';
             document.getElementById('jump-height').innerHTML = heightCm.toFixed(1) + ' <span class="unit">cm</span>';
         }
+    }
+
+    // --- PWA Service Worker 自動更新 & キャッシュ自動削除ロジック ---
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                    registration.update();
+                }
+            });
+        });
     }
 </script>
 </body>
