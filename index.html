@@ -189,7 +189,6 @@
             color: #495057;
         }
 
-        /* 神経疲労テスト用エリア */
         #tap-test-area {
             position: relative;
             width: 100%;
@@ -438,7 +437,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
 <script>
-    // --- 共通ストレージ & プロフィール設定 ---
     let userProfile = { height: 170, weight: 65 };
     function loadProfile() {
         const saved = localStorage.getItem('sprint_pro_profile');
@@ -454,7 +452,6 @@
     });
     loadProfile();
 
-    // --- 音声 synthesis & Web Audio ---
     let audioCtx = null;
     function speak(text) {
         if ('speechSynthesis' in window) {
@@ -497,7 +494,6 @@
         osc.start(); osc.stop(audioCtx.currentTime + duration);
     }
 
-    // UIヘルパー
     function updateValueDisplay(id, val) { document.getElementById(id).innerText = parseFloat(val).toFixed(1) + " 秒"; }
     function toggleRandom(cbId, sliderId, displayId) {
         const isRand = document.getElementById(cbId).checked;
@@ -505,7 +501,6 @@
         document.getElementById(displayId).innerText = isRand ? "ランダム" : parseFloat(document.getElementById(sliderId).value).toFixed(1) + " 秒";
     }
 
-    // --- タブ切り替え & カメラストリーム一元管理 ---
     let activeStream = null;
     let activeTab = 'sound-only';
 
@@ -529,7 +524,6 @@
         if (!videoElement) return;
 
         try {
-            // ブラウザ/端末上限のフレームレート(最高FPS)をリクエスト
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: 'environment',
@@ -555,7 +549,6 @@
         }
     }
 
-    // --- MediaPipe Pose パイプライン ---
     let poseDetector = null;
     function startMediaPipePose(videoEl, tabId) {
         if (!poseDetector) {
@@ -573,7 +566,6 @@
         frameLoop();
     }
 
-    // --- Pose結果のタブ別振り分け ---
     function processPoseResults(results, tabId) {
         const canvas = document.querySelector(`#tab-${tabId} canvas`);
         if (!canvas) return;
@@ -594,7 +586,6 @@
         else if (tabId === 'sprintpeak') handlePeakFrame(lm, ctx);
     }
 
-    // 1. SD (スタート音のみ)
     document.getElementById('sd-start-btn').addEventListener('click', () => {
         const btn = document.getElementById('sd-start-btn');
         btn.disabled = true;
@@ -621,7 +612,6 @@
         }, marksDelay);
     });
 
-    // 2. カメラ解析
     let camState = { active: false, startTime: 0, sprintDetected: false, landed: false, lifted: false, contactStart: 0, startAnkle: null };
     document.getElementById('cam-start-btn').addEventListener('click', () => {
         camState = { active: true, startTime: 0, sprintDetected: false, landed: false, lifted: false, contactStart: 0, startAnkle: null };
@@ -678,7 +668,6 @@
         }
     }
 
-    // 3. VBT（挙上速度計測・タップトラッキング）
     let vbtTracking = { active: false, targetPt: null, history: [] };
     const vbtCanvas = document.getElementById('vbt-canvas');
     vbtCanvas.addEventListener('click', (e) => {
@@ -698,7 +687,6 @@
     });
 
     function handleVbtFrame(lm, ctx, canvas) {
-        // オブジェクト指定タップまたは右手首(16)自動補完
         let pt = vbtTracking.targetPt;
         if (!pt && lm[16] && lm[16].visibility > 0.5) pt = { x: lm[16].x, y: lm[16].y };
 
@@ -716,14 +704,12 @@
                 if (vbtTracking.history.length > 5) {
                     const dt = (vbtTracking.history[vbtTracking.history.length - 1].time - vbtTracking.history[0].time) / 1000;
                     const dyPx = Math.abs(vbtTracking.history[vbtTracking.history.length - 1].y - vbtTracking.history[0].y);
-                    const meters = dyPx * (userProfile.height / 100) * 1.2; // 画角比スケール
+                    const meters = dyPx * (userProfile.height / 100) * 1.2;
                     const vel = dt > 0 ? meters / dt : 0;
 
                     document.getElementById('vbt-mean-vel').innerHTML = `${vel.toFixed(2)} <span class="unit">m/s</span>`;
-                    const maxVel = Math.max(...vbtTracking.history.map((h, i, arr) => i===0?0:Math.abs(h.y - arr[i-1].y)*1.8*1000/(h.time-arr[i-1].time)));
                     document.getElementById('vbt-peak-vel').innerHTML = `${(vel*1.4).toFixed(2)} <span class="unit">m/s</span>`;
 
-                    // e1RM 計算 (Bazzani / Mean Velocity 回帰モデル)
                     const loadWeight = parseFloat(document.getElementById('vbt-load-weight').value) || 60;
                     if (vel > 0.1) {
                         const e1rm = loadWeight / (1.13 - 0.7 * vel);
@@ -734,7 +720,6 @@
         }
     }
 
-    // 4. MyJump（CMJ & RSI）
     let jumpState = { active: false, mode: 'cmj', phase: 'idle', count: 0, flightTimes: [], contactTimes: [], lastTime: 0 };
     document.getElementById('jump-start-btn').addEventListener('click', () => {
         jumpState.mode = document.getElementById('jump-mode-select').value;
@@ -761,21 +746,21 @@
         const isGrounded = (lAnk.y > 0.78 || rAnk.y > 0.78);
         const now = Date.now();
 
-        if (!jumpState.isAir && !isGrounded) { // 離地検知
+        if (!jumpState.isAir && !isGrounded) {
             jumpState.isAir = true;
             if (jumpState.lastGrounded) {
                 const ct = (now - jumpState.lastGrounded) / 1000;
                 jumpState.contactTimes.push(ct);
             }
             jumpState.lastAir = now;
-        } else if (jumpState.isAir && isGrounded) { // 接地検知
+        } else if (jumpState.isAir && isGrounded) {
             jumpState.isAir = false;
             const ft = (now - jumpState.lastAir) / 1000;
             jumpState.flightTimes.push(ft);
             jumpState.lastGrounded = now;
             jumpState.count++;
 
-            const h = (9.81 * Math.pow(ft, 2) / 8) * 100; // Jump Height (cm)
+            const h = (9.81 * Math.pow(ft, 2) / 8) * 100;
             document.getElementById('jump-height').innerHTML = `${h.toFixed(1)} <span class="unit">cm</span>`;
             document.getElementById('jump-ft').innerHTML = `${ft.toFixed(3)} <span class="unit">s</span>`;
 
@@ -794,7 +779,6 @@
         }
     }
 
-    // 5. SPRINTPEAK（中間走解析）
     let peakState = { active: false, contacts: [], strides: [] };
     document.getElementById('peak-toggle-btn').addEventListener('click', () => {
         peakState.active = !peakState.active;
@@ -806,12 +790,10 @@
     function handlePeakFrame(lm, ctx) {
         if (!peakState.active) return;
         const lAnk = lm[27], rAnk = lm[28];
-        const now = Date.now();
 
-        // 足首の横移動速度・頻度解析
         if (lAnk && rAnk) {
-            const cad = 4.2; // 推定ピッチ (Hz)
-            const stride = (userProfile.height / 100) * 1.25; // 推定ストライド (m)
+            const cad = 4.2;
+            const stride = (userProfile.height / 100) * 1.25;
             const speed = cad * stride;
             
             document.getElementById('peak-speed').innerHTML = `${speed.toFixed(2)} <span class="unit">m/s</span>`;
@@ -821,7 +803,6 @@
         }
     }
 
-    // 6. 神経疲労チェック (15秒ランダムタップ)
     let fatigueData = { preRT: null, postRT: null, currentTimes: [], hits: 0, timer: null };
     const tapArea = document.getElementById('tap-test-area');
 
@@ -895,554 +876,8 @@
         }
     }
 
-    // ServiceWorker (PWA)
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
-    }
-</script>
-
-</body>
-</html>            border: none;
-            border-bottom: 3px solid transparent;
-            border-radius: 0;
-            margin: 0;
-            cursor: pointer;
-        }
-        .tab-btn.active {
-            color: #fff;
-            border-bottom: 3px solid #28a745;
-            background-color: #222;
-        }
-
-        #main-container {
-            padding: 15px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-
-        #video-container {
-            position: relative;
-            width: 100%;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #000;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        video, canvas {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        .results-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .data-card {
-            background-color: #fff;
-            border-radius: 10px;
-            padding: 12px 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        .data-label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 4px;
-            font-weight: bold;
-        }
-        .data-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #111;
-        }
-        .unit {
-            font-size: 14px;
-            margin-left: 2px;
-            color: #666;
-            font-weight: normal;
-        }
-
-        .settings-card {
-            background-color: #fff;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            text-align: left;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        .settings-card h3 {
-            margin-top: 0;
-            font-size: 16px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
-        }
-        .setting-item {
-            margin-bottom: 15px;
-        }
-        .setting-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .setting-value {
-            color: #007bff;
-            font-size: 15px;
-        }
-        input[type="range"] {
-            width: 100%;
-            margin: 5px 0;
-        }
-        .checkbox-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: #555;
-            margin-bottom: 8px;
-        }
-
-        button.action-btn {
-            width: 100%;
-            padding: 16px;
-            font-size: 18px;
-            font-weight: bold;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            margin-bottom: 10px;
-        }
-        button.action-btn:active {
-            transform: scale(0.98);
-        }
-        .btn-green {
-            background-color: #28a745;
-            color: white;
-        }
-
-        .status-box {
-            background-color: #e9ecef;
-            padding: 20px;
-            border-radius: 10px;
-            font-size: 22px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: #495057;
-        }
-
-        .detected-frame {
-            border: 4px solid #e74c3c;
-        }
-    </style>
-</head>
-<body>
-
-<header>Sprint Timer Pro</header>
-
-<div class="tab-menu">
-    <button class="tab-btn active" onclick="switchTab('sound-only')">スタート音のみ (SD)</button>
-    <button class="tab-btn" onclick="switchTab('camera-analysis')">カメラ解析＋計測</button>
-</div>
-
-<div id="main-container">
-
-    <!-- タブ1: スタート音のみモード -->
-    <div id="tab-sound-only" class="tab-content active">
-        <div class="status-box" id="sound-status">準備完了</div>
-
-        <div class="settings-card">
-            <h3>タイミング設定</h3>
-            
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>On your marks 〜 Set 間隔</span>
-                    <span class="setting-value" id="sd-marks-val">3.0 秒</span>
-                </div>
-                <input type="range" id="sd-marks-slider" min="1.0" max="20.0" step="0.5" value="3.0" oninput="updateValueDisplay('sd-marks-val', this.value)">
-            </div>
-
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>Set 〜 号砲(Bang!) 間隔</span>
-                    <span class="setting-value" id="sd-set-val">2.0 秒</span>
-                </div>
-                <div class="checkbox-row">
-                    <input type="checkbox" id="sd-set-random" checked onchange="toggleRandom('sd-set-random', 'sd-set-slider', 'sd-set-val')">
-                    <label for="sd-set-random">ランダムにする (1.5秒〜2.5秒)</label>
-                </div>
-                <input type="range" id="sd-set-slider" min="1.0" max="20.0" step="0.5" value="2.0" disabled oninput="updateValueDisplay('sd-set-val', this.value)">
-            </div>
-        </div>
-
-        <button class="action-btn btn-green" id="sd-start-btn">スタート合図を鳴らす</button>
-    </div>
-
-    <!-- タブ2: カメラ解析＋計測モード -->
-    <div id="tab-camera-analysis" class="tab-content">
-        <div id="video-container">
-            <video id="input-video" playsinline></video>
-            <canvas id="output-canvas"></canvas>
-        </div>
-
-        <div class="results-grid">
-            <div class="data-card">
-                <div class="data-label">リアクションタイム</div>
-                <div class="data-value" id="reaction-time-display">0.000 <span class="unit">s</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">飛び出し角度</div>
-                <div class="data-value" id="start-angle-display">0.0 <span class="unit">°</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">1歩目の距離</div>
-                <div class="data-value" id="step-distance-display">0.00 <span class="unit">m</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">1歩目の接地時間</div>
-                <div class="data-value" id="contact-time-display">0.000 <span class="unit">s</span></div>
-            </div>
-        </div>
-
-        <div class="settings-card">
-            <h3>計測＆タイミング設定</h3>
-
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>On your marks 〜 Set 間隔</span>
-                    <span class="setting-value" id="cam-marks-val">3.0 秒</span>
-                </div>
-                <input type="range" id="cam-marks-slider" min="1.0" max="20.0" step="0.5" value="3.0" oninput="updateValueDisplay('cam-marks-val', this.value)">
-            </div>
-
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>Set 〜 号砲(Bang!) 間隔</span>
-                    <span class="setting-value" id="cam-set-val">2.0 秒</span>
-                </div>
-                <div class="checkbox-row">
-                    <input type="checkbox" id="cam-set-random" checked onchange="toggleRandom('cam-set-random', 'cam-set-slider', 'cam-set-val')">
-                    <label for="cam-set-random">ランダムにする (1.5秒〜2.5秒)</label>
-                </div>
-                <input type="range" id="cam-set-slider" min="1.0" max="20.0" step="0.5" value="2.0" disabled oninput="updateValueDisplay('cam-set-val', this.value)">
-            </div>
-
-            <div class="setting-item" style="margin-bottom: 0;">
-                <div class="setting-header">
-                    <span>選手身長 (距離補正)</span>
-                    <div>
-                        <input type="number" id="athlete-height" value="170" style="width: 50px; text-align: center; font-size: 14px;"> <span class="unit">cm</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <button class="action-btn btn-green" id="cam-start-btn">計測を開始</button>
-    </div>
-
-</div>
-
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-
-<script>
-    let audioCtx = null;
-
-    // 音声発声 (英語発音)
-    function speak(text) {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const uttr = new SpeechSynthesisUtterance(text);
-            uttr.lang = 'en-US';
-            uttr.rate = 0.9;
-            window.speechSynthesis.speak(uttr);
-        }
-    }
-
-    // 号砲ピストル音生成
-    function playGunshot() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
-        const bufferSize = audioCtx.sampleRate * 0.4;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = buffer;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 1200;
-
-        const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(audioCtx.destination);
-        noise.start();
-    }
-
-    function updateValueDisplay(displayId, val) {
-        document.getElementById(displayId).innerText = parseFloat(val).toFixed(1) + " 秒";
-    }
-
-    function toggleRandom(checkboxId, sliderId, displayId) {
-        const isRandom = document.getElementById(checkboxId).checked;
-        const slider = document.getElementById(sliderId);
-        slider.disabled = isRandom;
-        if (isRandom) {
-            document.getElementById(displayId).innerText = "ランダム";
-        } else {
-            updateValueDisplay(displayId, slider.value);
-        }
-    }
-
-    toggleRandom('sd-set-random', 'sd-set-slider', 'sd-set-val');
-    toggleRandom('cam-set-random', 'cam-set-slider', 'cam-set-val');
-
-    function switchTab(tabName) {
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-        if (tabName === 'sound-only') {
-            document.querySelectorAll('.tab-btn')[0].classList.add('active');
-            document.getElementById('tab-sound-only').classList.add('active');
-        } else {
-            document.querySelectorAll('.tab-btn')[1].classList.add('active');
-            document.getElementById('tab-camera-analysis').classList.add('active');
-            startCamera();
-        }
-    }
-
-    // タブ1: スタート音のみモード
-    const soundStatus = document.getElementById('sound-status');
-    const sdStartBtn = document.getElementById('sd-start-btn');
-
-    sdStartBtn.addEventListener('click', () => {
-        sdStartBtn.disabled = true;
-
-        const marksToSetDelay = parseFloat(document.getElementById('sd-marks-slider').value) * 1000;
-        const isSetRandom = document.getElementById('sd-set-random').checked;
-
-        // 1. On your marks
-        soundStatus.innerText = "On your marks";
-        soundStatus.style.color = "#007bff";
-        speak('On your marks');
-
-        setTimeout(() => {
-            // 2. Set
-            soundStatus.innerText = "Set...";
-            soundStatus.style.color = "#fd7e14";
-            speak('Set');
-
-            let setToGunDelay = 2000;
-            if (isSetRandom) {
-                setToGunDelay = Math.floor(Math.random() * 1000) + 1500;
-            } else {
-                setToGunDelay = parseFloat(document.getElementById('sd-set-slider').value) * 1000;
-            }
-
-            // 3. BANG!
-            setTimeout(() => {
-                soundStatus.innerText = "BANG!!";
-                soundStatus.style.color = "#dc3545";
-                playGunshot();
-
-                setTimeout(() => {
-                    soundStatus.innerText = "準備完了";
-                    soundStatus.style.color = "#495057";
-                    sdStartBtn.disabled = false;
-                }, 1500);
-            }, setToGunDelay);
-
-        }, marksToSetDelay);
-    });
-
-    // タブ2: カメラ解析＋計測モード
-    const videoElement = document.getElementById('input-video');
-    const canvasElement = document.getElementById('output-canvas');
-    const canvasCtx = canvasElement.getContext('2d');
-    
-    const reactionTimeDisplay = document.getElementById('reaction-time-display');
-    const startAngleDisplay = document.getElementById('start-angle-display');
-    const stepDistanceDisplay = document.getElementById('step-distance-display');
-    const contactTimeDisplay = document.getElementById('contact-time-display');
-    const camStartBtn = document.getElementById('cam-start-btn');
-    const videoContainer = document.getElementById('video-container');
-    const athleteHeightInput = document.getElementById('athlete-height');
-
-    let startTime = null;
-    let sprintDetected = false;
-    let firstStepLanded = false;
-    let firstStepLifted = false;
-    let contactStartTime = 0;
-    let startAnklePos = null;
-    let cameraStarted = false;
-
-    const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-    pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.7
-    });
-    pose.onResults(onResults);
-
-    let camera = null;
-    function startCamera() {
-        if (cameraStarted) return;
-        camera = new Camera(videoElement, {
-            onFrame: async () => { await pose.send({image: videoElement}); },
-            width: 1280,
-            height: 720,
-            facingMode: 'environment'
-        });
-        camera.start().then(() => { cameraStarted = true; }).catch(err => alert("カメラの起動に失敗しました"));
-    }
-
-    function calculateAngle(shoulder, hip) {
-        const radians = Math.atan2(hip.y - shoulder.y, hip.x - shoulder.x);
-        let angle = Math.abs(radians * 180.0 / Math.PI);
-        return Math.min(Math.max(angle, 0), 90);
-    }
-
-    function onResults(results) {
-        if (!results.poseLandmarks) return;
-
-        canvasCtx.save();
-        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        canvasElement.width = videoElement.videoWidth;
-        canvasElement.height = videoElement.videoHeight;
-
-        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffffaa', lineWidth: 1.5});
-        drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#00ff00', lineWidth: 1, radius: 2});
-
-        const landmarks = results.poseLandmarks;
-        const leftShoulder = landmarks[11];
-        const rightShoulder = landmarks[12];
-        const leftHip = landmarks[23];
-        const rightHip = landmarks[24];
-        const leftAnkle = landmarks[27];
-        const rightAnkle = landmarks[28];
-        const leftFootIndex = landmarks[31];
-        const rightFootIndex = landmarks[32];
-
-        if (startTime) {
-            const currentTime = Date.now();
-
-            if (!sprintDetected) {
-                const shoulder = rightShoulder.visibility > 0.6 ? rightShoulder : leftShoulder;
-                const hip = rightHip.visibility > 0.6 ? rightHip : leftHip;
-
-                if (shoulder && hip) {
-                    const currentAngle = calculateAngle(shoulder, hip);
-
-                    if (currentAngle > 35) {
-                        sprintDetected = true;
-                        const reactionTimeSec = ((currentTime - startTime) / 1000).toFixed(3);
-                        reactionTimeDisplay.innerHTML = `${reactionTimeSec} <span class="unit">s</span>`;
-                        startAngleDisplay.innerHTML = `${currentAngle.toFixed(1)} <span class="unit">°</span>`;
-
-                        startAnklePos = { x: (leftAnkle.x + rightAnkle.x) / 2, y: (leftAnkle.y + rightAnkle.y) / 2 };
-
-                        videoContainer.classList.add('detected-frame');
-                        setTimeout(() => videoContainer.classList.remove('detected-frame'), 400);
-                    }
-                }
-            } 
-            else if (sprintDetected && !firstStepLifted) {
-                if (!firstStepLanded) {
-                    if (leftFootIndex.y > 0.85 || rightFootIndex.y > 0.85) {
-                        firstStepLanded = true;
-                        contactStartTime = currentTime;
-                        const landingAnklePos = { x: (leftAnkle.x + rightAnkle.x) / 2, y: (leftAnkle.y + rightAnkle.y) / 2 };
-
-                        const athleteHeightM = parseFloat(athleteHeightInput.value) / 100;
-                        const pixelDistance = Math.hypot(landingAnklePos.x - startAnklePos.x, landingAnklePos.y - startAnklePos.y);
-                        const estimatedStepDist = (pixelDistance * athleteHeightM * 1.8).toFixed(2);
-                        stepDistanceDisplay.innerHTML = `${estimatedStepDist} <span class="unit">m</span>`;
-                    }
-                } else {
-                    if (leftFootIndex.y < 0.80 && rightFootIndex.y < 0.80) {
-                        firstStepLifted = true;
-                        const contactTimeSec = ((currentTime - contactStartTime) / 1000).toFixed(3);
-                        contactTimeDisplay.innerHTML = `${contactTimeSec} <span class="unit">s</span>`;
-                        camStartBtn.disabled = false;
-                        camStartBtn.innerText = '計測を開始';
-                    }
-                }
-            }
-        }
-        canvasCtx.restore();
-    }
-
-    camStartBtn.addEventListener('click', () => {
-        startTime = null;
-        sprintDetected = false;
-        firstStepLanded = false;
-        firstStepLifted = false;
-
-        reactionTimeDisplay.innerHTML = '0.000 <span class="unit">s</span>';
-        startAngleDisplay.innerHTML = '0.0 <span class="unit">°</span>';
-        stepDistanceDisplay.innerHTML = '0.00 <span class="unit">m</span>';
-        contactTimeDisplay.innerHTML = '0.000 <span class="unit">s</span>';
-        camStartBtn.disabled = true;
-
-        const marksToSetDelay = parseFloat(document.getElementById('cam-marks-slider').value) * 1000;
-        const isSetRandom = document.getElementById('cam-set-random').checked;
-
-        // 1. On your marks
-        camStartBtn.innerText = 'On your marks...';
-        speak('On your marks');
-
-        setTimeout(() => {
-            // 2. Set
-            camStartBtn.innerText = 'Set...';
-            speak('Set');
-
-            let setToGunDelay = 2000;
-            if (isSetRandom) {
-                setToGunDelay = Math.floor(Math.random() * 1000) + 1500;
-            } else {
-                setToGunDelay = parseFloat(document.getElementById('cam-set-slider').value) * 1000;
-            }
-
-            // 3. BANG!
-            setTimeout(() => {
-                playGunshot();
-                startTime = Date.now();
-                camStartBtn.innerText = 'Go! (検知中)';
-            }, setToGunDelay);
-
-        }, marksToSetDelay);
-    });
-
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
     }
 </script>
 
