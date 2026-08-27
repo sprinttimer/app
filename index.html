@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <!-- キャッシュ自動更新・無効化設定 -->
+    
+    <!-- キャッシュ完全無効化ヘッダー -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
     <title>Sprint Timer Pro</title>
-    <link rel="manifest" href="manifest.json?v=2">
+    <!-- パラメータ付与で強制更新 -->
+    <link rel="manifest" href="manifest.json?v=20260827">
     <meta name="theme-color" content="#111">
     <style>
         body {
@@ -173,14 +175,6 @@
             border-radius: 6px;
             text-align: center;
         }
-        .checkbox-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: #555;
-            margin-bottom: 8px;
-        }
 
         button.action-btn {
             width: 100%;
@@ -201,16 +195,6 @@
         .btn-red { background-color: #dc3545; color: white; }
         .btn-gray { background-color: #6c757d; color: white; }
 
-        .status-box {
-            background-color: #e9ecef;
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: #495057;
-        }
-
         .annotation-box {
             background-color: #fff3cd;
             color: #856404;
@@ -221,17 +205,6 @@
             font-weight: bold;
             margin-bottom: 12px;
             text-align: center;
-        }
-
-        #tap-test-area {
-            position: relative;
-            width: 100%;
-            height: 320px;
-            background-color: #222;
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 15px;
-            touch-action: manipulation;
         }
 
         /* MyJump コマ送りコントローラー */
@@ -268,6 +241,14 @@
         }
         .tag-takeoff { background-color: #dc3545; }
         .tag-landing { background-color: #007bff; }
+
+        /* バージョン確認用バー */
+        .version-info {
+            font-size: 11px;
+            color: #888;
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
     </style>
 </head>
 <body>
@@ -275,107 +256,15 @@
 <header>Sprint Timer Pro</header>
 
 <div class="tab-menu">
-    <button class="tab-btn active" onclick="switchTab('sound-only')">SD</button>
-    <button class="tab-btn" onclick="switchTab('camera-analysis')">カメラ解析</button>
-    <button class="tab-btn" onclick="switchTab('vbt')">VBT</button>
-    <button class="tab-btn" onclick="switchTab('myjump')">MyJump</button>
-    <button class="tab-btn" onclick="switchTab('sprintpeak')">SPRINTPEAK</button>
-    <button class="tab-btn" onclick="switchTab('fatigue')">神経疲労</button>
+    <button class="tab-btn" onclick="switchTab('sound-only')">SD</button>
+    <button class="tab-btn active" onclick="switchTab('myjump')">MyJump</button>
     <button class="tab-btn" onclick="switchTab('settings')">設定</button>
 </div>
 
 <div id="main-container">
 
-    <!-- 1. SD (スタート音のみ) -->
-    <div id="tab-sound-only" class="tab-content active">
-        <div class="status-box" id="sound-status">準備完了</div>
-        <div class="settings-card">
-            <h3>タイミング設定</h3>
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>On your marks 〜 Set</span>
-                    <span class="setting-value" id="sd-marks-val">3.0 秒</span>
-                </div>
-                <input type="range" id="sd-marks-slider" min="1.0" max="20.0" step="0.5" value="3.0" oninput="updateValueDisplay('sd-marks-val', this.value)">
-            </div>
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>Set 〜 号砲</span>
-                    <span class="setting-value" id="sd-set-val">2.0 秒</span>
-                </div>
-                <div class="checkbox-row">
-                    <input type="checkbox" id="sd-set-random" checked onchange="toggleRandom('sd-set-random', 'sd-set-slider', 'sd-set-val')">
-                    <label for="sd-set-random">ランダム (1.5秒〜2.5秒)</label>
-                </div>
-                <input type="range" id="sd-set-slider" min="1.0" max="20.0" step="0.5" value="2.0" disabled oninput="updateValueDisplay('sd-set-val', this.value)">
-            </div>
-        </div>
-        <button class="action-btn btn-green" id="sd-start-btn">スタート合図開始</button>
-    </div>
-
-    <!-- 2. カメラ解析 -->
-    <div id="tab-camera-analysis" class="tab-content">
-        <div class="video-container">
-            <video id="cam-video" autoplay playsinline muted></video>
-            <canvas id="cam-canvas" class="overlay"></canvas>
-        </div>
-        <div class="results-grid">
-            <div class="data-card">
-                <div class="data-label">リアクションタイム</div>
-                <div class="data-value" id="cam-rt">0.000 <span class="unit">s</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">飛び出し角度</div>
-                <div class="data-value" id="cam-angle">0.0 <span class="unit">°</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">1歩目の距離</div>
-                <div class="data-value" id="cam-dist">0.00 <span class="unit">m</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">1歩目接地時間</div>
-                <div class="data-value" id="cam-ct">0.000 <span class="unit">s</span></div>
-            </div>
-        </div>
-        <button class="action-btn btn-green" id="cam-start-btn">計測を開始</button>
-    </div>
-
-    <!-- 3. VBT（挙上速度計測） -->
-    <div id="tab-vbt" class="tab-content">
-        <div class="annotation-box">注釈: 横からの撮影とプレートをタップで精度向上</div>
-        <div class="video-container">
-            <video id="vbt-video" autoplay playsinline muted></video>
-            <canvas id="vbt-canvas" class="overlay"></canvas>
-        </div>
-        <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('vbt')">📷 カメラ切り替え (イン / アウト)</button>
-        <div class="results-grid">
-            <div class="data-card">
-                <div class="data-label">平均速度 (Mean)</div>
-                <div class="data-value" id="vbt-mean-vel">0.00 <span class="unit">m/s</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">最高速度 (Peak)</div>
-                <div class="data-value" id="vbt-peak-vel">0.00 <span class="unit">m/s</span></div>
-            </div>
-            <div class="data-card" style="grid-column: span 2;">
-                <div class="data-label">推定1RM (e1RM)</div>
-                <div class="data-value" id="vbt-e1rm">0.0 <span class="unit">kg</span></div>
-            </div>
-        </div>
-        <div class="settings-card">
-            <h3>負荷設定</h3>
-            <div class="setting-item" style="margin:0;">
-                <div class="setting-header">
-                    <span>使用重量</span>
-                    <div><input type="number" id="vbt-load-weight" value="60"> <span class="unit">kg</span></div>
-                </div>
-            </div>
-        </div>
-        <button class="action-btn btn-blue" id="vbt-toggle-btn">VBT計測開始</button>
-    </div>
-
-    <!-- 4. MyJump（CMJ & RSI） -->
-    <div id="tab-myjump" class="tab-content">
+    <!-- MyJump（CMJ & RSI） -->
+    <div id="tab-myjump" class="tab-content active">
         <div class="annotation-box">
             注釈: 正面を向いて撮影すること<br>
             <span style="color:#dc3545; font-weight:bold;">※空中では足を曲げないこと（離地と着地の姿勢を揃える）</span>
@@ -384,9 +273,9 @@
         <div id="jump-mode-indicator" class="mode-badge badge-live">● ライブビュー（位置合わせ用）</div>
 
         <div class="video-container">
-            <!-- 動画表示要素：再生とライブカメラを1つのvideo要素で切り替え -->
-            <video id="jump-video" autoplay playsinline muted style="pointer-events:none;"></video>
-            <canvas id="jump-canvas" class="overlay"></canvas>
+            <!-- ライブ表示用と録画再生用を分離してフリーズ防止 -->
+            <video id="jump-live-video" autoplay playsinline muted style="display: block; pointer-events:none;"></video>
+            <video id="jump-play-video" playsinline style="display: none;" controls></video>
         </div>
         
         <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('myjump')">📷 カメラ切り替え (イン / アウト)</button>
@@ -397,8 +286,8 @@
             <div style="font-size:12px; color:#666;" id="jump-frame-status">現在の再生位置: 0.000s</div>
             
             <div class="frame-btn-group">
-                <button class="frame-btn" style="background:#e0a800; color:#fff; border:none;" onclick="playRecordedVideo()">▶ 録画動画を再生確認</button>
-                <button class="frame-btn" style="background:#6c757d; color:#fff; border:none;" onclick="pauseRecordedVideo()">❚❚ 停止</button>
+                <button class="frame-btn" style="background:#e0a800; color:#fff; border:none;" onclick="playRecordedVideo()">▶ 動画再生</button>
+                <button class="frame-btn" style="background:#6c757d; color:#fff; border:none;" onclick="pauseRecordedVideo()">❚❚ 一時停止</button>
             </div>
 
             <div class="frame-btn-group">
@@ -407,8 +296,8 @@
             </div>
             
             <div class="frame-btn-group" style="margin-top:10px;">
-                <button class="frame-btn" style="background:#f8d7da; border-color:#f5c6cb; color:#721c24;" onclick="setJumpPoint('takeoff')">① 離地（Take-off）に指定</button>
-                <button class="frame-btn" style="background:#cce5ff; border-color:#b8daff; color:#004085;" onclick="setJumpPoint('landing')">② 接地（Landing）に指定</button>
+                <button class="frame-btn" style="background:#f8d7da; border-color:#f5c6cb; color:#721c24;" onclick="setJumpPoint('takeoff')">① 離地（Take-off）指定</button>
+                <button class="frame-btn" style="background:#cce5ff; border-color:#b8daff; color:#004085;" onclick="setJumpPoint('landing')">② 接地（Landing）指定</button>
             </div>
             <div style="font-size:12px; margin-top:8px; display:flex; justify-content:space-around;">
                 <span>離地: <span id="val-takeoff-time" class="point-tag tag-takeoff">未指定</span></span>
@@ -416,301 +305,102 @@
             </div>
         </div>
 
-        <div class="settings-card">
-            <div class="setting-item" style="margin:0;">
-                <div class="setting-header">
-                    <span>モード選択</span>
-                    <select id="jump-mode-select">
-                        <option value="cmj">CMJ (単発ジャンプ)</option>
-                        <option value="rsi">RSI (10回連続ジャンプ)</option>
-                    </select>
-                </div>
-            </div>
-        </div>
         <div class="results-grid">
             <div class="data-card">
-                <div class="data-label">ジャンプ高 / 平均高</div>
+                <div class="data-label">ジャンプ高</div>
                 <div class="data-value" id="jump-height">0.0 <span class="unit">cm</span></div>
             </div>
             <div class="data-card">
                 <div class="data-label">滞空時間 (Flight)</div>
                 <div class="data-value" id="jump-ft">0.000 <span class="unit">s</span></div>
             </div>
-            <div class="data-card">
-                <div class="data-label">接地時間 (Contact)</div>
-                <div class="data-value" id="jump-ct">0.000 <span class="unit">s</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">RSI 指数 (3~7位平均)</div>
-                <div class="data-value" id="jump-rsi">0.00</div>
-            </div>
         </div>
         <button class="action-btn btn-green" id="jump-start-btn" onclick="toggleJumpMeasurement()">録画開始</button>
+        <button class="action-btn btn-gray" style="padding:8px; font-size:13px;" onclick="resetJumpToLiveMode()">ライブカメラ表示に戻す</button>
     </div>
 
-    <!-- 5. SPRINTPEAK（中間走解析） -->
-    <div id="tab-sprintpeak" class="tab-content">
-        <div class="video-container">
-            <video id="peak-video" autoplay playsinline muted></video>
-            <canvas id="peak-canvas" class="overlay"></canvas>
-        </div>
-        <div class="results-grid">
-            <div class="data-card">
-                <div class="data-label">推定最高速度</div>
-                <div class="data-value" id="peak-speed">0.00 <span class="unit">m/s</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">ピッチ (Cadence)</div>
-                <div class="data-value" id="peak-cadence">0.0 <span class="unit">Hz</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">推定ストライド</div>
-                <div class="data-value" id="peak-stride">0.00 <span class="unit">m</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">平均接地時間</div>
-                <div class="data-value" id="peak-ct">0.000 <span class="unit">s</span></div>
-            </div>
-        </div>
-        <button class="action-btn btn-blue" id="peak-toggle-btn">解析スタート</button>
-    </div>
-
-    <!-- 6. 神経疲労チェック -->
-    <div id="tab-fatigue" class="tab-content">
-        <div id="tap-test-area"></div>
-        <div class="settings-card">
-            <h3>計測モード・データ</h3>
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>記録タイミング</span>
-                    <select id="fatigue-session">
-                        <option value="pre">練習前 (Baseline)</option>
-                        <option value="post">練習後 (Post)</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        <div class="results-grid">
-            <div class="data-card">
-                <div class="data-label">平均反応時間</div>
-                <div class="data-value" id="fatigue-rt">0 <span class="unit">ms</span></div>
-            </div>
-            <div class="data-card">
-                <div class="data-label">成功数</div>
-                <div class="data-value" id="fatigue-hits">0 / 15</div>
-            </div>
-            <div class="data-card" style="grid-column: span 2;">
-                <div class="data-label">神経疲労度 判定 (前後比)</div>
-                <div class="data-value" id="fatigue-status" style="font-size:18px;">練習前データ未計測</div>
-            </div>
-        </div>
-        <button class="action-btn btn-green" id="fatigue-start-btn">テスト開始 (15秒)</button>
-    </div>
-
-    <!-- 7. ユーザー設定 -->
-    <div id="tab-settings" class="tab-content">
-        <div class="settings-card">
-            <h3>基本プロフィール</h3>
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>身長</span>
-                    <div><input type="number" id="user-height" value="170"> <span class="unit">cm</span></div>
-                </div>
-            </div>
-            <div class="setting-item">
-                <div class="setting-header">
-                    <span>体重</span>
-                    <div><input type="number" id="user-weight" value="65"> <span class="unit">kg</span></div>
-                </div>
-            </div>
-        </div>
-        <button class="action-btn btn-blue" id="save-settings-btn">設定を保存</button>
-    </div>
+    <!-- 画面更新確認用バージョン表記 -->
+    <div class="version-info" id="app-version-display">【バージョン: v2.0.1 (最新)】</div>
 
 </div>
 
-<!-- MediaPipe Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-
 <script>
-    // --- ユーザー設定 ---
-    let userProfile = { height: 170, weight: 65 };
-    function loadProfile() {
-        const saved = localStorage.getItem('sprint_pro_profile');
-        if (saved) userProfile = JSON.parse(saved);
-        document.getElementById('user-height').value = userProfile.height;
-        document.getElementById('user-weight').value = userProfile.weight;
-    }
-    document.getElementById('save-settings-btn').addEventListener('click', () => {
-        userProfile.height = parseFloat(document.getElementById('user-height').value) || 170;
-        userProfile.weight = parseFloat(document.getElementById('user-weight').value) || 65;
-        localStorage.setItem('sprint_pro_profile', JSON.stringify(userProfile));
-        alert("設定を保存しました");
-    });
-    loadProfile();
+    // --- 強制キャッシュクリア＆SW解除ロジック ---
+    (function clearSystemCaches() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                    registration.unregister(); // 古いSWを削除
+                }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                for (let name of names) caches.delete(name); // キャッシュストレージクリア
+            });
+        }
+    })();
 
-    // --- 音響処理 ---
-    let audioCtx = null;
-    function initAudioContext() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
-
-    function playStartSound() {
-        initAudioContext();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.frequency.value = 1200;
-        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-    }
-
-    function playStopSound() {
-        initAudioContext();
-        playBeep(800, 0.1);
-        setTimeout(() => playBeep(600, 0.15), 120);
-    }
-
-    function playBeep(freq = 800, duration = 0.15) {
-        initAudioContext();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + duration);
-    }
-
-    function updateValueDisplay(id, val) { document.getElementById(id).innerText = parseFloat(val).toFixed(1) + " 秒"; }
-    function toggleRandom(cbId, sliderId, displayId) {
-        const isRand = document.getElementById(cbId).checked;
-        document.getElementById(sliderId).disabled = isRand;
-        document.getElementById(displayId).innerText = isRand ? "ランダム" : parseFloat(document.getElementById(sliderId).value).toFixed(1) + " 秒";
-    }
-
-    // --- カメラストリーム制御ロジック ---
+    // --- カメラストリーム制御 ---
     let currentStream = null;
-    let activeTab = 'sound-only';
-    let tabCameraFacing = {
-        'camera-analysis': 'environment',
-        'vbt': 'environment',
-        'myjump': 'user',
-        'sprintpeak': 'environment'
-    };
+    let cameraFacing = 'user';
 
-    async function startCameraForTab(tabId) {
+    async function startCamera() {
         if (currentStream) {
             currentStream.getTracks().forEach(track => track.stop());
             currentStream = null;
         }
 
-        const cameraTabs = {
-            'camera-analysis': 'cam-video',
-            'vbt': 'vbt-video',
-            'myjump': 'jump-video',
-            'sprintpeak': 'peak-video'
-        };
-
-        const videoId = cameraTabs[tabId];
-        if (!videoId) return;
-
-        const facingMode = tabCameraFacing[tabId] || 'user';
         const constraints = {
-            video: {
-                facingMode: { ideal: facingMode },
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            },
+            video: { facingMode: { ideal: cameraFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: false
         };
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            currentStream = stream;
-            const videoEl = document.getElementById(videoId);
-            if (videoEl) {
-                videoEl.srcObject = stream;
-                videoEl.muted = true;
-                await videoEl.play().catch(e => console.log("Auto-play prevented:", e));
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const liveVideoEl = document.getElementById('jump-live-video');
+            if (liveVideoEl) {
+                liveVideoEl.srcObject = currentStream;
+                liveVideoEl.muted = true;
+                await liveVideoEl.play().catch(e => console.log(e));
             }
         } catch (err) {
-            console.error("カメラ起動失敗:", err);
-            alert("カメラを起動できませんでした。ブラウザのカメラアクセス権限をご確認ください。");
+            alert("カメラ起動に失敗しました: " + err.message);
         }
     }
 
-    function switchTab(tabId) {
-        activeTab = tabId;
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        
-        const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
-        if (targetBtn) targetBtn.classList.add('active');
-        const targetContent = document.getElementById('tab-' + tabId);
-        if (targetContent) targetContent.classList.add('active');
-
-        // MyJumpタブを開いたときはライブカメラ表示状態に戻す
-        if (tabId === 'myjump') {
-            resetJumpToLiveMode();
-        } else {
-            startCameraForTab(tabId);
-        }
+    function toggleCameraFacing() {
+        cameraFacing = cameraFacing === 'user' ? 'environment' : 'user';
+        startCamera();
     }
 
-    function toggleCameraFacing(tabName) {
-        tabCameraFacing[tabName] = tabCameraFacing[tabName] === 'user' ? 'environment' : 'user';
-        if (tabName === 'myjump') {
-            resetJumpToLiveMode();
-        } else {
-            startCameraForTab(tabName);
-        }
-    }
-
-    // --- MyJump 録画＆再生モード制御 ---
+    // --- MyJump 録画＆再生切替ロジック ---
     let mediaRecorder = null;
     let recordedChunks = [];
     let recordedVideoUrl = null;
     let isRecordingJump = false;
 
-    function resetJumpToLiveMode() {
-        const indicator = document.getElementById('jump-mode-indicator');
-        const jumpVideoEl = document.getElementById('jump-video');
-        
-        indicator.innerText = "● ライブビュー（位置合わせ用）";
-        indicator.className = "mode-badge badge-live";
-        
-        if (recordedVideoUrl) {
-            URL.revokeObjectURL(recordedVideoUrl);
-            recordedVideoUrl = null;
-        }
-
-        startCameraForTab('myjump');
-    }
-
     function toggleJumpMeasurement() {
         const btn = document.getElementById('jump-start-btn');
         const indicator = document.getElementById('jump-mode-indicator');
+        const liveVideo = document.getElementById('jump-live-video');
+        const playVideo = document.getElementById('jump-play-video');
 
         if (!isRecordingJump) {
-            // --- 録画開始 ---
-            if (!currentStream) {
-                alert("カメラが準備できていません。");
-                return;
-            }
+            // 【録画開始】
+            if (!currentStream) { alert("カメラを準備中..."); return; }
+
+            // 表示をライブカメラ画面に確実にする
+            liveVideo.style.display = 'block';
+            playVideo.style.display = 'none';
 
             recordedChunks = [];
+            const options = MediaRecorder.isTypeSupported('video/mp4') ? { mimeType: 'video/mp4' } : { mimeType: 'video/webm' };
+            
             try {
-                mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/webm' });
+                mediaRecorder = new MediaRecorder(currentStream, options);
             } catch (e) {
-                try {
-                    mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/mp4' });
-                } catch (e2) {
-                    mediaRecorder = new MediaRecorder(currentStream);
-                }
+                mediaRecorder = new MediaRecorder(currentStream);
             }
 
             mediaRecorder.ondataavailable = (e) => {
@@ -719,22 +409,27 @@
 
             mediaRecorder.onstop = () => {
                 const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/mp4' });
+                if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
                 recordedVideoUrl = URL.createObjectURL(blob);
-                setupRecordedVideo();
+                
+                // 録画完了後、再生用ビデオに切替
+                playVideo.src = recordedVideoUrl;
+                playVideo.load();
+                
+                liveVideo.style.display = 'none';
+                playVideo.style.display = 'block';
             };
 
             mediaRecorder.start();
             isRecordingJump = true;
 
-            btn.innerText = "録画停止（再生・コマ指定へ）";
+            btn.innerText = "録画停止（コマ指定画面へ）";
             btn.className = "action-btn btn-red";
-            indicator.innerText = "● 録画中...";
+            indicator.innerText = "● 録画中...（カメラ作動中）";
             indicator.className = "mode-badge badge-rec";
 
-            playStartSound();
-
         } else {
-            // --- 録画停止 ---
+            // 【録画停止】
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
             }
@@ -744,69 +439,56 @@
             btn.className = "action-btn btn-green";
             indicator.innerText = "✓ 録画完了（コマ送り確認可能）";
             indicator.className = "mode-badge badge-play";
-
-            playStopSound();
         }
     }
 
-    function setupRecordedVideo() {
-        const jumpVideoEl = document.getElementById('jump-video');
-        if (jumpVideoEl && recordedVideoUrl) {
-            jumpVideoEl.srcObject = null; // ライブストリームを解除
-            jumpVideoEl.src = recordedVideoUrl;
-            jumpVideoEl.controls = false; // 標準コントロールは非表示で安定動作
-            jumpVideoEl.load();
-            jumpVideoEl.currentTime = 0;
-        }
+    function resetJumpToLiveMode() {
+        const liveVideo = document.getElementById('jump-live-video');
+        const playVideo = document.getElementById('jump-play-video');
+        const indicator = document.getElementById('jump-mode-indicator');
+
+        playVideo.pause();
+        playVideo.style.display = 'none';
+        liveVideo.style.display = 'block';
+
+        indicator.innerText = "● ライブビュー（位置合わせ用）";
+        indicator.className = "mode-badge badge-live";
+        startCamera();
     }
 
+    // --- 動画再生＆コマ送り操作 ---
     function playRecordedVideo() {
-        const jumpVideoEl = document.getElementById('jump-video');
-        if (jumpVideoEl && recordedVideoUrl) {
-            jumpVideoEl.play();
-        } else {
-            alert("直近の録画データがありません。先に録画を行ってください。");
-        }
+        const playVideo = document.getElementById('jump-play-video');
+        if (recordedVideoUrl) playVideo.play();
     }
 
     function pauseRecordedVideo() {
-        const jumpVideoEl = document.getElementById('jump-video');
-        if (jumpVideoEl) jumpVideoEl.pause();
+        const playVideo = document.getElementById('jump-play-video');
+        playVideo.pause();
     }
 
     function stepJumpVideo(seconds) {
-        const jumpVideoEl = document.getElementById('jump-video');
-        if (jumpVideoEl && recordedVideoUrl) {
-            jumpVideoEl.pause();
-            jumpVideoEl.currentTime = Math.max(0, Math.min(jumpVideoEl.duration || 0, jumpVideoEl.currentTime + seconds));
-        } else {
-            alert("録画動画が選択されていません。先に録画を行ってください。");
+        const playVideo = document.getElementById('jump-play-video');
+        if (recordedVideoUrl) {
+            playVideo.pause();
+            playVideo.currentTime = Math.max(0, Math.min(playVideo.duration || 0, playVideo.currentTime + seconds));
         }
     }
 
-    // 再生位置のリアルタイム表示
-    const jumpVideoEl = document.getElementById('jump-video');
-    if (jumpVideoEl) {
-        jumpVideoEl.addEventListener('timeupdate', () => {
-            if (recordedVideoUrl) {
-                document.getElementById('jump-frame-status').innerText = "現在の再生位置: " + jumpVideoEl.currentTime.toFixed(3) + "s";
-            }
-        });
-    }
+    const playVideoEl = document.getElementById('jump-play-video');
+    playVideoEl.addEventListener('timeupdate', () => {
+        document.getElementById('jump-frame-status').innerText = "現在の再生位置: " + playVideoEl.currentTime.toFixed(3) + "s";
+    });
 
-    // --- MyJump コマ指定＆計算ロジック ---
+    // --- 計算ロジック ---
     let jumpTakeoffTime = null;
     let jumpLandingTime = null;
 
     function setJumpPoint(type) {
-        const jumpVideoEl = document.getElementById('jump-video');
-        if (!jumpVideoEl || !recordedVideoUrl) {
-            alert("録画完了後に指定してください。");
-            return;
-        }
+        const playVideo = document.getElementById('jump-play-video');
+        if (!recordedVideoUrl) { alert("先に録画を行ってください。"); return; }
 
-        const currentTime = jumpVideoEl.currentTime;
-
+        const currentTime = playVideo.currentTime;
         if (type === 'takeoff') {
             jumpTakeoffTime = currentTime;
             document.getElementById('val-takeoff-time').innerText = currentTime.toFixed(3) + "s";
@@ -815,35 +497,21 @@
             document.getElementById('val-landing-time').innerText = currentTime.toFixed(3) + "s";
         }
 
-        calculateJumpMetrics();
-    }
-
-    function calculateJumpMetrics() {
         if (jumpTakeoffTime !== null && jumpLandingTime !== null) {
             if (jumpLandingTime <= jumpTakeoffTime) {
-                alert("接地時間は、離地時間より後（大きな値）に指定してください。");
+                alert("接地時間は離地時間より後ろ（大きい値）を指定してください。");
                 return;
             }
-
             const flightTime = jumpLandingTime - jumpTakeoffTime;
-            const heightMeters = (1 / 8) * 9.80665 * Math.pow(flightTime, 2);
-            const heightCm = heightMeters * 100;
+            const heightCm = (1 / 8) * 9.80665 * Math.pow(flightTime, 2) * 100;
 
             document.getElementById('jump-ft').innerHTML = flightTime.toFixed(3) + ' <span class="unit">s</span>';
             document.getElementById('jump-height').innerHTML = heightCm.toFixed(1) + ' <span class="unit">cm</span>';
         }
     }
 
-    // --- PWA Service Worker 自動更新 & キャッシュ自動削除ロジック ---
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                for (let registration of registrations) {
-                    registration.update();
-                }
-            });
-        });
-    }
+    // 初期起動
+    startCamera();
 </script>
 </body>
 </html>
