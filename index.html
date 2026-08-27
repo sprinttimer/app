@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     
     <title>Sprint Timer Pro</title>
-    <link rel="manifest" href="manifest.json?v=2">
+    <link rel="manifest" href="manifest.json?v=3">
     <meta name="theme-color" content="#111">
     <style>
         body {
@@ -74,6 +74,7 @@
             margin-bottom: 12px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
             user-select: none;
+            min-height: 240px;
         }
         video, canvas {
             width: 100%;
@@ -516,7 +517,7 @@
         <button class="action-btn btn-blue" id="save-settings-btn">設定を保存</button>
     </div>
 
-    <div class="version-footer">バージョン: v2.0.2 (最新)</div>
+    <div class="version-footer">バージョン: v2.0.3 (カメラ起動修正済)</div>
 
 </div>
 
@@ -621,7 +622,7 @@
         };
 
         const videoId = cameraTabs[tabId];
-        if (!videoId) return;
+        if (!videoId) return null;
 
         const facingMode = tabCameraFacing[tabId] || 'user';
         const constraints = {
@@ -642,9 +643,11 @@
                 videoEl.muted = true;
                 await videoEl.play().catch(e => console.log("Auto-play prevented:", e));
             }
+            return stream;
         } catch (err) {
             console.error("カメラ起動失敗:", err);
             alert("カメラを起動できませんでした。ブラウザのカメラアクセス権限をご確認ください。");
+            return null;
         }
     }
 
@@ -675,7 +678,7 @@
         }
     }
 
-    // --- MyJump 録画＆再生モード制御 (要素完全分離型) ---
+    // --- MyJump 録画＆再生モード制御 ---
     let mediaRecorder = null;
     let recordedChunks = [];
     let recordedVideoUrl = null;
@@ -683,7 +686,7 @@
     let jumpTakeoffTime = null;
     let jumpLandingTime = null;
 
-    function resetJumpToLiveMode() {
+    async function resetJumpToLiveMode() {
         const indicator = document.getElementById('jump-mode-indicator');
         const liveVideoEl = document.getElementById('jump-live-video');
         const playVideoEl = document.getElementById('jump-play-video');
@@ -711,35 +714,35 @@
         document.getElementById('jump-height').innerHTML = '0.0 <span class="unit">cm</span>';
         document.getElementById('jump-frame-status').innerText = "現在の再生位置: 0.000s";
 
-        startCameraForTab('myjump');
+        return await startCameraForTab('myjump');
     }
 
-    function toggleJumpMeasurement() {
+    async function toggleJumpMeasurement() {
         const btn = document.getElementById('jump-start-btn');
         const indicator = document.getElementById('jump-mode-indicator');
 
         if (!isRecordingJump) {
-            // --- 録画開始（前回のデータを完全リセット＆ライブモニター表示へ戻す） ---
-            resetJumpToLiveMode();
+            // --- 録画開始（前回のデータを完全リセット＆カメラ再起動） ---
+            let activeStream = await resetJumpToLiveMode();
 
-            if (!currentStream) {
-                alert("カメラが準備できていません。");
+            if (!activeStream) {
+                alert("カメラの取得に失敗しました。カメラパーミッションを確認してください。");
                 return;
             }
 
             recordedChunks = [];
             try {
-                mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/webm' });
+                mediaRecorder = new MediaRecorder(activeStream, { mimeType: 'video/webm' });
             } catch (e) {
                 try {
-                    mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/mp4' });
+                    mediaRecorder = new MediaRecorder(activeStream, { mimeType: 'video/mp4' });
                 } catch (e2) {
-                    mediaRecorder = new MediaRecorder(currentStream);
+                    mediaRecorder = new MediaRecorder(activeStream);
                 }
             }
 
             mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) recordedChunks.push(e.data);
+                if (e.data && e.data.size > 0) recordedChunks.push(e.data);
             };
 
             mediaRecorder.onstop = () => {
