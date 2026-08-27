@@ -71,22 +71,35 @@
             border-radius: 12px;
             overflow: hidden;
             background: #000;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-            touch-action: none; /* スワイプシーク用のタッチイベント干渉防止 */
             user-select: none;
         }
         video, canvas {
             width: 100%;
             height: auto;
             display: block;
-            pointer-events: none; /* シーク操作を受け取るため動画自体の直接操作を無効化 */
         }
         canvas.overlay {
             position: absolute;
             top: 0;
             left: 0;
+            pointer-events: none;
         }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .badge-live { background-color: #e2e3e5; color: #383d41; }
+        .badge-rec { background-color: #f8d7da; color: #721c24; animation: blink 1s infinite; }
+        .badge-play { background-color: #d1ecf1; color: #0c5460; }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
 
         .results-grid {
             display: grid;
@@ -221,7 +234,7 @@
             touch-action: manipulation;
         }
 
-        /* MyJump用コマ送りフレームコントローラー */
+        /* MyJump コマ送りコントローラー */
         .frame-control-box {
             background: #fff;
             border-radius: 10px;
@@ -367,22 +380,32 @@
             注釈: 正面を向いて撮影すること<br>
             <span style="color:#dc3545; font-weight:bold;">※空中では足を曲げないこと（離地と着地の姿勢を揃える）</span>
         </div>
-        <div class="video-container" id="jump-video-container">
-            <!-- autoplayとplaysinlineでフリーズを防止し、画面制御はボタンと連動 -->
-            <video id="jump-video" autoplay playsinline muted></video>
+
+        <div id="jump-mode-indicator" class="mode-badge badge-live">● ライブビュー（位置合わせ用）</div>
+
+        <div class="video-container">
+            <!-- 動画表示要素：再生とライブカメラを1つのvideo要素で切り替え -->
+            <video id="jump-video" autoplay playsinline muted style="pointer-events:none;"></video>
             <canvas id="jump-canvas" class="overlay"></canvas>
         </div>
+        
         <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('myjump')">📷 カメラ切り替え (イン / アウト)</button>
         
         <!-- コマ送り＆手動指定コントローラー -->
         <div class="frame-control-box">
-            <div style="font-size:13px; font-weight:bold; margin-bottom:2px;">手動コマ指定（フレーム単位）</div>
-            <div style="font-size:11px; color:#888; margin-bottom:6px;">💡 画面停止後に左右スライドで高速シークできます</div>
+            <div style="font-size:13px; font-weight:bold; margin-bottom:4px;">録画動画の確認・コマ指定</div>
             <div style="font-size:12px; color:#666;" id="jump-frame-status">現在の再生位置: 0.000s</div>
+            
+            <div class="frame-btn-group">
+                <button class="frame-btn" style="background:#e0a800; color:#fff; border:none;" onclick="playRecordedVideo()">▶ 録画動画を再生確認</button>
+                <button class="frame-btn" style="background:#6c757d; color:#fff; border:none;" onclick="pauseRecordedVideo()">❚❚ 停止</button>
+            </div>
+
             <div class="frame-btn-group">
                 <button class="frame-btn" onclick="stepJumpVideo(-0.033)">-1コマ</button>
                 <button class="frame-btn" onclick="stepJumpVideo(0.033)">+1コマ</button>
             </div>
+            
             <div class="frame-btn-group" style="margin-top:10px;">
                 <button class="frame-btn" style="background:#f8d7da; border-color:#f5c6cb; color:#721c24;" onclick="setJumpPoint('takeoff')">① 離地（Take-off）に指定</button>
                 <button class="frame-btn" style="background:#cce5ff; border-color:#b8daff; color:#004085;" onclick="setJumpPoint('landing')">② 接地（Landing）に指定</button>
@@ -422,7 +445,7 @@
                 <div class="data-value" id="jump-rsi">0.00</div>
             </div>
         </div>
-        <button class="action-btn btn-green" id="jump-start-btn" onclick="toggleJumpMeasurement()">録画・計測開始</button>
+        <button class="action-btn btn-green" id="jump-start-btn" onclick="toggleJumpMeasurement()">録画開始</button>
     </div>
 
     <!-- 5. SPRINTPEAK（中間走解析） -->
@@ -534,7 +557,6 @@
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    // 録画開始の通知音（ピッ：高めの単音）
     function playStartSound() {
         initAudioContext();
         const osc = audioCtx.createOscillator();
@@ -546,7 +568,6 @@
         osc.start(); osc.stop(audioCtx.currentTime + 0.15);
     }
 
-    // 録画停止の通知音（ピピッ：2連音）
     function playStopSound() {
         initAudioContext();
         playBeep(800, 0.1);
@@ -613,12 +634,12 @@
             const videoEl = document.getElementById(videoId);
             if (videoEl) {
                 videoEl.srcObject = stream;
-                // 確実に再生状態にしてフリーズを防ぐ
+                videoEl.muted = true;
                 await videoEl.play().catch(e => console.log("Auto-play prevented:", e));
             }
         } catch (err) {
             console.error("カメラ起動失敗:", err);
-            alert("カメラを起動できませんでした。ブラウザのカメラアクセス権限およびHTTPS接続をご確認ください。");
+            alert("カメラを起動できませんでした。ブラウザのカメラアクセス権限をご確認ください。");
         }
     }
 
@@ -632,105 +653,159 @@
         const targetContent = document.getElementById('tab-' + tabId);
         if (targetContent) targetContent.classList.add('active');
 
-        startCameraForTab(tabId);
+        // MyJumpタブを開いたときはライブカメラ表示状態に戻す
+        if (tabId === 'myjump') {
+            resetJumpToLiveMode();
+        } else {
+            startCameraForTab(tabId);
+        }
     }
 
     function toggleCameraFacing(tabName) {
         tabCameraFacing[tabName] = tabCameraFacing[tabName] === 'user' ? 'environment' : 'user';
-        startCameraForTab(tabName);
+        if (tabName === 'myjump') {
+            resetJumpToLiveMode();
+        } else {
+            startCameraForTab(tabName);
+        }
     }
 
-    // --- MyJump 録画計測ボタン状態管理・画面連動 & 音声フィードバック ---
+    // --- MyJump 録画＆再生モード制御 ---
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordedVideoUrl = null;
     let isRecordingJump = false;
+
+    function resetJumpToLiveMode() {
+        const indicator = document.getElementById('jump-mode-indicator');
+        const jumpVideoEl = document.getElementById('jump-video');
+        
+        indicator.innerText = "● ライブビュー（位置合わせ用）";
+        indicator.className = "mode-badge badge-live";
+        
+        if (recordedVideoUrl) {
+            URL.revokeObjectURL(recordedVideoUrl);
+            recordedVideoUrl = null;
+        }
+
+        startCameraForTab('myjump');
+    }
+
     function toggleJumpMeasurement() {
         const btn = document.getElementById('jump-start-btn');
-        const jumpVideoEl = document.getElementById('jump-video');
+        const indicator = document.getElementById('jump-mode-indicator');
 
         if (!isRecordingJump) {
-            // 計測開始：動画を再開（リアルタイム表示）し、開始音を鳴らす
+            // --- 録画開始 ---
+            if (!currentStream) {
+                alert("カメラが準備できていません。");
+                return;
+            }
+
+            recordedChunks = [];
+            try {
+                mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/webm' });
+            } catch (e) {
+                try {
+                    mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/mp4' });
+                } catch (e2) {
+                    mediaRecorder = new MediaRecorder(currentStream);
+                }
+            }
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/mp4' });
+                recordedVideoUrl = URL.createObjectURL(blob);
+                setupRecordedVideo();
+            };
+
+            mediaRecorder.start();
             isRecordingJump = true;
-            btn.innerText = "計測停止（画面ストップ）";
+
+            btn.innerText = "録画停止（再生・コマ指定へ）";
             btn.className = "action-btn btn-red";
-            if (jumpVideoEl) jumpVideoEl.play();
+            indicator.innerText = "● 録画中...";
+            indicator.className = "mode-badge badge-rec";
+
             playStartSound();
+
         } else {
-            // 計測停止：動画を停止（画面ストップ）し、コマ送り確認を可能にして停止音を鳴らす
+            // --- 録画停止 ---
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
             isRecordingJump = false;
-            btn.innerText = "録画・計測開始";
+
+            btn.innerText = "録画開始";
             btn.className = "action-btn btn-green";
-            if (jumpVideoEl) jumpVideoEl.pause();
+            indicator.innerText = "✓ 録画完了（コマ送り確認可能）";
+            indicator.className = "mode-badge badge-play";
+
             playStopSound();
         }
     }
 
-    // --- MyJump 動画スライドスクラブ（手動シーク）ロジック ---
-    const jumpVideoContainer = document.getElementById('jump-video-container');
-    const jumpVideo = document.getElementById('jump-video');
-    let isDraggingVideo = false;
-    let startX = 0;
-    let startTime = 0;
+    function setupRecordedVideo() {
+        const jumpVideoEl = document.getElementById('jump-video');
+        if (jumpVideoEl && recordedVideoUrl) {
+            jumpVideoEl.srcObject = null; // ライブストリームを解除
+            jumpVideoEl.src = recordedVideoUrl;
+            jumpVideoEl.controls = false; // 標準コントロールは非表示で安定動作
+            jumpVideoEl.load();
+            jumpVideoEl.currentTime = 0;
+        }
+    }
 
-    if (jumpVideoContainer && jumpVideo) {
-        // タッチイベント
-        jumpVideoContainer.addEventListener('touchstart', (e) => {
-            isDraggingVideo = true;
-            startX = e.touches[0].clientX;
-            startTime = jumpVideo.currentTime;
-            jumpVideo.pause(); // シーク中は動画を一時停止
-        }, { passive: true });
+    function playRecordedVideo() {
+        const jumpVideoEl = document.getElementById('jump-video');
+        if (jumpVideoEl && recordedVideoUrl) {
+            jumpVideoEl.play();
+        } else {
+            alert("直近の録画データがありません。先に録画を行ってください。");
+        }
+    }
 
-        jumpVideoContainer.addEventListener('touchmove', (e) => {
-            if (!isDraggingVideo) return;
-            const deltaX = e.touches[0].clientX - startX;
-            // 横幅の移動距離を動画時間のスクラブへ変換
-            const sensitivity = 5 / jumpVideoContainer.clientWidth;
-            let targetTime = startTime + (deltaX * sensitivity);
-            jumpVideo.currentTime = Math.max(0, targetTime);
-        }, { passive: true });
+    function pauseRecordedVideo() {
+        const jumpVideoEl = document.getElementById('jump-video');
+        if (jumpVideoEl) jumpVideoEl.pause();
+    }
 
-        jumpVideoContainer.addEventListener('touchend', () => { isDraggingVideo = false; });
+    function stepJumpVideo(seconds) {
+        const jumpVideoEl = document.getElementById('jump-video');
+        if (jumpVideoEl && recordedVideoUrl) {
+            jumpVideoEl.pause();
+            jumpVideoEl.currentTime = Math.max(0, Math.min(jumpVideoEl.duration || 0, jumpVideoEl.currentTime + seconds));
+        } else {
+            alert("録画動画が選択されていません。先に録画を行ってください。");
+        }
+    }
 
-        // マウスイベント (PCブラウザ検証用)
-        jumpVideoContainer.addEventListener('mousedown', (e) => {
-            isDraggingVideo = true;
-            startX = e.clientX;
-            startTime = jumpVideo.currentTime;
-            jumpVideo.pause();
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (!isDraggingVideo) return;
-            const deltaX = e.clientX - startX;
-            const sensitivity = 5 / jumpVideoContainer.clientWidth;
-            let targetTime = startTime + (deltaX * sensitivity);
-            jumpVideo.currentTime = Math.max(0, targetTime);
-        });
-
-        window.addEventListener('mouseup', () => { isDraggingVideo = false; });
-
-        // 時間更新時の数値表示
-        jumpVideo.addEventListener('timeupdate', () => {
-            const statusEl = document.getElementById('jump-frame-status');
-            if (statusEl) {
-                statusEl.innerText = "現在の再生位置: " + jumpVideo.currentTime.toFixed(3) + "s";
+    // 再生位置のリアルタイム表示
+    const jumpVideoEl = document.getElementById('jump-video');
+    if (jumpVideoEl) {
+        jumpVideoEl.addEventListener('timeupdate', () => {
+            if (recordedVideoUrl) {
+                document.getElementById('jump-frame-status').innerText = "現在の再生位置: " + jumpVideoEl.currentTime.toFixed(3) + "s";
             }
         });
     }
 
-    // --- MyJump コマ送り & 計測ロジック ---
+    // --- MyJump コマ指定＆計算ロジック ---
     let jumpTakeoffTime = null;
     let jumpLandingTime = null;
 
-    function stepJumpVideo(seconds) {
-        if (jumpVideo) {
-            jumpVideo.pause(); // コマ送り時は画面を停止
-            jumpVideo.currentTime = Math.max(0, jumpVideo.currentTime + seconds);
-        }
-    }
-
     function setJumpPoint(type) {
-        if (!jumpVideo) return;
-        const currentTime = jumpVideo.currentTime;
+        const jumpVideoEl = document.getElementById('jump-video');
+        if (!jumpVideoEl || !recordedVideoUrl) {
+            alert("録画完了後に指定してください。");
+            return;
+        }
+
+        const currentTime = jumpVideoEl.currentTime;
 
         if (type === 'takeoff') {
             jumpTakeoffTime = currentTime;
@@ -746,7 +821,7 @@
     function calculateJumpMetrics() {
         if (jumpTakeoffTime !== null && jumpLandingTime !== null) {
             if (jumpLandingTime <= jumpTakeoffTime) {
-                alert("接地の時間は、離地の時間より後（大きい値）に設定してください。");
+                alert("接地時間は、離地時間より後（大きな値）に指定してください。");
                 return;
             }
 
