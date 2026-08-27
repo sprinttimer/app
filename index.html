@@ -80,7 +80,7 @@
             width: 100%;
             height: auto;
             display: block;
-            pointer-events: none; /* スラブ操作を受け取るため動画自体の直接操作を無効化 */
+            pointer-events: none; /* シーク操作を受け取るため動画自体の直接操作を無効化 */
         }
         canvas.overlay {
             position: absolute;
@@ -303,7 +303,7 @@
     <!-- 2. カメラ解析 -->
     <div id="tab-camera-analysis" class="tab-content">
         <div class="video-container">
-            <video id="cam-video" playsinline muted></video>
+            <video id="cam-video" autoplay playsinline muted></video>
             <canvas id="cam-canvas" class="overlay"></canvas>
         </div>
         <div class="results-grid">
@@ -331,7 +331,7 @@
     <div id="tab-vbt" class="tab-content">
         <div class="annotation-box">注釈: 横からの撮影とプレートをタップで精度向上</div>
         <div class="video-container">
-            <video id="vbt-video" playsinline muted></video>
+            <video id="vbt-video" autoplay playsinline muted></video>
             <canvas id="vbt-canvas" class="overlay"></canvas>
         </div>
         <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('vbt')">📷 カメラ切り替え (イン / アウト)</button>
@@ -367,9 +367,9 @@
             注釈: 正面を向いて撮影すること<br>
             <span style="color:#dc3545; font-weight:bold;">※空中では足を曲げないこと（離地と着地の姿勢を揃える）</span>
         </div>
-        <!-- 画面左右スワイプで動画をシーク可能 -->
         <div class="video-container" id="jump-video-container">
-            <video id="jump-video" playsinline muted controls></video>
+            <!-- autoplayとplaysinlineでフリーズを防止し、画面制御はボタンと連動 -->
+            <video id="jump-video" autoplay playsinline muted></video>
             <canvas id="jump-canvas" class="overlay"></canvas>
         </div>
         <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('myjump')">📷 カメラ切り替え (イン / アウト)</button>
@@ -377,7 +377,7 @@
         <!-- コマ送り＆手動指定コントローラー -->
         <div class="frame-control-box">
             <div style="font-size:13px; font-weight:bold; margin-bottom:2px;">手動コマ指定（フレーム単位）</div>
-            <div style="font-size:11px; color:#888; margin-bottom:6px;">💡 画面上を左右にスライドで高速シークできます</div>
+            <div style="font-size:11px; color:#888; margin-bottom:6px;">💡 画面停止後に左右スライドで高速シークできます</div>
             <div style="font-size:12px; color:#666;" id="jump-frame-status">現在の再生位置: 0.000s</div>
             <div class="frame-btn-group">
                 <button class="frame-btn" onclick="stepJumpVideo(-0.033)">-1コマ</button>
@@ -428,7 +428,7 @@
     <!-- 5. SPRINTPEAK（中間走解析） -->
     <div id="tab-sprintpeak" class="tab-content">
         <div class="video-container">
-            <video id="peak-video" playsinline muted></video>
+            <video id="peak-video" autoplay playsinline muted></video>
             <canvas id="peak-canvas" class="overlay"></canvas>
         </div>
         <div class="results-grid">
@@ -553,36 +553,6 @@
         setTimeout(() => playBeep(600, 0.15), 120);
     }
 
-    function speak(text) {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const uttr = new SpeechSynthesisUtterance(text);
-            uttr.lang = 'en-US';
-            uttr.rate = 1.0;
-            window.speechSynthesis.speak(uttr);
-        }
-    }
-
-    function playGunshot() {
-        initAudioContext();
-        const bufferSize = audioCtx.sampleRate * 0.3;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = buffer;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 1000;
-        const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
-
-        noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
-        noise.start();
-    }
-
     function playBeep(freq = 800, duration = 0.15) {
         initAudioContext();
         const osc = audioCtx.createOscillator();
@@ -643,7 +613,8 @@
             const videoEl = document.getElementById(videoId);
             if (videoEl) {
                 videoEl.srcObject = stream;
-                await videoEl.play();
+                // 確実に再生状態にしてフリーズを防ぐ
+                await videoEl.play().catch(e => console.log("Auto-play prevented:", e));
             }
         } catch (err) {
             console.error("カメラ起動失敗:", err);
@@ -665,24 +636,30 @@
     }
 
     function toggleCameraFacing(tabName) {
-        tabCameraFacing[tabName] = tabName === 'user' ? 'environment' : 'user';
+        tabCameraFacing[tabName] = tabCameraFacing[tabName] === 'user' ? 'environment' : 'user';
         startCameraForTab(tabName);
     }
 
-    // --- MyJump 録画計測ボタン状態管理 & 音声フィードバック ---
+    // --- MyJump 録画計測ボタン状態管理・画面連動 & 音声フィードバック ---
     let isRecordingJump = false;
     function toggleJumpMeasurement() {
         const btn = document.getElementById('jump-start-btn');
+        const jumpVideoEl = document.getElementById('jump-video');
+
         if (!isRecordingJump) {
+            // 計測開始：動画を再開（リアルタイム表示）し、開始音を鳴らす
             isRecordingJump = true;
-            btn.innerText = "計測停止";
+            btn.innerText = "計測停止（画面ストップ）";
             btn.className = "action-btn btn-red";
-            playStartSound(); // 開始音
+            if (jumpVideoEl) jumpVideoEl.play();
+            playStartSound();
         } else {
+            // 計測停止：動画を停止（画面ストップ）し、コマ送り確認を可能にして停止音を鳴らす
             isRecordingJump = false;
             btn.innerText = "録画・計測開始";
             btn.className = "action-btn btn-green";
-            playStopSound(); // 停止音
+            if (jumpVideoEl) jumpVideoEl.pause();
+            playStopSound();
         }
     }
 
@@ -696,28 +673,25 @@
     if (jumpVideoContainer && jumpVideo) {
         // タッチイベント
         jumpVideoContainer.addEventListener('touchstart', (e) => {
-            if (!jumpVideo.duration) return;
             isDraggingVideo = true;
             startX = e.touches[0].clientX;
             startTime = jumpVideo.currentTime;
-            jumpVideo.pause();
+            jumpVideo.pause(); // シーク中は動画を一時停止
         }, { passive: true });
 
         jumpVideoContainer.addEventListener('touchmove', (e) => {
-            if (!isDraggingVideo || !jumpVideo.duration) return;
+            if (!isDraggingVideo) return;
             const deltaX = e.touches[0].clientX - startX;
-            // 横幅の移動距離を動画時間のスクラブへ変換 (画面幅いっぱいのドラッグで10秒シーク)
-            const sensitivity = 10 / jumpVideoContainer.clientWidth;
+            // 横幅の移動距離を動画時間のスクラブへ変換
+            const sensitivity = 5 / jumpVideoContainer.clientWidth;
             let targetTime = startTime + (deltaX * sensitivity);
-            targetTime = Math.max(0, Math.min(jumpVideo.duration, targetTime));
-            jumpVideo.currentTime = targetTime;
+            jumpVideo.currentTime = Math.max(0, targetTime);
         }, { passive: true });
 
         jumpVideoContainer.addEventListener('touchend', () => { isDraggingVideo = false; });
 
         // マウスイベント (PCブラウザ検証用)
         jumpVideoContainer.addEventListener('mousedown', (e) => {
-            if (!jumpVideo.duration) return;
             isDraggingVideo = true;
             startX = e.clientX;
             startTime = jumpVideo.currentTime;
@@ -725,12 +699,11 @@
         });
 
         window.addEventListener('mousemove', (e) => {
-            if (!isDraggingVideo || !jumpVideo.duration) return;
+            if (!isDraggingVideo) return;
             const deltaX = e.clientX - startX;
-            const sensitivity = 10 / jumpVideoContainer.clientWidth;
+            const sensitivity = 5 / jumpVideoContainer.clientWidth;
             let targetTime = startTime + (deltaX * sensitivity);
-            targetTime = Math.max(0, Math.min(jumpVideo.duration, targetTime));
-            jumpVideo.currentTime = targetTime;
+            jumpVideo.currentTime = Math.max(0, targetTime);
         });
 
         window.addEventListener('mouseup', () => { isDraggingVideo = false; });
@@ -750,7 +723,7 @@
 
     function stepJumpVideo(seconds) {
         if (jumpVideo) {
-            jumpVideo.pause();
+            jumpVideo.pause(); // コマ送り時は画面を停止
             jumpVideo.currentTime = Math.max(0, jumpVideo.currentTime + seconds);
         }
     }
