@@ -178,6 +178,7 @@
         .btn-green { background-color: #28a745; color: white; }
         .btn-blue { background-color: #007bff; color: white; }
         .btn-red { background-color: #dc3545; color: white; }
+        .btn-gray { background-color: #6c757d; color: white; }
 
         .status-box {
             background-color: #e9ecef;
@@ -187,6 +188,18 @@
             font-weight: bold;
             margin-bottom: 15px;
             color: #495057;
+        }
+
+        .annotation-box {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            text-align: center;
         }
 
         #tap-test-area {
@@ -283,10 +296,12 @@
 
     <!-- 3. VBT（挙上速度計測） -->
     <div id="tab-vbt" class="tab-content">
+        <div class="annotation-box">注釈: 横からの撮影とプレートをタップで精度向上</div>
         <div class="video-container">
             <video id="vbt-video" playsinline></video>
             <canvas id="vbt-canvas" class="overlay"></canvas>
         </div>
+        <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('vbt')">📷 カメラ切り替え (イン / アウト)</button>
         <div class="results-grid">
             <div class="data-card">
                 <div class="data-label">平均速度 (Mean)</div>
@@ -315,10 +330,12 @@
 
     <!-- 4. MyJump（CMJ & RSI） -->
     <div id="tab-myjump" class="tab-content">
+        <div class="annotation-box">注釈: 正面を向いて撮影すること</div>
         <div class="video-container">
             <video id="jump-video" playsinline></video>
             <canvas id="jump-canvas" class="overlay"></canvas>
         </div>
+        <button class="action-btn btn-gray" style="padding:10px; font-size:14px; margin-bottom:12px;" onclick="toggleCameraFacing('myjump')">📷 カメラ切り替え (イン / アウト)</button>
         <div class="settings-card">
             <div class="setting-item" style="margin:0;">
                 <div class="setting-header">
@@ -344,7 +361,7 @@
                 <div class="data-value" id="jump-ct">0.000 <span class="unit">s</span></div>
             </div>
             <div class="data-card">
-                <div class="data-label">RSI 指数</div>
+                <div class="data-label">RSI 指数 (3~7位平均)</div>
                 <div class="data-value" id="jump-rsi">0.00</div>
             </div>
         </div>
@@ -493,6 +510,11 @@
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.start(); osc.stop(audioCtx.currentTime + duration);
     }
+    function playFinishAlarm() {
+        playBeep(1000, 0.2);
+        setTimeout(() => playBeep(1200, 0.2), 200);
+        setTimeout(() => playBeep(1500, 0.4), 400);
+    }
 
     function updateValueDisplay(id, val) { document.getElementById(id).innerText = parseFloat(val).toFixed(1) + " 秒"; }
     function toggleRandom(cbId, sliderId, displayId) {
@@ -503,6 +525,16 @@
 
     let activeStream = null;
     let activeTab = 'sound-only';
+    let tabCameraFacing = {
+        'vbt': 'environment',
+        'myjump': 'user'
+    };
+
+    function toggleCameraFacing(tabId) {
+        tabCameraFacing[tabId] = tabCameraFacing[tabId] === 'environment' ? 'user' : 'environment';
+        stopCameraStream();
+        initCameraForTab(tabId);
+    }
 
     function switchTab(tabId) {
         activeTab = tabId;
@@ -523,10 +555,12 @@
         const videoElement = document.querySelector(`#tab-${tabId} video`);
         if (!videoElement) return;
 
+        const facing = tabCameraFacing[tabId] || 'environment';
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    facingMode: 'environment',
+                    facingMode: facing,
                     width: { ideal: 1280 },
                     height: { ideal: 720 },
                     frameRate: { ideal: 120, max: 240 }
@@ -577,12 +611,11 @@
         canvas.height = video.videoHeight;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        if (!results.poseLandmarks) return;
-        const lm = results.poseLandmarks;
+        const lm = results.poseLandmarks || [];
 
         if (tabId === 'camera-analysis') handleCamAnalysisFrame(lm, ctx);
-        else if (tabId === 'vbt') handleVbtFrame(lm, ctx, canvas);
-        else if (tabId === 'myjump') handleJumpFrame(lm, ctx);
+        else if (tabId === 'vbt') handleVbtFrame(video, ctx, canvas);
+        else if (tabId === 'myjump') handleJumpFrame(lm, ctx, canvas);
         else if (tabId === 'sprintpeak') handlePeakFrame(lm, ctx);
     }
 
@@ -631,7 +664,7 @@
     });
 
     function handleCamAnalysisFrame(lm, ctx) {
-        if (!camState.active || !camState.startTime) return;
+        if (!camState.active || !camState.startTime || !lm.length) return;
         const now = Date.now();
         const lSh = lm[11], rSh = lm[12], lHip = lm[23], rHip = lm[24];
         const lAnk = lm[27], rAnk = lm[28], lFoot = lm[31], rFoot = lm[32];
@@ -668,7 +701,7 @@
         }
     }
 
-    let vbtTracking = { active: false, targetPt: null, history: [] };
+    let vbtTracking = { active: false, targetPt: null, history: [], lastImageData: null };
     const vbtCanvas = document.getElementById('vbt-canvas');
     vbtCanvas.addEventListener('click', (e) => {
         const rect = vbtCanvas.getBoundingClientRect();
@@ -676,25 +709,70 @@
             x: (e.clientX - rect.left) / rect.width,
             y: (e.clientY - rect.top) / rect.height
         };
+        vbtTracking.lastImageData = null;
     });
 
     document.getElementById('vbt-toggle-btn').addEventListener('click', () => {
         vbtTracking.active = !vbtTracking.active;
         vbtTracking.history = [];
+        vbtTracking.lastImageData = null;
         const btn = document.getElementById('vbt-toggle-btn');
         btn.innerText = vbtTracking.active ? "計測停止" : "VBT計測開始";
         btn.className = vbtTracking.active ? "action-btn btn-red" : "action-btn btn-blue";
     });
 
-    function handleVbtFrame(lm, ctx, canvas) {
+    function handleVbtFrame(videoEl, ctx, canvas) {
         let pt = vbtTracking.targetPt;
-        if (!pt && lm[16] && lm[16].visibility > 0.5) pt = { x: lm[16].x, y: lm[16].y };
 
         if (pt) {
+            if (vbtTracking.active && videoEl.readyState >= 2) {
+                const searchRadius = 25;
+                const pxX = Math.round(pt.x * canvas.width);
+                const pxY = Math.round(pt.y * canvas.height);
+                
+                try {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = canvas.width;
+                    tempCanvas.height = canvas.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+                    
+                    const minX = Math.max(0, pxX - searchRadius);
+                    const minY = Math.max(0, pxY - searchRadius);
+                    const width = Math.min(canvas.width - minX, searchRadius * 2);
+                    const height = Math.min(canvas.height - minY, searchRadius * 2);
+                    
+                    if (width > 0 && height > 0) {
+                        const imgData = tempCtx.getImageData(minX, minY, width, height);
+                        let bestX = pxX, bestY = pxY, maxGrad = -1;
+                        
+                        for (let y = 1; y < height - 1; y++) {
+                            for (let x = 1; x < width - 1; x++) {
+                                const idx = (y * width + x) * 4;
+                                const lum = imgData.data[idx] * 0.299 + imgData.data[idx+1] * 0.587 + imgData.data[idx+2] * 0.114;
+                                const lumRight = imgData.data[idx+4] * 0.299 + imgData.data[idx+5] * 0.587 + imgData.data[idx+6] * 0.114;
+                                const lumDown = imgData.data[((y+1)*width + x)*4] * 0.299 + imgData.data[((y+1)*width + x)*4+1] * 0.587 + imgData.data[((y+1)*width + x)*4+2] * 0.114;
+                                const grad = Math.abs(lum - lumRight) + Math.abs(lum - lumDown);
+                                if (grad > maxGrad) {
+                                    maxGrad = grad;
+                                    bestX = minX + x;
+                                    bestY = minY + y;
+                                }
+                            }
+                        }
+                        pt.x = (pt.x * 0.7) + ((bestX / canvas.width) * 0.3);
+                        pt.y = (pt.y * 0.7) + ((bestY / canvas.height) * 0.3);
+                    }
+                } catch(e) {}
+            }
+
             ctx.beginPath();
-            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 12, 0, 2 * Math.PI);
-            ctx.fillStyle = '#007bff'; ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 16, 0, 2 * Math.PI);
+            ctx.fillStyle = 'rgba(0, 123, 255, 0.4)'; ctx.fill();
+            ctx.strokeStyle = '#007bff'; ctx.lineWidth = 3; ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ffffff'; ctx.fill();
 
             if (vbtTracking.active) {
                 const now = Date.now();
@@ -720,11 +798,12 @@
         }
     }
 
-    let jumpState = { active: false, mode: 'cmj', phase: 'idle', count: 0, flightTimes: [], contactTimes: [], lastTime: 0 };
+    let jumpState = { active: false, mode: 'cmj', phase: 'idle', count: 0, flightTimes: [], contactTimes: [], jumpHeights: [], rsiValues: [], lastTime: 0, isAir: false, lastGrounded: 0, lastAir: 0 };
     document.getElementById('jump-start-btn').addEventListener('click', () => {
         jumpState.mode = document.getElementById('jump-mode-select').value;
         jumpState.active = true; jumpState.phase = 'countdown'; jumpState.count = 0;
-        jumpState.flightTimes = []; jumpState.contactTimes = [];
+        jumpState.flightTimes = []; jumpState.contactTimes = []; jumpState.jumpHeights = []; jumpState.rsiValues = [];
+        jumpState.isAir = false;
 
         let cd = 3;
         const btn = document.getElementById('jump-start-btn');
@@ -740,10 +819,21 @@
         }, 1000);
     });
 
-    function handleJumpFrame(lm, ctx) {
-        if (!jumpState.active || jumpState.phase !== 'measuring') return;
-        const lAnk = lm[27], rAnk = lm[28];
-        const isGrounded = (lAnk.y > 0.78 || rAnk.y > 0.78);
+    function handleJumpFrame(lm, ctx, canvas) {
+        if (!jumpState.active || jumpState.phase !== 'measuring' || !lm.length) return;
+        
+        const lAnk = lm[27], rAnk = lm[28], lFoot = lm[31], rFoot = lm[32];
+        const validFeet = [lAnk, rAnk, lFoot, rFoot].filter(p => p && p.visibility > 0.5);
+        if (validFeet.length === 0) return;
+
+        validFeet.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x * canvas.width, p.y * canvas.height, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = '#28a745'; ctx.fill();
+        });
+
+        const avgFootY = validFeet.reduce((sum, p) => sum + p.y, 0) / validFeet.length;
+        const isGrounded = avgFootY > 0.78;
         const now = Date.now();
 
         if (!jumpState.isAir && !isGrounded) {
@@ -761,6 +851,8 @@
             jumpState.count++;
 
             const h = (9.81 * Math.pow(ft, 2) / 8) * 100;
+            jumpState.jumpHeights.push(h);
+
             document.getElementById('jump-height').innerHTML = `${h.toFixed(1)} <span class="unit">cm</span>`;
             document.getElementById('jump-ft').innerHTML = `${ft.toFixed(3)} <span class="unit">s</span>`;
 
@@ -768,11 +860,31 @@
                 const ct = jumpState.contactTimes[jumpState.contactTimes.length - 1];
                 document.getElementById('jump-ct').innerHTML = `${ct.toFixed(3)} <span class="unit">s</span>`;
                 const rsi = (h / 100) / ct;
+                jumpState.rsiValues.push(rsi);
                 document.getElementById('jump-rsi').innerText = rsi.toFixed(2);
             }
 
             if ((jumpState.mode === 'cmj' && jumpState.count >= 1) || (jumpState.mode === 'rsi' && jumpState.count >= 10)) {
                 jumpState.phase = 'completed';
+                playFinishAlarm();
+
+                if (jumpState.mode === 'rsi' && jumpState.jumpHeights.length >= 10) {
+                    const sortedHeights = [...jumpState.jumpHeights].sort((a, b) => b - a);
+                    const mid5Heights = sortedHeights.slice(2, 7);
+                    const avgHeight = mid5Heights.reduce((a, b) => a + b, 0) / mid5Heights.length;
+
+                    let avgRsiText = "0.00";
+                    if (jumpState.rsiValues.length >= 10) {
+                        const sortedRsi = [...jumpState.rsiValues].sort((a, b) => b - a);
+                        const mid5Rsi = sortedRsi.slice(2, 7);
+                        const avgRsi = mid5Rsi.reduce((a, b) => a + b, 0) / mid5Rsi.length;
+                        avgRsiText = avgRsi.toFixed(2);
+                    }
+
+                    document.getElementById('jump-height').innerHTML = `${avgHeight.toFixed(1)} <span class="unit">cm (3-7位平均)</span>`;
+                    document.getElementById('jump-rsi').innerText = avgRsiText;
+                }
+
                 document.getElementById('jump-start-btn').disabled = false;
                 document.getElementById('jump-start-btn').innerText = "カウントダウン開始";
             }
@@ -788,7 +900,7 @@
     });
 
     function handlePeakFrame(lm, ctx) {
-        if (!peakState.active) return;
+        if (!peakState.active || !lm.length) return;
         const lAnk = lm[27], rAnk = lm[28];
 
         if (lAnk && rAnk) {
