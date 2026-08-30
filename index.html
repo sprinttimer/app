@@ -207,6 +207,9 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <button class="action-btn btn-gray" id="vbt-prev-frame">◀ 1フレーム</button>
             <button class="action-btn btn-gray" id="vbt-next-frame">1フレーム ▶</button>
         </div>
+        <button class="action-btn btn-blue" id="vbt-review-correct">現在フレームの追跡位置を修正</button>
+        <div class="small" id="vbt-review-correct-status">追従位置がずれたフレームでは「追跡位置を修正」を押し、プレート中心をタップしてください。</div>
+        <hr>
         <div class="button-row">
             <button class="action-btn btn-blue" id="vbt-mark-start">現在フレームを「上昇開始」</button>
             <button class="action-btn btn-orange" id="vbt-mark-end">現在フレームを「上昇終了」</button>
@@ -822,10 +825,14 @@ document.getElementById("cam-start-btn").addEventListener("click",()=>{
 /* =========================
    VBT
    ・プレート中心をタップして対象を指定
-   ・タップ周辺の画像テンプレートをフレーム間追跡
+   ・速度予測 + 静的テンプレート + 適応テンプレートで追跡
+   ・プレート形状 / シャフト候補 / 運動学を独立評価し信頼度統合
+   ・1次元KalmanフィルタをX/Yに適用して位置と速度を推定
+   ・信頼度低下時は探索範囲を段階的に拡大し、広域再捕捉
    ・入力したプレート直径と画像上の推定直径から pixels/m を校正
    ・上昇開始→上昇終了を自動判定
    ・撮影終了後は動画レビューで1フレーム単位に手動指定可能
+   ・レビューで追跡位置を再指定すると前後区間を再追跡
 ========================= */
 const vbtVideo=document.getElementById("vbt-video");
 const vbtCanvas=document.getElementById("vbt-canvas");
@@ -834,8 +841,9 @@ const vbtCtx=vbtCanvas.getContext("2d",{willReadFrequently:true});
 let vbtStream=null;
 let vbtRunning=false;
 let vbtRaf=null;
-let vbtFocus=null;                 // px座標 {x,y}
-let vbtTemplate=null;              // 追跡テンプレート
+let vbtFocus=null;                 // 現在採用している追跡中心(px)
+let vbtTemplate=null;              // 初期テンプレート。ドリフト防止のため固定
+let vbtAdaptiveTemplate=null;      // 高信頼時のみ緩やかに更新する補助テンプレート
 let vbtTemplateHalf=24;
 let vbtPlateDiameterPx=0;
 let vbtPixelsPerMeter=0;
@@ -855,7 +863,24 @@ let vbtReviewStart=null;
 let vbtReviewEnd=null;
 let vbtReviewUrl=null;
 
-/* VBT対象物の状態表示専用。追跡・計測ロジックには影響しない */
+/* 追跡強化用状態 */
+let vbtFeatureRef=null;
+let vbtKalman=null;
+let vbtTrackConfidence=0;
+let vbtLastShapeConfidence=.75;
+let vbtTrackMode="idle";
+let vbtFrameCounter=0;
+let vbtAnchorX=null;
+let vbtTrackAcceptedThisFrame=false;
+let vbtLastTrackPerf=0;
+
+/* レビュー補正用状態 */
+let vbtReviewCorrectionMode=false;
+let vbtReviewBusy=false;
+let vbtReviewOffscreen=null;
+let vbtReviewOffCtx=null;
+
+/* VBT対象物の状態表示 */
 let vbtTargetUiState="idle";
 function setVbtTargetUiState(state){
     if(vbtTargetUiState===state)return;
@@ -888,16 +913,25 @@ async function startVbtCamera(){
         const track=vbtStream.getVideoTracks()[0];
         const settings=track&&track.getSettings?track.getSettings():{};
         if(settings.frameRate) vbtActualFps=settings.frameRate;
-        requestVbtFrame();
+        scheduleNextVbtFrame();
     }catch(e){
         console.error(e);
         document.getElementById("vbt-status").innerText="カメラの起動に失敗しました。";
     }
 }
 
+/* video frame callback が使える端末では実動画フレームに同期。未対応端末はRAFへフォールバック */
+function scheduleNextVbtFrame(){
+    if(typeof vbtVideo.requestVideoFrameCallback==="function"){
+        vbtRaf=vbtVideo.requestVideoFrameCallback(()=>requestVbtFrame());
+    }else{
+        vbtRaf=requestAnimationFrame(requestVbtFrame);
+    }
+}
+
 function requestVbtFrame(){
     if(!vbtVideo.videoWidth){
-        vbtRaf=requestAnimationFrame(requestVbtFrame);
+        scheduleNextVbtFrame();
         return;
     }
     if(vbtCanvas.width!==vbtVideo.videoWidth||vbtCanvas.height!==vbtVideo.videoHeight){
@@ -905,34 +939,56 @@ function requestVbtFrame(){
         vbtCanvas.height=vbtVideo.videoHeight;
     }
 
+    /* 毎フレーム最初に生映像で全面を上書きするため、前フレームの描画は追跡画像へ混入しない */
     vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
+    vbtTrackAcceptedThisFrame=false;
 
     if(vbtFocus&&vbtTemplate){
-        const tracked=trackVbtTemplate();
+        const now=performance.now();
+        const tracked=trackVbtTemplateAdvanced(now);
         if(tracked){
             const wasLost=vbtLostFrames>=8;
-            vbtFocus=tracked;
+            vbtFocus={x:tracked.x,y:tracked.y};
+            vbtTrackConfidence=tracked.confidence;
+            vbtTrackMode=tracked.mode;
             vbtLostFrames=0;
+            vbtTrackAcceptedThisFrame=true;
+            vbtLastTrackPerf=now;
+
+            /* 高信頼時だけ補助テンプレートを更新。初期テンプレートは固定してドリフトを防止 */
+            if(vbtTrackConfidence>=.88&&vbtFrameCounter%6===0){
+                updateVbtAdaptiveTemplate(vbtCtx,vbtCanvas.width,vbtCanvas.height,tracked.measurementX,tracked.measurementY);
+            }
+
             if(wasLost){
                 setVbtTargetUiState("tracking");
                 document.getElementById("vbt-status").innerText=vbtRunning?"計測中・対象物を再追従しました。":"対象物を再追従しました。";
             }
         }else{
             vbtLostFrames++;
+            vbtTrackConfidence=Math.max(0,vbtTrackConfidence*.72);
+            vbtTrackMode=vbtLostFrames>=2?"recovery":"expanded";
             if(vbtLostFrames===8){
+                /* 追跡が長く途切れたレップは誤計測しないよう自動レップ状態を破棄 */
+                vbtUp=false;
+                vbtUpStartSample=null;
+                vbtStableEndFrames=0;
+                vbtMotionWindow=[];
+                vbtLastTracked=null;
                 setVbtTargetUiState("lost");
-                document.getElementById("vbt-status").innerText="対象物を見失いました。プレート中心をもう一度タップしてください。";
+                document.getElementById("vbt-status").innerText="対象物を見失いました。自動再探索中です。再捕捉できない場合はプレート中心をもう一度タップしてください。";
             }
         }
     }
 
     drawVbtOverlay();
 
-    if(vbtRunning&&vbtFocus&&vbtLostFrames<8){
+    /* 検出結果を採用できたフレームだけ速度計算へ渡す。予測座標だけではVBT値を作らない */
+    if(vbtRunning&&vbtFocus&&vbtTrackAcceptedThisFrame&&vbtLostFrames<8){
         analyzeVbtMotion();
     }
 
-    vbtRaf=requestAnimationFrame(requestVbtFrame);
+    scheduleNextVbtFrame();
 }
 
 function drawVbtOverlay(){
@@ -946,12 +1002,23 @@ function drawVbtOverlay(){
     }
 
     vbtCtx.save();
-    vbtCtx.strokeStyle=vbtLostFrames>=8?"#ff4444":"#00ff66";
+    const low=vbtLostFrames>=8||vbtTrackConfidence<.50;
+    const medium=!low&&vbtTrackConfidence<.72;
+    const color=low?"#ff4444":medium?"#ff9f1a":"#00ff66";
+    vbtCtx.strokeStyle=color;
     vbtCtx.lineWidth=4;
     vbtCtx.beginPath();
     const r=vbtPlateDiameterPx>0?vbtPlateDiameterPx/2:26;
     vbtCtx.arc(vbtFocus.x,vbtFocus.y,Math.max(12,r),0,Math.PI*2);
     vbtCtx.stroke();
+
+    if(vbtTemplate){
+        vbtCtx.font="bold 16px sans-serif";
+        vbtCtx.fillStyle=color;
+        vbtCtx.textBaseline="bottom";
+        const pct=Math.round(clamp(vbtTrackConfidence,0,1)*100);
+        vbtCtx.fillText(`追従 ${pct}%`,Math.max(4,vbtFocus.x-r),Math.max(18,vbtFocus.y-r-6));
+    }
 
     if(vbtSamples.length>1){
         vbtCtx.strokeStyle="rgba(0,255,102,.55)";
@@ -1013,9 +1080,68 @@ function estimatePlateRadius(cx,cy){
 
     if(maxScore<7)return 0;
 
-    // 内側の穴や文字ではなく、十分強い円周のうち外側を優先
+    /* 内側の穴や文字ではなく、十分強い円周のうち外側を優先 */
     const candidates=scores.filter(o=>o.score>=maxScore*.72&&o.score>=7);
     return candidates.length?candidates[candidates.length-1].r:0;
+}
+
+function createVbtDescriptorFromContext(ctx,w,h,cx,cy,size,step=4){
+    const half=size/2;
+    const x=Math.round(cx-half),y=Math.round(cy-half);
+    if(x<0||y<0||x+size>=w||y+size>=h)return null;
+    const patch=ctx.getImageData(x,y,size,size);
+    const sample=[];
+    let rawSum=0,rawSq=0;
+    for(let py=2;py<size-2;py+=step){
+        for(let px=2;px<size-2;px+=step){
+            const i=(py*size+px)*4;
+            const g=patch.data[i]*.299+patch.data[i+1]*.587+patch.data[i+2]*.114;
+            sample.push(g);
+            rawSum+=g;
+            rawSq+=g*g;
+        }
+    }
+    if(!sample.length)return null;
+    const mean=rawSum/sample.length;
+    const variance=Math.max(0,rawSq/sample.length-mean*mean);
+    return {sample:sample.map(v=>v-mean),size,step,mean,std:Math.sqrt(variance)};
+}
+
+function radialEdgeScoreImage(imageData,cx,cy,r){
+    if(!r||r<8)return 0;
+    const data=imageData.data,w=imageData.width,h=imageData.height;
+    let score=0,valid=0;
+    const angles=24;
+    const delta=clamp(Math.round(r*.055),2,5);
+    for(let a=0;a<angles;a++){
+        const th=(Math.PI*2*a)/angles;
+        const ax=Math.cos(th),ay=Math.sin(th);
+        const x1=Math.round(cx+ax*(r-delta));
+        const y1=Math.round(cy+ay*(r-delta));
+        const x2=Math.round(cx+ax*(r+delta));
+        const y2=Math.round(cy+ay*(r+delta));
+        if(x1<0||x1>=w||x2<0||x2>=w||y1<0||y1>=h||y2<0||y2>=h)continue;
+        score+=Math.abs(grayAt(data,w,x2,y2)-grayAt(data,w,x1,y1));
+        valid++;
+    }
+    return valid>=angles*.65?score/valid:0;
+}
+
+function patchStatsImage(imageData,cx,cy,half){
+    const data=imageData.data,w=imageData.width,h=imageData.height;
+    const x0=clamp(Math.round(cx-half),0,w-1),x1=clamp(Math.round(cx+half),0,w-1);
+    const y0=clamp(Math.round(cy-half),0,h-1),y1=clamp(Math.round(cy+half),0,h-1);
+    let n=0,sum=0,sq=0;
+    const step=Math.max(2,Math.round(half/7));
+    for(let y=y0;y<=y1;y+=step){
+        for(let x=x0;x<=x1;x+=step){
+            const g=grayAt(data,w,x,y);
+            n++;sum+=g;sq+=g*g;
+        }
+    }
+    if(!n)return {mean:0,std:0};
+    const mean=sum/n;
+    return {mean,std:Math.sqrt(Math.max(0,sq/n-mean*mean))};
 }
 
 function captureVbtTemplate(){
@@ -1030,24 +1156,44 @@ function captureVbtTemplate(){
         vbtTemplateHalf=28;
     }
 
-    const x=Math.round(vbtFocus.x-vbtTemplateHalf);
-    const y=Math.round(vbtFocus.y-vbtTemplateHalf);
     const size=vbtTemplateHalf*2;
-    if(x<0||y<0||x+size>=w||y+size>=h)return false;
+    const descriptor=createVbtDescriptorFromContext(vbtCtx,w,h,vbtFocus.x,vbtFocus.y,size,4);
+    if(!descriptor)return false;
+    vbtTemplate=descriptor;
+    vbtAdaptiveTemplate={...descriptor,sample:descriptor.sample.slice()};
 
-    const patch=vbtCtx.getImageData(x,y,size,size);
-    const sample=[];
-    for(let py=2;py<size-2;py+=4){
-        for(let px=2;px<size-2;px+=4){
-            const i=(py*size+px)*4;
-            sample.push(patch.data[i]*.299+patch.data[i+1]*.587+patch.data[i+2]*.114);
-        }
-    }
-    const mean=sample.reduce((a,b)=>a+b,0)/sample.length;
-    vbtTemplate={sample:sample.map(v=>v-mean),size,step:4};
+    const refHalf=Math.max(12,vbtPlateDiameterPx>0?vbtPlateDiameterPx*.32:vbtTemplateHalf);
+    const x0=clamp(Math.floor(vbtFocus.x-refHalf-8),0,w-1);
+    const y0=clamp(Math.floor(vbtFocus.y-refHalf-8),0,h-1);
+    const x1=clamp(Math.ceil(vbtFocus.x+refHalf+8),1,w);
+    const y1=clamp(Math.ceil(vbtFocus.y+refHalf+8),1,h);
+    const refFrame=vbtCtx.getImageData(x0,y0,x1-x0,y1-y0);
+    const lcX=vbtFocus.x-x0,lcY=vbtFocus.y-y0;
+    const stats=patchStatsImage(refFrame,lcX,lcY,Math.min(refHalf,Math.min(refFrame.width,refFrame.height)/2-2));
+    const radial=vbtPlateDiameterPx>0?radialEdgeScoreImage(refFrame,lcX,lcY,vbtPlateDiameterPx/2):0;
+    vbtFeatureRef={mean:stats.mean,std:stats.std,radial};
+
+    vbtAnchorX=vbtFocus.x;
+    resetVbtKalman(vbtFocus.x,vbtFocus.y);
+    vbtTrackConfidence=1;
+    vbtLastShapeConfidence=1;
+    vbtTrackMode="normal";
+    vbtFrameCounter=0;
 
     updateVbtCalibration();
     return true;
+}
+
+function updateVbtAdaptiveTemplate(ctx,w,h,cx,cy){
+    if(!vbtTemplate||!vbtAdaptiveTemplate)return;
+    const next=createVbtDescriptorFromContext(ctx,w,h,cx,cy,vbtTemplate.size,vbtTemplate.step);
+    if(!next||next.sample.length!==vbtAdaptiveTemplate.sample.length)return;
+    const alpha=.10;
+    for(let i=0;i<next.sample.length;i++){
+        vbtAdaptiveTemplate.sample[i]=vbtAdaptiveTemplate.sample[i]*(1-alpha)+next.sample[i]*alpha;
+    }
+    vbtAdaptiveTemplate.mean=vbtAdaptiveTemplate.mean*(1-alpha)+next.mean*alpha;
+    vbtAdaptiveTemplate.std=vbtAdaptiveTemplate.std*(1-alpha)+next.std*alpha;
 }
 
 function updateVbtCalibration(){
@@ -1063,9 +1209,60 @@ function updateVbtCalibration(){
 }
 document.getElementById("vbt-plate-diameter").addEventListener("input",updateVbtCalibration);
 
-function templateScore(imageData,w,cx,cy){
-    if(!vbtTemplate)return Infinity;
-    const size=vbtTemplate.size,half=size/2,step=vbtTemplate.step;
+/* ---------- Kalman：X/Yを独立した定速モデルで推定 ---------- */
+function createVbtKalmanAxis(pos,processNoise){
+    return {pos,vel:0,p00:36,p01:0,p10:0,p11:900,q:processNoise};
+}
+function predictVbtKalmanAxis(a,dt){
+    a.pos+=a.vel*dt;
+    const p00=a.p00,p01=a.p01,p10=a.p10,p11=a.p11;
+    const dt2=dt*dt,dt3=dt2*dt,dt4=dt2*dt2;
+    a.p00=p00+dt*(p01+p10)+dt2*p11+a.q*dt4*.25;
+    a.p01=p01+dt*p11+a.q*dt3*.5;
+    a.p10=p10+dt*p11+a.q*dt3*.5;
+    a.p11=p11+a.q*dt2;
+}
+function updateVbtKalmanAxis(a,measurement,r){
+    const innovation=measurement-a.pos;
+    const s=a.p00+r;
+    if(s<=0)return;
+    const k0=a.p00/s,k1=a.p10/s;
+    const p00=a.p00,p01=a.p01,p10=a.p10,p11=a.p11;
+    a.pos+=k0*innovation;
+    a.vel+=k1*innovation;
+    a.p00=(1-k0)*p00;
+    a.p01=(1-k0)*p01;
+    a.p10=p10-k1*p00;
+    a.p11=p11-k1*p01;
+}
+function resetVbtKalman(x,y){
+    vbtKalman={
+        x:createVbtKalmanAxis(x,900),
+        y:createVbtKalmanAxis(y,5200),
+        lastPerf:performance.now()
+    };
+}
+function predictVbtKalman(now){
+    if(!vbtKalman&&vbtFocus)resetVbtKalman(vbtFocus.x,vbtFocus.y);
+    if(!vbtKalman)return null;
+    const dt=clamp((now-vbtKalman.lastPerf)/1000,1/240,.12);
+    predictVbtKalmanAxis(vbtKalman.x,dt);
+    predictVbtKalmanAxis(vbtKalman.y,dt);
+    vbtKalman.lastPerf=now;
+    return {x:vbtKalman.x.pos,y:vbtKalman.y.pos,vx:vbtKalman.x.vel,vy:vbtKalman.y.vel,dt};
+}
+function updateVbtKalmanMeasurement(x,y,confidence){
+    if(!vbtKalman)resetVbtKalman(x,y);
+    const r=4+(1-clamp(confidence,0,1))*95;
+    updateVbtKalmanAxis(vbtKalman.x,x,r);
+    updateVbtKalmanAxis(vbtKalman.y,y,r);
+    return {x:vbtKalman.x.pos,y:vbtKalman.y.pos};
+}
+
+/* ---------- テンプレート / 形状 / シャフト / 運動学の並列評価 ---------- */
+function templateScoreForDescriptor(imageData,w,cx,cy,descriptor){
+    if(!descriptor)return Infinity;
+    const size=descriptor.size,half=size/2,step=descriptor.step;
     let idx=0,sum=0,count=0,mean=0;
 
     for(let py=2;py<size-2;py+=step){
@@ -1082,63 +1279,251 @@ function templateScore(imageData,w,cx,cy){
         for(let px=2;px<size-2;px+=step){
             const x=Math.round(cx-half+px),y=Math.round(cy-half+py);
             const val=grayAt(imageData.data,w,x,y)-mean;
-            sum+=Math.abs(val-vbtTemplate.sample[idx++]);
+            sum+=Math.abs(val-descriptor.sample[idx++]);
         }
     }
     return sum/Math.max(1,idx);
 }
 
-function trackVbtTemplate(){
-    if(!vbtFocus||!vbtTemplate)return null;
-    const w=vbtCanvas.width,h=vbtCanvas.height;
+function combinedTemplateScore(imageData,w,cx,cy){
+    const fixed=templateScoreForDescriptor(imageData,w,cx,cy,vbtTemplate);
+    if(!vbtAdaptiveTemplate)return fixed;
+    const adaptive=templateScoreForDescriptor(imageData,w,cx,cy,vbtAdaptiveTemplate);
+    return fixed*.72+adaptive*.28;
+}
 
-    // バーベルは主に上下へ動くため、前フレーム周辺だけを検索して処理負荷を抑える
-    const searchX=24;
-    const searchY=62;
-    const margin=vbtTemplateHalf+5;
-    const x0=Math.max(0,Math.floor(vbtFocus.x-searchX-margin));
-    const y0=Math.max(0,Math.floor(vbtFocus.y-searchY-margin));
-    const x1=Math.min(w,Math.ceil(vbtFocus.x+searchX+margin));
-    const y1=Math.min(h,Math.ceil(vbtFocus.y+searchY+margin));
+function vbtShapeConfidence(imageData,cx,cy){
+    if(!vbtFeatureRef)return .5;
+    const half=Math.max(10,Math.min(vbtTemplateHalf,vbtPlateDiameterPx>0?vbtPlateDiameterPx*.30:vbtTemplateHalf));
+    const stats=patchStatsImage(imageData,cx,cy,half);
+    const meanConf=clamp(1-Math.abs(stats.mean-vbtFeatureRef.mean)/85,0,1);
+    const refStd=Math.max(4,vbtFeatureRef.std);
+    const stdRatio=Math.min(stats.std/refStd,refStd/Math.max(4,stats.std));
+    const contrastConf=clamp(stdRatio,0,1);
+
+    if(vbtPlateDiameterPx>0&&vbtFeatureRef.radial>0){
+        const radial=radialEdgeScoreImage(imageData,cx,cy,vbtPlateDiameterPx/2);
+        const ref=Math.max(2,vbtFeatureRef.radial);
+        const radialRatio=Math.min(radial/ref,ref/Math.max(2,radial));
+        return clamp(radialRatio*.56+contrastConf*.29+meanConf*.15,0,1);
+    }
+    return clamp(contrastConf*.62+meanConf*.38,0,1);
+}
+
+/* シャフトが見える場合だけ補助点として使う。見えない器具では最終判定の必須条件にしない */
+function vbtShaftSupport(imageData,cx,cy){
+    if(vbtPlateDiameterPx<=0)return {confidence:0,y:cy};
+    const w=imageData.width,h=imageData.height;
+    const r=vbtPlateDiameterPx/2;
+    const yRange=clamp(Math.round(r*.18),6,18);
+    let bestScore=0,bestY=cy;
+
+    for(let yy=Math.round(cy-yRange);yy<=Math.round(cy+yRange);yy+=2){
+        if(yy<3||yy>=h-3)continue;
+        let sum=0,n=0;
+        const ranges=[
+            [Math.round(cx+r*1.02),Math.round(cx+r*1.62)],
+            [Math.round(cx-r*1.62),Math.round(cx-r*1.02)]
+        ];
+        for(const [a,b] of ranges){
+            const xs=Math.max(3,Math.min(a,b)),xe=Math.min(w-4,Math.max(a,b));
+            for(let x=xs;x<=xe;x+=5){
+                const g1=grayAt(imageData.data,w,x,yy-2);
+                const g2=grayAt(imageData.data,w,x,yy+2);
+                sum+=Math.abs(g1-g2);n++;
+            }
+        }
+        if(n){
+            const score=sum/n;
+            if(score>bestScore){bestScore=score;bestY=yy;}
+        }
+    }
+    const strength=clamp((bestScore-3)/20,0,1);
+    const centerAgreement=Math.exp(-Math.pow((bestY-cy)/Math.max(5,r*.16),2)*.5);
+    return {confidence:strength*centerAgreement,y:bestY};
+}
+
+function insertTopVbtCandidate(arr,item,limit){
+    arr.push(item);
+    arr.sort((a,b)=>a.score-b.score);
+    if(arr.length>limit)arr.length=limit;
+}
+
+function searchVbtCandidates(ctx,w,h,predicted,searchX,searchY,step,featureCheck,motion,stageMultiplier=1){
+    if(!vbtTemplate)return null;
+    /* 形状チェックとシャフト補助が候補周辺を参照できるよう、プレート径に応じて余白を確保 */
+    const featureMargin=vbtPlateDiameterPx>0?Math.min(180,vbtPlateDiameterPx*.85+8):0;
+    const margin=Math.max(vbtTemplateHalf+7,featureMargin);
+    const x0=Math.max(0,Math.floor(predicted.x-searchX-margin));
+    const y0=Math.max(0,Math.floor(predicted.y-searchY-margin));
+    const x1=Math.min(w,Math.ceil(predicted.x+searchX+margin));
+    const y1=Math.min(h,Math.ceil(predicted.y+searchY+margin));
     if(x1-x0<vbtTemplate.size||y1-y0<vbtTemplate.size)return null;
 
-    const frame=vbtCtx.getImageData(x0,y0,x1-x0,y1-y0);
-    const localBaseX=vbtFocus.x-x0;
-    const localBaseY=vbtFocus.y-y0;
-
-    const step=3;
-    let best=null,bestScore=Infinity;
+    const frame=ctx.getImageData(x0,y0,x1-x0,y1-y0);
+    const baseX=predicted.x-x0,baseY=predicted.y-y0;
+    const top=[];
 
     for(let dy=-searchY;dy<=searchY;dy+=step){
         for(let dx=-searchX;dx<=searchX;dx+=step){
-            const cx=localBaseX+dx,cy=localBaseY+dy;
+            const cx=baseX+dx,cy=baseY+dy;
             if(cx-vbtTemplateHalf<1||cy-vbtTemplateHalf<1||cx+vbtTemplateHalf>=frame.width||cy+vbtTemplateHalf>=frame.height)continue;
-            const score=templateScore(frame,frame.width,cx,cy);
-            if(score<bestScore){
-                bestScore=score;
-                best={x:vbtFocus.x+dx,y:vbtFocus.y+dy,score};
-            }
+            const score=combinedTemplateScore(frame,frame.width,cx,cy);
+            if(Number.isFinite(score))insertTopVbtCandidate(top,{cx,cy,score},10);
         }
     }
+    if(!top.length)return null;
 
-    if(!best||bestScore>36)return null;
+    /* 上位候補だけ1px刻みで微調整 */
+    const refined=[];
+    for(const c of top.slice(0,4)){
+        let best=c;
+        const radius=Math.max(2,step);
+        for(let yy=-radius;yy<=radius;yy++){
+            for(let xx=-radius;xx<=radius;xx++){
+                const cx=c.cx+xx,cy=c.cy+yy;
+                if(cx-vbtTemplateHalf<1||cy-vbtTemplateHalf<1||cx+vbtTemplateHalf>=frame.width||cy+vbtTemplateHalf>=frame.height)continue;
+                const score=combinedTemplateScore(frame,frame.width,cx,cy);
+                if(score<best.score)best={cx,cy,score};
+            }
+        }
+        insertTopVbtCandidate(refined,best,6);
+    }
 
-    const dx=best.x-vbtFocus.x,dy=best.y-vbtFocus.y;
-    if(Math.hypot(dx,dy)>70)return null;
+    let winner=null;
+    const gateX=Math.max(16,(20+Math.abs(motion.vx||0)*Math.max(.01,motion.dt||.016)*1.25)*stageMultiplier);
+    const gateY=Math.max(22,(26+Math.abs(motion.vy||0)*Math.max(.01,motion.dt||.016)*1.65)*stageMultiplier);
 
-    return {x:best.x,y:best.y};
+    for(const c of refined){
+        const globalX=x0+c.cx,globalY=y0+c.cy;
+        const templateConfidence=Math.exp(-c.score/28);
+        if(c.score>64&&templateConfidence<.11)continue;
+
+        const nx=(globalX-predicted.x)/gateX;
+        const ny=(globalY-predicted.y)/gateY;
+        const motionConfidence=Math.exp(-.5*(nx*nx+ny*ny));
+
+        /* 速度・加速度がVBTとして極端に不自然な候補は、テンプレートが似ていても減点する */
+        const elapsed=Math.max(.008,motion.elapsed||motion.dt||.016);
+        const baseX=vbtFocus?vbtFocus.x:predicted.x;
+        const baseY=vbtFocus?vbtFocus.y:predicted.y;
+        const candidateVx=(globalX-baseX)/elapsed;
+        const candidateVy=(globalY-baseY)/elapsed;
+        let speedConfidence=1,accelConfidence=1;
+        if(vbtPixelsPerMeter>0){
+            const speedMps=Math.hypot(candidateVx,candidateVy)/vbtPixelsPerMeter;
+            if(speedMps>5.0)speedConfidence=Math.exp(-Math.pow((speedMps-5.0)/1.5,2));
+            const accelMps2=Math.hypot(candidateVx-(motion.vx||0),candidateVy-(motion.vy||0))/elapsed/vbtPixelsPerMeter;
+            if(accelMps2>60)accelConfidence=Math.exp(-Math.pow((accelMps2-60)/35,2));
+        }else{
+            const speedPx=Math.hypot(candidateVx,candidateVy);
+            const accelPx=Math.hypot(candidateVx-(motion.vx||0),candidateVy-(motion.vy||0))/elapsed;
+            if(speedPx>vbtCanvas.height*3.2)speedConfidence=.55;
+            if(accelPx>vbtCanvas.height*22)accelConfidence=.55;
+        }
+        const kinematicConfidence=motionConfidence*.56+speedConfidence*.24+accelConfidence*.20;
+
+        let shapeConfidence=vbtLastShapeConfidence;
+        let shaft={confidence:0,y:c.cy};
+        if(featureCheck){
+            shapeConfidence=vbtShapeConfidence(frame,c.cx,c.cy);
+            shaft=vbtShaftSupport(frame,c.cx,c.cy);
+        }
+
+        const shaftAvailable=shaft.confidence>.16;
+        let confidence;
+        if(shaftAvailable){
+            confidence=templateConfidence*.50+shapeConfidence*.24+kinematicConfidence*.18+shaft.confidence*.08;
+        }else{
+            confidence=templateConfidence*.56+shapeConfidence*.25+kinematicConfidence*.19;
+        }
+
+        /* 水平方向の突然の飛びを追加で減点。VBTは主に上下運動 */
+        if(Math.abs(globalX-predicted.x)>gateX*1.6)confidence*=.72;
+
+        const evaluated={
+            x:globalX,y:globalY,score:c.score,confidence,
+            templateConfidence,shapeConfidence,motionConfidence,kinematicConfidence,
+            speedConfidence,accelConfidence,shaftConfidence:shaft.confidence
+        };
+        if(!winner||evaluated.confidence>winner.confidence)winner=evaluated;
+    }
+    return winner;
+}
+
+function trackVbtTemplateAdvanced(now){
+    if(!vbtFocus||!vbtTemplate)return null;
+    vbtFrameCounter++;
+
+    const prediction=predictVbtKalman(now)||{x:vbtFocus.x,y:vbtFocus.y,vx:0,vy:0,dt:1/Math.max(30,vbtActualFps||30)};
+    prediction.x=clamp(prediction.x,vbtTemplateHalf+2,vbtCanvas.width-vbtTemplateHalf-2);
+    prediction.y=clamp(prediction.y,vbtTemplateHalf+2,vbtCanvas.height-vbtTemplateHalf-2);
+
+    prediction.elapsed=vbtLastTrackPerf?clamp((now-vbtLastTrackPerf)/1000,prediction.dt,.25):prediction.dt;
+    const featureCheck=(vbtFrameCounter%3===0)||vbtLostFrames>0||vbtTrackConfidence<.68;
+    const searchX=clamp(30+Math.abs(prediction.vx)*prediction.dt*1.4,30,78);
+    const searchY=clamp(72+Math.abs(prediction.vy)*prediction.dt*2.3,72,180);
+
+    let best=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,prediction,searchX,searchY,3,featureCheck,prediction,1);
+    let mode="normal";
+
+    if(!best||best.confidence<.56){
+        const expandedX=clamp(Math.max(58,searchX*1.7),58,125);
+        const expandedY=clamp(Math.max(145,searchY*1.65),145,290);
+        const expanded=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,prediction,expandedX,expandedY,4,true,prediction,1.55);
+        if(expanded&&(!best||expanded.confidence>best.confidence))best=expanded;
+        mode="expanded";
+    }
+
+    /* 通常/拡大探索で弱い場合は、初期X付近の縦長回廊を粗く再探索 */
+    if((!best||best.confidence<.49)&&vbtLostFrames>=1){
+        const corridorCenter={
+            ...prediction,
+            x:clamp((prediction.x*.7+(vbtAnchorX??prediction.x)*.3),vbtTemplateHalf+2,vbtCanvas.width-vbtTemplateHalf-2)
+        };
+        const corridorX=clamp(vbtCanvas.width*.16,90,190);
+        let corridorY;
+        if(vbtLostFrames>=4){
+            corridorCenter.y=vbtCanvas.height/2;
+            corridorY=Math.max(120,vbtCanvas.height/2-vbtTemplateHalf-8);
+        }else{
+            corridorY=clamp(Math.max(230,searchY*2.1),230,390);
+        }
+        const recovery=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,corridorCenter,corridorX,corridorY,6,true,prediction,2.4);
+        if(recovery&&(!best||recovery.confidence>best.confidence))best=recovery;
+        mode="recovery";
+    }
+
+    if(!best)return null;
+    const threshold=mode==="normal"?.53:mode==="expanded"?.47:.43;
+    if(best.confidence<threshold)return null;
+
+    vbtLastShapeConfidence=best.shapeConfidence;
+    const filtered=updateVbtKalmanMeasurement(best.x,best.y,best.confidence);
+    return {
+        x:filtered.x,y:filtered.y,
+        measurementX:best.x,measurementY:best.y,
+        confidence:best.confidence,
+        mode,
+        templateConfidence:best.templateConfidence,
+        shapeConfidence:best.shapeConfidence,
+        motionConfidence:best.motionConfidence,
+        shaftConfidence:best.shaftConfidence,
+        speedConfidence:best.speedConfidence,
+        accelConfidence:best.accelConfidence
+    };
 }
 
 function vbtMetersPerPixel(){
     if(vbtPixelsPerMeter>0)return 1/vbtPixelsPerMeter;
 
-    // プレート円周検出が失敗した場合のみ、既存の身長簡易補正を残す
+    /* プレート円周検出が失敗した場合のみ、既存の身長簡易補正を残す */
     const h=(parseFloat(document.getElementById("vbt-height").value)||170)/100;
     return h/Math.max(1,vbtCanvas.height*.92);
 }
 
 document.getElementById("vbt-video").addEventListener("click",e=>{
-    // 前フレームの追跡線を混ぜず、現在の生映像からテンプレートを作る
+    /* 前フレームの追跡線を混ぜず、現在の生映像からテンプレートを作る */
     if(vbtVideo.videoWidth){
         vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
     }
@@ -1158,7 +1543,7 @@ document.getElementById("vbt-video").addEventListener("click",e=>{
         ring.style.left=((e.clientX-r.left)/r.width*100)+"%";
         ring.style.top=((e.clientY-r.top)/r.height*100)+"%";
         setVbtTargetUiState("tracking");
-        document.getElementById("vbt-status").innerText="対象物を固定しました。自動追従を開始します。";
+        document.getElementById("vbt-status").innerText="対象物を固定しました。予測追従・形状確認・運動学チェックを開始します。";
     }else{
         setVbtTargetUiState("lost");
         document.getElementById("vbt-status").innerText="対象物の指定に失敗しました。プレート全体が映る位置をタップしてください。";
@@ -1179,7 +1564,10 @@ function analyzeVbtMotion(){
     if(!vbtFocus)return;
     const now=performance.now();
     const relMs=now-vbtRecordStartPerf;
-    const sample={t:relMs,x:vbtFocus.x,y:vbtFocus.y,v:0};
+    const sample={
+        t:relMs,x:vbtFocus.x,y:vbtFocus.y,v:0,
+        confidence:vbtTrackConfidence,trackMode:vbtTrackMode,source:"live"
+    };
 
     if(vbtLastTracked){
         const dt=(now-vbtLastTracked.perf)/1000;
@@ -1309,6 +1697,8 @@ function showVbtReview(){
     document.getElementById("vbt-review-distance").innerText="0.000 m";
     document.getElementById("vbt-review-mean").innerText="0.000 m/s";
     document.getElementById("vbt-add-review-rep").disabled=true;
+    const correctStatus=document.getElementById("vbt-review-correct-status");
+    if(correctStatus)correctStatus.innerText="追従位置がずれたフレームでは「追跡位置を修正」を押し、プレート中心をタップしてください。";
 }
 
 document.getElementById("vbt-start").addEventListener("click",async()=>{
@@ -1327,6 +1717,10 @@ document.getElementById("vbt-start").addEventListener("click",async()=>{
     vbtUpStartSample=null;
     vbtLastTracked=null;
     vbtLostFrames=0;
+    vbtTrackConfidence=1;
+    vbtTrackMode="normal";
+    vbtFrameCounter=0;
+    resetVbtKalman(vbtFocus.x,vbtFocus.y);
     vbtRecordStartPerf=performance.now();
 
     const track=vbtVideo.srcObject&&vbtVideo.srcObject.getVideoTracks()[0];
@@ -1361,17 +1755,20 @@ vbtReviewVideo.addEventListener("loadedmetadata",()=>{
     drawVbtReviewOverlay();
 });
 vbtReviewVideo.addEventListener("timeupdate",()=>{
-    if(!vbtReviewVideo.seeking){
+    if(!vbtReviewVideo.seeking&&!vbtReviewBusy){
         vbtReviewSeek.value=vbtReviewVideo.currentTime;
         updateVbtReviewTime();
         drawVbtReviewOverlay();
     }
 });
 vbtReviewVideo.addEventListener("seeked",()=>{
-    updateVbtReviewTime();
-    drawVbtReviewOverlay();
+    if(!vbtReviewBusy){
+        updateVbtReviewTime();
+        drawVbtReviewOverlay();
+    }
 });
 vbtReviewSeek.addEventListener("input",()=>{
+    if(vbtReviewBusy)return;
     vbtReviewVideo.pause();
     vbtReviewVideo.currentTime=parseFloat(vbtReviewSeek.value);
     updateVbtReviewTime();
@@ -1383,6 +1780,7 @@ function updateVbtReviewTime(){
 }
 
 function vbtStepFrame(dir){
+    if(vbtReviewBusy)return;
     vbtReviewVideo.pause();
     const step=1/Math.max(1,vbtActualFps||30);
     vbtReviewVideo.currentTime=clamp(vbtReviewVideo.currentTime+dir*step,0,vbtReviewVideo.duration||999);
@@ -1410,12 +1808,18 @@ function drawVbtReviewOverlay(){
     const s=nearestVbtSample(vbtReviewVideo.currentTime);
     if(!s)return;
 
-    vbtReviewCtx.strokeStyle="#00ff66";
+    const conf=s.confidence===undefined?1:s.confidence;
+    const color=conf>=.72?"#00ff66":conf>=.50?"#ff9f1a":"#ff4444";
+    vbtReviewCtx.strokeStyle=color;
     vbtReviewCtx.lineWidth=4;
     vbtReviewCtx.beginPath();
     const r=vbtPlateDiameterPx>0?vbtPlateDiameterPx/2:24;
     vbtReviewCtx.arc(s.x,s.y,r,0,Math.PI*2);
     vbtReviewCtx.stroke();
+
+    vbtReviewCtx.font="bold 16px sans-serif";
+    vbtReviewCtx.fillStyle=color;
+    vbtReviewCtx.fillText(`追従 ${Math.round(clamp(conf,0,1)*100)}%`,Math.max(4,s.x-r),Math.max(18,s.y-r-6));
 
     const upto=vbtSamples.filter(p=>p.t<=vbtReviewVideo.currentTime*1000).slice(-120);
     if(upto.length>1){
@@ -1426,6 +1830,169 @@ function drawVbtReviewOverlay(){
         vbtReviewCtx.stroke();
     }
 }
+
+/* ---------- レビュー追跡位置の手動アンカー + 前後再追跡 ---------- */
+function setVbtReviewCorrectionMode(enabled){
+    vbtReviewCorrectionMode=enabled;
+    vbtReviewCanvas.style.pointerEvents=enabled?"auto":"none";
+    vbtReviewCanvas.style.cursor=enabled?"crosshair":"default";
+    const btn=document.getElementById("vbt-review-correct");
+    if(btn){
+        btn.classList.remove("btn-blue","btn-orange");
+        btn.classList.add(enabled?"btn-orange":"btn-blue");
+        btn.innerText=enabled?"画面のプレート中心をタップ":"現在フレームの追跡位置を修正";
+    }
+}
+
+document.getElementById("vbt-review-correct").addEventListener("click",()=>{
+    if(vbtReviewBusy)return;
+    vbtReviewVideo.pause();
+    setVbtReviewCorrectionMode(!vbtReviewCorrectionMode);
+    const status=document.getElementById("vbt-review-correct-status");
+    if(status)status.innerText=vbtReviewCorrectionMode?"現在フレームの正しいプレート中心をタップしてください。":"追跡位置の修正をキャンセルしました。";
+});
+
+function seekVbtReviewForTracking(time){
+    return new Promise(resolve=>{
+        const target=clamp(time,0,vbtReviewVideo.duration||0);
+        if(Math.abs(vbtReviewVideo.currentTime-target)<.0005){
+            requestAnimationFrame(()=>resolve());
+            return;
+        }
+        let done=false;
+        const finish=()=>{
+            if(done)return;
+            done=true;
+            vbtReviewVideo.removeEventListener("seeked",finish);
+            requestAnimationFrame(()=>resolve());
+        };
+        vbtReviewVideo.addEventListener("seeked",finish);
+        vbtReviewVideo.currentTime=target;
+        setTimeout(finish,500);
+    });
+}
+
+function upsertVbtReviewSample(timeSec,pos,confidence,source){
+    const target=timeSec*1000;
+    const tolerance=Math.max(18,700/Math.max(1,vbtActualFps||30));
+    let index=-1,bestD=Infinity;
+    for(let i=0;i<vbtSamples.length;i++){
+        const d=Math.abs(vbtSamples[i].t-target);
+        if(d<bestD){bestD=d;index=i;}
+    }
+    const entry={t:target,x:pos.x,y:pos.y,v:0,confidence,trackMode:"review-retrack",source};
+    if(index>=0&&bestD<=tolerance){
+        Object.assign(vbtSamples[index],entry);
+        return vbtSamples[index];
+    }
+    vbtSamples.push(entry);
+    return entry;
+}
+
+function recomputeVbtSampleVelocities(){
+    vbtSamples.sort((a,b)=>a.t-b.t);
+    const mpp=vbtMetersPerPixel();
+    for(let i=0;i<vbtSamples.length;i++){
+        if(i===0){vbtSamples[i].v=0;continue;}
+        const dt=(vbtSamples[i].t-vbtSamples[i-1].t)/1000;
+        if(dt>0&&dt<.25)vbtSamples[i].v=(vbtSamples[i-1].y-vbtSamples[i].y)*mpp/dt;
+        else vbtSamples[i].v=0;
+    }
+}
+
+async function trackVbtReviewDirection(anchorTime,anchorPos,dir){
+    const fps=Math.max(1,vbtActualFps||30);
+    const step=1/fps;
+    const horizon=.90;
+    const maxFrames=Math.min(72,Math.ceil(horizon*fps));
+    let prev={x:anchorPos.x,y:anchorPos.y,t:anchorTime};
+    let prev2=null;
+    let failures=0;
+
+    for(let i=1;i<=maxFrames;i++){
+        const time=anchorTime+dir*i*step;
+        if(time<0||time>(vbtReviewVideo.duration||0))break;
+        await seekVbtReviewForTracking(time);
+        vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
+
+        let vx=0,vy=0;
+        if(prev2&&Math.abs(prev.t-prev2.t)>.0001){
+            vx=(prev.x-prev2.x)/(prev.t-prev2.t);
+            vy=(prev.y-prev2.y)/(prev.t-prev2.t);
+        }
+        const dt=time-prev.t;
+        const predicted={
+            x:clamp(prev.x+vx*dt,vbtTemplateHalf+2,vbtReviewOffscreen.width-vbtTemplateHalf-2),
+            y:clamp(prev.y+vy*dt,vbtTemplateHalf+2,vbtReviewOffscreen.height-vbtTemplateHalf-2),
+            vx,vy,dt:Math.abs(dt)
+        };
+
+        let best=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,48,105,3,true,predicted,1.35);
+        if(!best||best.confidence<.47){
+            const expanded=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,82,185,5,true,predicted,2.0);
+            if(expanded&&(!best||expanded.confidence>best.confidence))best=expanded;
+        }
+
+        if(!best||best.confidence<.42){
+            failures++;
+            if(failures>=3)break;
+            continue;
+        }
+
+        failures=0;
+        const current={x:best.x,y:best.y,t:time};
+        upsertVbtReviewSample(time,current,best.confidence,"review-retrack");
+        prev2=prev;
+        prev=current;
+    }
+}
+
+async function retrackVbtReviewAround(anchorTime,anchorPos){
+    if(!vbtTemplate||!vbtReviewVideo.videoWidth)return;
+    vbtReviewBusy=true;
+    const btn=document.getElementById("vbt-review-correct");
+    if(btn)btn.disabled=true;
+    const status=document.getElementById("vbt-review-correct-status");
+    if(status)status.innerText="指定位置を基準に前後のフレームを再追跡しています…";
+
+    if(!vbtReviewOffscreen){
+        vbtReviewOffscreen=document.createElement("canvas");
+        vbtReviewOffCtx=vbtReviewOffscreen.getContext("2d",{willReadFrequently:true});
+    }
+    vbtReviewOffscreen.width=vbtReviewVideo.videoWidth;
+    vbtReviewOffscreen.height=vbtReviewVideo.videoHeight;
+
+    const restoreTime=anchorTime;
+    upsertVbtReviewSample(anchorTime,anchorPos,1,"manual-anchor");
+
+    try{
+        await trackVbtReviewDirection(anchorTime,anchorPos,1);
+        await trackVbtReviewDirection(anchorTime,anchorPos,-1);
+        recomputeVbtSampleVelocities();
+        if(status)status.innerText="手動指定を基準に前後約0.9秒を再追跡しました。必要なら別のずれたフレームでも同じ操作を行ってください。";
+    }catch(e){
+        console.warn("VBT review retracking failed",e);
+        if(status)status.innerText="再追跡の途中で処理できないフレームがありました。別のフレームで再指定してください。";
+    }
+
+    await seekVbtReviewForTracking(restoreTime);
+    vbtReviewBusy=false;
+    if(btn)btn.disabled=false;
+    vbtReviewSeek.value=vbtReviewVideo.currentTime;
+    updateVbtReviewTime();
+    drawVbtReviewOverlay();
+    calculateVbtReviewRep();
+}
+
+vbtReviewCanvas.addEventListener("click",async e=>{
+    if(!vbtReviewCorrectionMode||vbtReviewBusy)return;
+    const rect=vbtReviewCanvas.getBoundingClientRect();
+    const x=(e.clientX-rect.left)*(vbtReviewCanvas.width/rect.width);
+    const y=(e.clientY-rect.top)*(vbtReviewCanvas.height/rect.height);
+    const time=vbtReviewVideo.currentTime;
+    setVbtReviewCorrectionMode(false);
+    await retrackVbtReviewAround(time,{x,y});
+});
 
 document.getElementById("vbt-mark-start").addEventListener("click",()=>{
     const time=vbtReviewVideo.currentTime;
@@ -1451,6 +2018,10 @@ function calculateVbtReviewRep(){
         return;
     }
 
+    /* 補正後の最新座標を必ず再取得 */
+    vbtReviewStart.sample=nearestVbtSample(vbtReviewStart.time)||vbtReviewStart.sample;
+    vbtReviewEnd.sample=nearestVbtSample(vbtReviewEnd.time)||vbtReviewEnd.sample;
+
     const duration=vbtReviewEnd.time-vbtReviewStart.time;
     const dy=vbtReviewStart.sample.y-vbtReviewEnd.sample.y;
     const distance=Math.abs(dy)*vbtMetersPerPixel();
@@ -1464,6 +2035,9 @@ function calculateVbtReviewRep(){
 
 document.getElementById("vbt-add-review-rep").addEventListener("click",()=>{
     if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time)return;
+
+    vbtReviewStart.sample=nearestVbtSample(vbtReviewStart.time)||vbtReviewStart.sample;
+    vbtReviewEnd.sample=nearestVbtSample(vbtReviewEnd.time)||vbtReviewEnd.sample;
 
     const duration=vbtReviewEnd.time-vbtReviewStart.time;
     const distance=Math.abs(vbtReviewStart.sample.y-vbtReviewEnd.sample.y)*vbtMetersPerPixel();
