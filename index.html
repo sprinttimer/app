@@ -1906,9 +1906,58 @@ document.getElementById("save-settings").addEventListener("click",()=>{
     setTimeout(()=>document.getElementById("settings-saved").innerText="",2000);
 });
 
-/* Service Worker */
+/* Service Worker
+   更新対策のみ：
+   ・Service Worker本体はHTTPキャッシュを使わず更新確認
+   ・起動時に明示的にupdate()を実行
+   ・新しいService Workerが有効化されたら自動で1回だけ再読み込み
+   ※アプリ機能・解析ロジックには影響しない
+*/
 if("serviceWorker" in navigator) {
-    window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+    window.addEventListener("load", async ()=>{
+        try {
+            let refreshing=false;
+
+            navigator.serviceWorker.addEventListener("controllerchange",()=>{
+                if(refreshing)return;
+                refreshing=true;
+                window.location.reload();
+            });
+
+            const registration=await navigator.serviceWorker.register("sw.js",{
+                updateViaCache:"none"
+            });
+
+            await registration.update();
+
+            if(registration.waiting){
+                registration.waiting.postMessage({type:"SKIP_WAITING"});
+            }
+
+            registration.addEventListener("updatefound",()=>{
+                const worker=registration.installing;
+                if(!worker)return;
+
+                worker.addEventListener("statechange",()=>{
+                    if(worker.state==="installed"&&navigator.serviceWorker.controller){
+                        if(registration.waiting){
+                            registration.waiting.postMessage({type:"SKIP_WAITING"});
+                        }
+                    }
+                });
+            });
+
+            window.addEventListener("focus",()=>{
+                registration.update().catch(()=>{});
+            });
+
+            document.addEventListener("visibilitychange",()=>{
+                if(document.visibilityState==="visible"){
+                    registration.update().catch(()=>{});
+                }
+            });
+        } catch(e) {}
+    });
 }
 </script>
 </body>
