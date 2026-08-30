@@ -157,7 +157,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 <!-- VBT -->
 <div id="tab-vbt" class="tab-content">
-    <div class="notice"><b>VBT撮影注意：</b>必ず三脚を使用し、対象物（シャフト・バーベル・プレート等）が横方向に動くよう、できるだけ真横から撮影してください。身長による簡易スケール補正を使用するため、撮影距離・角度が変わると精度に影響します。</div>
+    <div class="notice"><b>VBT撮影注意：</b>必ず三脚を使用し、対象物（シャフト・バーベル・プレート等）が上下方向に動くよう、できるだけ真横から撮影してください。プレートを使用する場合は直径を入力し、画面上のプレート中心をタップしてください。入力したプレート直径と画像上の円周を基準に距離を補正します。</div>
     <div class="feature-video" id="vbt-video-container">
         <video id="vbt-video" playsinline muted></video>
         <canvas id="vbt-canvas" class="overlay-canvas"></canvas>
@@ -171,6 +171,9 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
         <h3>VBT設定</h3>
         <div class="setting-item"><div class="setting-header"><span>重量</span><span class="setting-value">kg</span></div><input type="number" id="vbt-weight" min="0" step=".1" placeholder="例：80"></div>
         <div class="setting-item"><div class="setting-header"><span>選手身長</span><span class="setting-value">cm</span></div><input type="number" id="vbt-height" min="50" max="250" step="1"></div>
+        <div class="setting-item"><div class="setting-header"><span>プレート直径</span><span class="setting-value">cm</span></div><input type="number" id="vbt-plate-diameter" min="5" max="100" step=".1" value="45" placeholder="例：45"></div>
+        <div class="small" id="vbt-calibration-info">プレート中心をタップすると、画像上の直径を自動推定して距離補正します。</div>
+        <hr>
         <div class="setting-item"><div class="setting-header"><span>速度低下警告</span></div>
             <div class="checkbox-row"><input type="checkbox" id="vbt-alert10" checked><label>10%を超えたら警告</label></div>
             <div class="checkbox-row"><input type="checkbox" id="vbt-alert15" checked><label>15%を超えたら警告</label></div>
@@ -188,6 +191,36 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
         <button class="action-btn btn-green" id="vbt-start">計測開始</button>
         <button class="action-btn btn-red" id="vbt-stop" disabled>計測終了</button>
     </div>
+
+    <div id="vbt-review-area" class="settings-card" style="display:none">
+        <h3>VBT 動画レビュー</h3>
+        <div class="info">自動追従結果を動画上で確認し、必要なレップについて1フレームずつ移動しながら「上昇開始」「上昇終了」を指定できます。指定したフレームからMean Velocityを再計算します。</div>
+        <div class="preview-wrap" id="vbt-review-wrap">
+            <video id="vbt-review-video" playsinline controls></video>
+            <canvas id="vbt-review-canvas" class="overlay-canvas"></canvas>
+        </div>
+        <div class="setting-item">
+            <div class="setting-header"><span>動画位置</span><span id="vbt-review-time" class="setting-value">0.000 s</span></div>
+            <input type="range" id="vbt-review-seek" min="0" max="1" step=".001" value="0">
+        </div>
+        <div class="button-row">
+            <button class="action-btn btn-gray" id="vbt-prev-frame">◀ 1フレーム</button>
+            <button class="action-btn btn-gray" id="vbt-next-frame">1フレーム ▶</button>
+        </div>
+        <div class="button-row">
+            <button class="action-btn btn-blue" id="vbt-mark-start">現在フレームを「上昇開始」</button>
+            <button class="action-btn btn-orange" id="vbt-mark-end">現在フレームを「上昇終了」</button>
+        </div>
+        <table class="metric-table">
+            <tr><td>上昇開始</td><td id="vbt-review-start-label">未指定</td></tr>
+            <tr><td>上昇終了</td><td id="vbt-review-end-label">未指定</td></tr>
+            <tr><td>上昇時間</td><td id="vbt-review-duration">0.000 s</td></tr>
+            <tr><td>移動距離</td><td id="vbt-review-distance">0.000 m</td></tr>
+            <tr><td>Mean Velocity</td><td id="vbt-review-mean">0.000 m/s</td></tr>
+        </table>
+        <button class="action-btn btn-green" id="vbt-add-review-rep" disabled>この区間をレップとして追加</button>
+    </div>
+
     <div class="settings-card"><h3>レップ履歴</h3><div id="vbt-history" class="small">まだありません</div></div>
 </div>
 
@@ -433,12 +466,35 @@ document.getElementById("sd-start-btn").addEventListener("click",()=>{
 
 /* =========================
    既存：スタートカメラ解析
+   改善点：
+   ・身長と複数の身体セグメント長から動画ごとの px/m を推定
+   ・号砲前のSet姿勢を基準として動作開始を速度＋変位で検出
+   ・1歩目は Heel + Foot Index の足部中心を使用
+   ・1歩目距離は進行方向の水平距離だけを実距離換算
+   ・接地／離地は足部の地面近傍状態から判定
 ========================= */
 const videoElement=document.getElementById("input-video");
 const canvasElement=document.getElementById("output-canvas");
 const canvasCtx=canvasElement.getContext("2d");
+
 let startTime=null,sprintDetected=false,firstStepLanded=false,firstStepLifted=false,contactStartTime=0,startAnklePos=null;
 let legacyCameraStarted=false, legacyCamera=null;
+
+/* スタート解析用の追加状態 */
+let startCalibrationActive=false;
+let startScaleSamples=[];
+let startBaselineHipSamples=[];
+let startBaselineFootSamples=[];
+let startPxPerMeter=0;
+let startBaselineHipX=null;
+let startMovementCounter=0;
+let startMovementDirection=0;
+let startFrontFootX=null;
+let startFirstStepFoot=null;
+let startFootStates={
+    left:{contact:true,hasAirborne:false,groundY:null,lastY:null,lastT:null},
+    right:{contact:true,hasAirborne:false,groundY:null,lastY:null,lastT:null}
+};
 
 const pose=new Pose({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
 pose.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.7,minTrackingConfidence:.7});
@@ -454,156 +510,948 @@ async function startLegacyCamera() {
         legacyCamera.start();
     } catch(e) { alert("カメラの起動に失敗しました。HTTPSまたはlocalhostで実行してください。"); }
 }
+
 function calculateAngle(shoulder,hip) {
     const radians=Math.atan2(hip.y-shoulder.y,hip.x-shoulder.x);
     const angle=Math.abs(radians*180/Math.PI);
     return Math.min(Math.max(angle,0),90);
 }
+
+function startMedian(values){
+    const a=values.filter(v=>Number.isFinite(v)&&v>0).sort((x,y)=>x-y);
+    if(!a.length)return 0;
+    const m=Math.floor(a.length/2);
+    return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+
+function startPointPx(lm){
+    return {x:lm.x*canvasElement.width,y:lm.y*canvasElement.height};
+}
+
+function startDistPx(a,b){
+    const dx=(a.x-b.x)*canvasElement.width;
+    const dy=(a.y-b.y)*canvasElement.height;
+    return Math.hypot(dx,dy);
+}
+
+/*
+  身長校正：
+  Dempster系の人体計測比率を用い、
+  大腿（約24.5%身長）と下腿（約24.6%身長）を左右から取得。
+  1本の部位だけに依存せず中央値を使うことで、
+  姿勢推定の一時的なブレを抑える。
+*/
+function estimateStartPixelsPerMeter(l,heightM){
+    if(!heightM||heightM<=0||!canvasElement.width||!canvasElement.height)return 0;
+    const segments=[
+        [23,25,0.245],[24,26,0.245],
+        [25,27,0.246],[26,28,0.246]
+    ];
+    const estimates=[];
+    for(const [a,b,ratio] of segments){
+        const p=l[a],q=l[b];
+        if(!p||!q||p.visibility<.55||q.visibility<.55)continue;
+        const px=startDistPx(p,q);
+        const real=heightM*ratio;
+        if(px>8&&real>0)estimates.push(px/real);
+    }
+    return startMedian(estimates);
+}
+
+function startFootCenter(l,side){
+    const heel=side==="left"?l[29]:l[30];
+    const toe=side==="left"?l[31]:l[32];
+    if(!heel||!toe||heel.visibility<.45||toe.visibility<.45)return null;
+    return {
+        x:(heel.x+toe.x)/2*canvasElement.width,
+        y:(heel.y+toe.y)/2*canvasElement.height
+    };
+}
+
+function resetStartFootStates(leftFoot,rightFoot){
+    startFootStates={
+        left:{contact:true,hasAirborne:false,groundY:leftFoot?leftFoot.y:null,lastY:leftFoot?leftFoot.y:null,lastT:null},
+        right:{contact:true,hasAirborne:false,groundY:rightFoot?rightFoot.y:null,lastY:rightFoot?rightFoot.y:null,lastT:null}
+    };
+}
+
+/*
+  足部接地判定。
+  地面位置は撮影中に観測された最下点をゆっくり更新し、
+  接地→離地にはヒステリシスを持たせる。
+*/
+function updateStartFootState(side,foot,now,pxPerMeter){
+    if(!foot||!pxPerMeter)return null;
+    const st=startFootStates[side];
+    if(st.groundY===null)st.groundY=foot.y;
+    if(foot.y>st.groundY)st.groundY=st.groundY*.85+foot.y*.15;
+
+    const contactBand=Math.max(5,pxPerMeter*.025); // 約2.5cm
+    const liftBand=Math.max(8,pxPerMeter*.050);    // 約5cm
+
+    let event=null;
+    if(st.contact){
+        if(foot.y<st.groundY-liftBand){
+            st.contact=false;
+            st.hasAirborne=true;
+            event="liftoff";
+        }
+    }else{
+        if(st.hasAirborne&&foot.y>=st.groundY-contactBand){
+            st.contact=true;
+            event="landing";
+            if(foot.y>st.groundY)st.groundY=foot.y;
+        }
+    }
+
+    st.lastY=foot.y;
+    st.lastT=now;
+    return event;
+}
+
 function onResults(results) {
     if(!results.poseLandmarks)return;
+
     canvasCtx.save();
-    canvasElement.width=videoElement.videoWidth; canvasElement.height=videoElement.videoHeight;
+    canvasElement.width=videoElement.videoWidth;
+    canvasElement.height=videoElement.videoHeight;
     canvasCtx.clearRect(0,0,canvasElement.width,canvasElement.height);
     drawConnectors(canvasCtx,results.poseLandmarks,POSE_CONNECTIONS,{color:"#ffffffaa",lineWidth:1.5});
     drawLandmarks(canvasCtx,results.poseLandmarks,{color:"#00ff00",lineWidth:1,radius:2});
-    const l=results.poseLandmarks, ls=l[11],rs=l[12],lh=l[23],rh=l[24],la=l[27],ra=l[28],lf=l[31],rf=l[32];
+
+    const l=results.poseLandmarks;
+    const ls=l[11],rs=l[12],lh=l[23],rh=l[24];
+    const leftFoot=startFootCenter(l,"left");
+    const rightFoot=startFootCenter(l,"right");
+    const hipX=((lh.x+rh.x)/2)*canvasElement.width;
+    const heightM=(parseFloat(localStorage.getItem("sprintUserHeight")||localStorage.getItem("userHeight")||"170")/100);
+    const scaleNow=estimateStartPixelsPerMeter(l,heightM);
+
+    /* On your marks～Set～号砲直前まで基準値を蓄積 */
+    if(startCalibrationActive&&!startTime){
+        if(scaleNow>0){
+            startScaleSamples.push(scaleNow);
+            if(startScaleSamples.length>120)startScaleSamples.shift();
+        }
+        startBaselineHipSamples.push(hipX);
+        if(startBaselineHipSamples.length>90)startBaselineHipSamples.shift();
+
+        if(leftFoot&&rightFoot){
+            startBaselineFootSamples.push({left:leftFoot.x,right:rightFoot.x,leftY:leftFoot.y,rightY:rightFoot.y});
+            if(startBaselineFootSamples.length>90)startBaselineFootSamples.shift();
+        }
+    }
+
     if(startTime) {
         const now=performance.now();
+
+        /* 動画ごとの身長スケールを維持。Set時の中央値を優先し、現在値は補助に使う */
+        if(scaleNow>0){
+            startScaleSamples.push(scaleNow);
+            if(startScaleSamples.length>150)startScaleSamples.shift();
+        }
+        startPxPerMeter=startMedian(startScaleSamples);
+
         if(!sprintDetected) {
-            const shoulder=rs.visibility>.6?rs:ls, hip=rh.visibility>.6?rh:lh;
-            if(shoulder&&hip) {
-                const a=calculateAngle(shoulder,hip);
-                if(a>35) {
+            const shoulder={
+                x:(ls.x+rs.x)/2,
+                y:(ls.y+rs.y)/2
+            };
+            const hip={
+                x:(lh.x+rh.x)/2,
+                y:(lh.y+rh.y)/2
+            };
+
+            if(startBaselineHipX!==null&&startPxPerMeter>0){
+                const elapsed=(now-startTime)/1000;
+                const displacementM=Math.abs(hipX-startBaselineHipX)/startPxPerMeter;
+
+                /* 直近の腰位置から約50～120msの水平速度を算出 */
+                startBaselineHipSamples.push(hipX);
+                if(startBaselineHipSamples.length>8)startBaselineHipSamples.shift();
+
+                let horizontalSpeed=0;
+                if(startBaselineHipSamples.length>=3){
+                    const oldest=startBaselineHipSamples[0];
+                    const approximateDt=Math.max(.05,(startBaselineHipSamples.length-1)/Math.max(30,(videoElement.srcObject?.getVideoTracks?.()[0]?.getSettings?.().frameRate||30)));
+                    horizontalSpeed=Math.abs(hipX-oldest)/startPxPerMeter/approximateDt;
+                }
+
+                /*
+                  号砲直後のノイズを除外し、
+                  変位または水平速度が連続して閾値を超えた時点を動作開始とする。
+                */
+                if(elapsed>.04&&(displacementM>.020||horizontalSpeed>.30)){
+                    startMovementCounter++;
+                }else{
+                    startMovementCounter=Math.max(0,startMovementCounter-1);
+                }
+
+                if(startMovementCounter>=2){
                     sprintDetected=true;
                     const rt=((now-startTime)/1000).toFixed(3);
                     document.getElementById("reaction-time-display").innerHTML=rt+' <span class="unit">s</span>';
+
+                    const a=calculateAngle(shoulder,hip);
                     document.getElementById("start-angle-display").innerHTML=a.toFixed(1)+' <span class="unit">°</span>';
-                    startAnklePos={x:(la.x+ra.x)/2,y:(la.y+ra.y)/2};
+
+                    const delta=hipX-startBaselineHipX;
+                    startMovementDirection=delta>=0?1:-1;
+
+                    if(startBaselineFootSamples.length){
+                        const recent=startBaselineFootSamples.slice(-20);
+                        const leftX=startMedian(recent.map(v=>v.left));
+                        const rightX=startMedian(recent.map(v=>v.right));
+                        startFrontFootX=startMovementDirection>0?Math.max(leftX,rightX):Math.min(leftX,rightX);
+
+                        const last=recent[recent.length-1];
+                        resetStartFootStates(
+                            {x:leftX,y:last.leftY},
+                            {x:rightX,y:last.rightY}
+                        );
+                    }
+
                     document.getElementById("video-container").classList.add("detected-frame");
                     setTimeout(()=>document.getElementById("video-container").classList.remove("detected-frame"),400);
                 }
             }
-        } else if(!firstStepLifted) {
-            if(!firstStepLanded) {
-                if(lf.y>.85||rf.y>.85) {
-                    firstStepLanded=true; contactStartTime=now;
-                    const p={x:(la.x+ra.x)/2,y:(la.y+ra.y)/2};
-                    const h=(parseFloat(localStorage.getItem("sprintUserHeight")||"170")/100);
-                    const dist=Math.hypot(p.x-startAnklePos.x,p.y-startAnklePos.y);
-                    document.getElementById("step-distance-display").innerHTML=(dist*h*1.8).toFixed(2)+' <span class="unit">m</span>';
+        } else if(!firstStepLifted&&startPxPerMeter>0) {
+            const leftEvent=updateStartFootState("left",leftFoot,now,startPxPerMeter);
+            const rightEvent=updateStartFootState("right",rightFoot,now,startPxPerMeter);
+
+            if(!firstStepLanded){
+                let landingSide=null,landingFoot=null;
+                if(leftEvent==="landing"){landingSide="left";landingFoot=leftFoot;}
+                if(rightEvent==="landing"&&(!landingSide||rightFoot)){
+                    /* 同一フレームなら進行方向により前方の足を優先 */
+                    if(!landingSide||
+                       (startMovementDirection>0&&rightFoot.x>landingFoot.x)||
+                       (startMovementDirection<0&&rightFoot.x<landingFoot.x)){
+                        landingSide="right";landingFoot=rightFoot;
+                    }
                 }
-            } else if(lf.y<.80&&rf.y<.80) {
-                firstStepLifted=true;
-                document.getElementById("contact-time-display").innerHTML=((now-contactStartTime)/1000).toFixed(3)+' <span class="unit">s</span>';
-                const b=document.getElementById("cam-start-btn"); b.disabled=false;b.innerText="計測を開始";
+
+                if(landingSide&&landingFoot&&startFrontFootX!==null){
+                    firstStepLanded=true;
+                    startFirstStepFoot=landingSide;
+                    contactStartTime=now;
+
+                    const horizontalPx=Math.abs(landingFoot.x-startFrontFootX);
+                    const distance=horizontalPx/startPxPerMeter;
+                    document.getElementById("step-distance-display").innerHTML=distance.toFixed(2)+' <span class="unit">m</span>';
+                }
+            }else{
+                const firstEvent=startFirstStepFoot==="left"?leftEvent:rightEvent;
+                if(firstEvent==="liftoff"){
+                    firstStepLifted=true;
+                    document.getElementById("contact-time-display").innerHTML=((now-contactStartTime)/1000).toFixed(3)+' <span class="unit">s</span>';
+                    const b=document.getElementById("cam-start-btn");
+                    b.disabled=false;
+                    b.innerText="計測を開始";
+                }
             }
         }
     }
+
     canvasCtx.restore();
 }
+
 document.getElementById("cam-start-btn").addEventListener("click",()=>{
-    startTime=null;sprintDetected=false;firstStepLanded=false;firstStepLifted=false;
+    startTime=null;
+    sprintDetected=false;
+    firstStepLanded=false;
+    firstStepLifted=false;
+    contactStartTime=0;
+    startAnklePos=null;
+
+    startCalibrationActive=true;
+    startScaleSamples=[];
+    startBaselineHipSamples=[];
+    startBaselineFootSamples=[];
+    startPxPerMeter=0;
+    startBaselineHipX=null;
+    startMovementCounter=0;
+    startMovementDirection=0;
+    startFrontFootX=null;
+    startFirstStepFoot=null;
+    resetStartFootStates(null,null);
+
     ["reaction-time-display","start-angle-display","step-distance-display","contact-time-display"].forEach((id,i)=>{
         document.getElementById(id).innerHTML=["0.000 <span class='unit'>s</span>","0.0 <span class='unit'>°</span>","0.00 <span class='unit'>m</span>","0.000 <span class='unit'>s</span>"][i];
     });
-    const btn=document.getElementById("cam-start-btn");btn.disabled=true;
+
+    const btn=document.getElementById("cam-start-btn");
+    btn.disabled=true;
     const marks=parseFloat(document.getElementById("cam-marks-slider").value)*1000;
-    btn.innerText="On your marks...";speak("On your marks");
+
+    btn.innerText="On your marks...";
+    speak("On your marks");
+
     setTimeout(()=>{
-        btn.innerText="Set...";speak("Set");
-        const d=document.getElementById("cam-set-random").checked?Math.floor(Math.random()*1000)+1500:parseFloat(document.getElementById("cam-set-slider").value)*1000;
-        setTimeout(()=>{playGunshot();startTime=performance.now();btn.innerText="Go! (検知中)";},d);
+        btn.innerText="Set...";
+        speak("Set");
+
+        const d=document.getElementById("cam-set-random").checked
+            ?Math.floor(Math.random()*1000)+1500
+            :parseFloat(document.getElementById("cam-set-slider").value)*1000;
+
+        setTimeout(()=>{
+            /* 号砲直前のSet姿勢を基準値として固定 */
+            startPxPerMeter=startMedian(startScaleSamples);
+            startBaselineHipX=startMedian(startBaselineHipSamples);
+
+            if(startBaselineFootSamples.length){
+                const recent=startBaselineFootSamples.slice(-20);
+                const last=recent[recent.length-1];
+                resetStartFootStates(
+                    {x:startMedian(recent.map(v=>v.left)),y:last.leftY},
+                    {x:startMedian(recent.map(v=>v.right)),y:last.rightY}
+                );
+            }
+
+            startCalibrationActive=false;
+            startBaselineHipSamples=[];
+
+            playGunshot();
+            startTime=performance.now();
+            btn.innerText="Go! (検知中)";
+        },d);
     },marks);
 });
 
 /* =========================
    VBT
-   速度 = 移動距離 / 挙上時間
-   距離は身長基準の簡易スケール
+   ・プレート中心をタップして対象を指定
+   ・タップ周辺の画像テンプレートをフレーム間追跡
+   ・入力したプレート直径と画像上の推定直径から pixels/m を校正
+   ・上昇開始→上昇終了を自動判定
+   ・撮影終了後は動画レビューで1フレーム単位に手動指定可能
 ========================= */
-const vbtVideo=document.getElementById("vbt-video"),vbtCanvas=document.getElementById("vbt-canvas"),vbtCtx=vbtCanvas.getContext("2d");
-let vbtStream=null,vbtRunning=false,vbtRaf=null,vbtFocus=null,vbtLastX=null,vbtLastT=null,vbtReps=[],vbtUp=false,vbtDown=false,vbtUpStart=0,vbtTopY=null;
+const vbtVideo=document.getElementById("vbt-video");
+const vbtCanvas=document.getElementById("vbt-canvas");
+const vbtCtx=vbtCanvas.getContext("2d",{willReadFrequently:true});
+
+let vbtStream=null;
+let vbtRunning=false;
+let vbtRaf=null;
+let vbtFocus=null;                 // px座標 {x,y}
+let vbtTemplate=null;              // 追跡テンプレート
+let vbtTemplateHalf=24;
+let vbtPlateDiameterPx=0;
+let vbtPixelsPerMeter=0;
+let vbtReps=[];
 let vbtSamples=[];
+let vbtMotionWindow=[];
+let vbtUp=false;
+let vbtUpStartSample=null;
+let vbtLastTracked=null;
+let vbtLostFrames=0;
+let vbtStableEndFrames=0;
+let vbtRecorder=null;
+let vbtChunks=[];
+let vbtRecordStartPerf=0;
+let vbtActualFps=30;
+let vbtReviewStart=null;
+let vbtReviewEnd=null;
+let vbtReviewUrl=null;
 
 async function startVbtCamera(){
     if(vbtStream)return;
-    try{vbtStream=await getCameraStream(vbtVideo,currentFacingMode);requestVbtFrame();}catch(e){console.error(e);}
-}
-function requestVbtFrame(){
-    if(!vbtVideo.videoWidth)return requestAnimationFrame(requestVbtFrame);
-    vbtCanvas.width=vbtVideo.videoWidth;vbtCanvas.height=vbtVideo.videoHeight;
-    vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
-    if(vbtFocus){
-        vbtCtx.strokeStyle="#00ff66";vbtCtx.lineWidth=4;vbtCtx.beginPath();vbtCtx.arc(vbtFocus.x*vbtCanvas.width,vbtFocus.y*vbtCanvas.height,25,0,Math.PI*2);vbtCtx.stroke();
+    try{
+        vbtStream=await getCameraStream(vbtVideo,currentFacingMode);
+        const track=vbtStream.getVideoTracks()[0];
+        const settings=track&&track.getSettings?track.getSettings():{};
+        if(settings.frameRate) vbtActualFps=settings.frameRate;
+        requestVbtFrame();
+    }catch(e){
+        console.error(e);
+        document.getElementById("vbt-status").innerText="カメラの起動に失敗しました。";
     }
-    if(vbtRunning) analyzeVbtFrame();
+}
+
+function requestVbtFrame(){
+    if(!vbtVideo.videoWidth){
+        vbtRaf=requestAnimationFrame(requestVbtFrame);
+        return;
+    }
+    if(vbtCanvas.width!==vbtVideo.videoWidth||vbtCanvas.height!==vbtVideo.videoHeight){
+        vbtCanvas.width=vbtVideo.videoWidth;
+        vbtCanvas.height=vbtVideo.videoHeight;
+    }
+
+    vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
+
+    if(vbtFocus&&vbtTemplate){
+        const tracked=trackVbtTemplate();
+        if(tracked){
+            vbtFocus=tracked;
+            vbtLostFrames=0;
+        }else{
+            vbtLostFrames++;
+        }
+    }
+
+    drawVbtOverlay();
+
+    if(vbtRunning&&vbtFocus&&vbtLostFrames<8){
+        analyzeVbtMotion();
+    }
+
     vbtRaf=requestAnimationFrame(requestVbtFrame);
 }
-document.getElementById("vbt-video").addEventListener("click",e=>{
-    const r=vbtVideo.getBoundingClientRect();
-    vbtFocus={x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height};
-    const ring=document.getElementById("vbt-focus");ring.style.display="block";ring.style.left=(vbtFocus.x*100)+"%";ring.style.top=(vbtFocus.y*100)+"%";
-    document.getElementById("vbt-status").innerText="対象物を固定しました。";
-});
-document.getElementById("vbt-focus-btn").addEventListener("click",()=>document.getElementById("vbt-status").innerText="対象物を画面上でタップしてください。");
-function vbtScale() {
-    const h=(parseFloat(document.getElementById("vbt-height").value)||170)/100;
-    /* MediaPipe等の人体比率に相当する簡易係数。撮影条件により誤差が生じる推定値 */
-    return h*1.0;
+
+function drawVbtOverlay(){
+    if(!vbtFocus)return;
+
+    const ring=document.getElementById("vbt-focus");
+    if(ring){
+        ring.style.display="block";
+        ring.style.left=(vbtFocus.x/vbtCanvas.width*100)+"%";
+        ring.style.top=(vbtFocus.y/vbtCanvas.height*100)+"%";
+    }
+
+    vbtCtx.save();
+    vbtCtx.strokeStyle=vbtLostFrames>=8?"#ff4444":"#00ff66";
+    vbtCtx.lineWidth=4;
+    vbtCtx.beginPath();
+    const r=vbtPlateDiameterPx>0?vbtPlateDiameterPx/2:26;
+    vbtCtx.arc(vbtFocus.x,vbtFocus.y,Math.max(12,r),0,Math.PI*2);
+    vbtCtx.stroke();
+
+    if(vbtSamples.length>1){
+        vbtCtx.strokeStyle="rgba(0,255,102,.55)";
+        vbtCtx.lineWidth=2;
+        vbtCtx.beginPath();
+        const recent=vbtSamples.slice(-120);
+        recent.forEach((s,i)=>{
+            if(i===0)vbtCtx.moveTo(s.x,s.y);
+            else vbtCtx.lineTo(s.x,s.y);
+        });
+        vbtCtx.stroke();
+    }
+    vbtCtx.restore();
 }
-function analyzeVbtFrame(){
-    if(!vbtFocus)return; /* 自動検出が困難な場合でも、ユーザー指定で確実に追跡対象を固定 */
-    const x=vbtFocus.x,y=vbtFocus.y,t=performance.now();
-    if(vbtLastX!==null){
-        const dx=(x-vbtLastX)*vbtScale();
-        const dt=(t-vbtLastT)/1000;
-        if(dt>0&&dt<.5){
-            const vy=-dx/dt;
-            vbtSamples.push({t,x,y,vy});
-            /* 画面座標のyではなくx方向を挙上軸と仮定。横撮影時のバーベル移動を想定 */
-            if(vy>0.05&&!vbtUp){
-                vbtUp=true;vbtDown=false;vbtUpStart=t;
+
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+function grayAt(data,w,x,y){
+    const i=(y*w+x)*4;
+    return data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
+}
+
+function estimatePlateRadius(cx,cy){
+    const w=vbtCanvas.width,h=vbtCanvas.height;
+    const maxR=Math.min(220,Math.floor(Math.min(cx,w-cx,cy,h-cy)-3));
+    if(maxR<15)return 0;
+
+    const x0=Math.max(0,Math.floor(cx-maxR-4));
+    const y0=Math.max(0,Math.floor(cy-maxR-4));
+    const x1=Math.min(w,Math.ceil(cx+maxR+4));
+    const y1=Math.min(h,Math.ceil(cy+maxR+4));
+    const image=vbtCtx.getImageData(x0,y0,x1-x0,y1-y0);
+    const data=image.data,iw=image.width;
+    const lcX=cx-x0,lcY=cy-y0;
+
+    const scores=[];
+    let maxScore=0;
+    const angles=32;
+
+    for(let r=12;r<=maxR;r+=2){
+        let score=0,valid=0;
+        for(let a=0;a<angles;a++){
+            const th=(Math.PI*2*a)/angles;
+            const ax=Math.cos(th),ay=Math.sin(th);
+            const px1=Math.round(lcX+ax*(r-3));
+            const py1=Math.round(lcY+ay*(r-3));
+            const px2=Math.round(lcX+ax*(r+3));
+            const py2=Math.round(lcY+ay*(r+3));
+            if(px1<0||px1>=image.width||px2<0||px2>=image.width||py1<0||py1>=image.height||py2<0||py2>=image.height)continue;
+            score+=Math.abs(grayAt(data,iw,px2,py2)-grayAt(data,iw,px1,py1));
+            valid++;
+        }
+        if(valid>=angles*.8){
+            score/=valid;
+            scores.push({r,score});
+            if(score>maxScore)maxScore=score;
+        }
+    }
+
+    if(maxScore<7)return 0;
+
+    // 内側の穴や文字ではなく、十分強い円周のうち外側を優先
+    const candidates=scores.filter(o=>o.score>=maxScore*.72&&o.score>=7);
+    return candidates.length?candidates[candidates.length-1].r:0;
+}
+
+function captureVbtTemplate(){
+    if(!vbtFocus)return false;
+    const w=vbtCanvas.width,h=vbtCanvas.height;
+    const detectedR=estimatePlateRadius(Math.round(vbtFocus.x),Math.round(vbtFocus.y));
+    if(detectedR>0){
+        vbtPlateDiameterPx=detectedR*2;
+        vbtTemplateHalf=clamp(Math.round(detectedR*.65),18,48);
+    }else{
+        vbtPlateDiameterPx=0;
+        vbtTemplateHalf=28;
+    }
+
+    const x=Math.round(vbtFocus.x-vbtTemplateHalf);
+    const y=Math.round(vbtFocus.y-vbtTemplateHalf);
+    const size=vbtTemplateHalf*2;
+    if(x<0||y<0||x+size>=w||y+size>=h)return false;
+
+    const patch=vbtCtx.getImageData(x,y,size,size);
+    const sample=[];
+    for(let py=2;py<size-2;py+=4){
+        for(let px=2;px<size-2;px+=4){
+            const i=(py*size+px)*4;
+            sample.push(patch.data[i]*.299+patch.data[i+1]*.587+patch.data[i+2]*.114);
+        }
+    }
+    const mean=sample.reduce((a,b)=>a+b,0)/sample.length;
+    vbtTemplate={sample:sample.map(v=>v-mean),size,step:4};
+
+    updateVbtCalibration();
+    return true;
+}
+
+function updateVbtCalibration(){
+    const diameterCm=parseFloat(document.getElementById("vbt-plate-diameter").value);
+    const info=document.getElementById("vbt-calibration-info");
+    if(vbtPlateDiameterPx>0&&diameterCm>0){
+        vbtPixelsPerMeter=vbtPlateDiameterPx/(diameterCm/100);
+        info.innerText=`画像上のプレート直径：約 ${vbtPlateDiameterPx.toFixed(0)} px ／ 実直径 ${diameterCm.toFixed(1)} cm ／ 補正 ${vbtPixelsPerMeter.toFixed(1)} px/m`;
+    }else{
+        vbtPixelsPerMeter=0;
+        info.innerText="円周の自動検出ができませんでした。プレート中心をもう一度タップしてください。検出できない場合は従来の身長簡易補正を使用します。";
+    }
+}
+document.getElementById("vbt-plate-diameter").addEventListener("input",updateVbtCalibration);
+
+function templateScore(imageData,w,cx,cy){
+    if(!vbtTemplate)return Infinity;
+    const size=vbtTemplate.size,half=size/2,step=vbtTemplate.step;
+    let idx=0,sum=0,count=0,mean=0;
+
+    for(let py=2;py<size-2;py+=step){
+        for(let px=2;px<size-2;px+=step){
+            const x=Math.round(cx-half+px),y=Math.round(cy-half+py);
+            if(x<0||x>=w||y<0||y>=imageData.height)return Infinity;
+            mean+=grayAt(imageData.data,w,x,y);
+            count++;
+        }
+    }
+    mean/=Math.max(1,count);
+
+    for(let py=2;py<size-2;py+=step){
+        for(let px=2;px<size-2;px+=step){
+            const x=Math.round(cx-half+px),y=Math.round(cy-half+py);
+            const val=grayAt(imageData.data,w,x,y)-mean;
+            sum+=Math.abs(val-vbtTemplate.sample[idx++]);
+        }
+    }
+    return sum/Math.max(1,idx);
+}
+
+function trackVbtTemplate(){
+    if(!vbtFocus||!vbtTemplate)return null;
+    const w=vbtCanvas.width,h=vbtCanvas.height;
+
+    // バーベルは主に上下へ動くため、前フレーム周辺だけを検索して処理負荷を抑える
+    const searchX=24;
+    const searchY=62;
+    const margin=vbtTemplateHalf+5;
+    const x0=Math.max(0,Math.floor(vbtFocus.x-searchX-margin));
+    const y0=Math.max(0,Math.floor(vbtFocus.y-searchY-margin));
+    const x1=Math.min(w,Math.ceil(vbtFocus.x+searchX+margin));
+    const y1=Math.min(h,Math.ceil(vbtFocus.y+searchY+margin));
+    if(x1-x0<vbtTemplate.size||y1-y0<vbtTemplate.size)return null;
+
+    const frame=vbtCtx.getImageData(x0,y0,x1-x0,y1-y0);
+    const localBaseX=vbtFocus.x-x0;
+    const localBaseY=vbtFocus.y-y0;
+
+    const step=3;
+    let best=null,bestScore=Infinity;
+
+    for(let dy=-searchY;dy<=searchY;dy+=step){
+        for(let dx=-searchX;dx<=searchX;dx+=step){
+            const cx=localBaseX+dx,cy=localBaseY+dy;
+            if(cx-vbtTemplateHalf<1||cy-vbtTemplateHalf<1||cx+vbtTemplateHalf>=frame.width||cy+vbtTemplateHalf>=frame.height)continue;
+            const score=templateScore(frame,frame.width,cx,cy);
+            if(score<bestScore){
+                bestScore=score;
+                best={x:vbtFocus.x+dx,y:vbtFocus.y+dy,score};
             }
-            if(vbtUp&&vy<=0.02){
-                const upTime=(t-vbtUpStart)/1000;
-                const recent=vbtSamples.filter(s=>s.t>=vbtUpStart&&s.t<=t);
-                const positive=recent.filter(s=>s.vy>0);
-                const distance=positive.reduce((sum,s)=>sum+s.vy*((dt)),0);
-                if(upTime>.08&&distance>.01) {
-                    const mean=distance/upTime;
-                    vbtReps.push({mean,peak:Math.max(...positive.map(s=>s.vy)),distance,time:upTime});
-                    renderVbt();
-                    vbtUp=false;vbtDown=true;
+        }
+    }
+
+    if(!best||bestScore>36)return null;
+
+    const dx=best.x-vbtFocus.x,dy=best.y-vbtFocus.y;
+    if(Math.hypot(dx,dy)>70)return null;
+
+    return {x:best.x,y:best.y};
+}
+
+function vbtMetersPerPixel(){
+    if(vbtPixelsPerMeter>0)return 1/vbtPixelsPerMeter;
+
+    // プレート円周検出が失敗した場合のみ、既存の身長簡易補正を残す
+    const h=(parseFloat(document.getElementById("vbt-height").value)||170)/100;
+    return h/Math.max(1,vbtCanvas.height*.92);
+}
+
+document.getElementById("vbt-video").addEventListener("click",e=>{
+    // 前フレームの追跡線を混ぜず、現在の生映像からテンプレートを作る
+    if(vbtVideo.videoWidth){
+        vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
+    }
+
+    const r=vbtVideo.getBoundingClientRect();
+    const scaleX=vbtCanvas.width/r.width;
+    const scaleY=vbtCanvas.height/r.height;
+    vbtFocus={
+        x:(e.clientX-r.left)*scaleX,
+        y:(e.clientY-r.top)*scaleY
+    };
+    vbtLostFrames=0;
+
+    if(captureVbtTemplate()){
+        const ring=document.getElementById("vbt-focus");
+        ring.style.display="block";
+        ring.style.left=((e.clientX-r.left)/r.width*100)+"%";
+        ring.style.top=((e.clientY-r.top)/r.height*100)+"%";
+        document.getElementById("vbt-status").innerText="対象物を固定しました。自動追従を開始します。";
+    }else{
+        document.getElementById("vbt-status").innerText="対象物の指定に失敗しました。プレート全体が映る位置をタップしてください。";
+    }
+});
+document.getElementById("vbt-focus-btn").addEventListener("click",()=>{
+    document.getElementById("vbt-status").innerText="画面上のプレート中心をタップしてください。";
+});
+
+function smoothVbtVelocity(){
+    if(vbtMotionWindow.length===0)return 0;
+    const recent=vbtMotionWindow.slice(-5);
+    return recent.reduce((a,b)=>a+b.v,0)/recent.length;
+}
+
+function analyzeVbtMotion(){
+    if(!vbtFocus)return;
+    const now=performance.now();
+    const relMs=now-vbtRecordStartPerf;
+    const sample={t:relMs,x:vbtFocus.x,y:vbtFocus.y,v:0};
+
+    if(vbtLastTracked){
+        const dt=(now-vbtLastTracked.perf)/1000;
+        if(dt>0&&dt<.25){
+            const dy=vbtLastTracked.y-vbtFocus.y; // 上方向が正
+            const meters=dy*vbtMetersPerPixel();
+            sample.v=meters/dt;
+            vbtMotionWindow.push({v:sample.v,t:relMs});
+            if(vbtMotionWindow.length>20)vbtMotionWindow.shift();
+
+            const sv=smoothVbtVelocity();
+
+            if(!vbtUp){
+                if(sv>0.045){
+                    if(!vbtUpStartSample){
+                        vbtUpStartSample={...sample};
+                    }else if(relMs-vbtUpStartSample.t>=45){
+                        vbtUp=true;
+                        vbtStableEndFrames=0;
+                        document.getElementById("vbt-status").innerText="上昇を検出中";
+                    }
+                }else{
+                    vbtUpStartSample=null;
+                }
+            }else{
+                if(sv<0.025)vbtStableEndFrames++;
+                else vbtStableEndFrames=0;
+
+                if(vbtStableEndFrames>=3&&vbtUpStartSample){
+                    const endSample={...sample};
+                    const duration=(endSample.t-vbtUpStartSample.t)/1000;
+                    const distance=(vbtUpStartSample.y-endSample.y)*vbtMetersPerPixel();
+
+                    if(duration>=.10&&distance>=.015){
+                        const segment=vbtSamples.filter(s=>s.t>=vbtUpStartSample.t&&s.t<=endSample.t);
+                        const peak=segment.length?Math.max(...segment.map(s=>s.v||0),0):distance/duration;
+                        vbtReps.push({
+                            mean:distance/duration,
+                            peak,
+                            distance,
+                            time:duration,
+                            startT:vbtUpStartSample.t/1000,
+                            endT:endSample.t/1000,
+                            source:"auto"
+                        });
+                        renderVbt();
+                    }
+                    vbtUp=false;
+                    vbtUpStartSample=null;
+                    vbtStableEndFrames=0;
                 }
             }
         }
     }
-    vbtLastX=x;vbtLastT=t;
+
+    vbtSamples.push(sample);
+    if(vbtSamples.length>20000)vbtSamples.shift();
+    vbtLastTracked={x:vbtFocus.x,y:vbtFocus.y,perf:now};
 }
+
 function renderVbt(){
-    const means=vbtReps.map(r=>r.mean),peaks=vbtReps.map(r=>r.peak);
+    if(vbtReps.length===0){
+        document.getElementById("vbt-mean").innerHTML='0.000 <span class="unit">m/s</span>';
+        document.getElementById("vbt-peak").innerHTML='0.000 <span class="unit">m/s</span>';
+        document.getElementById("vbt-reps").innerText="0";
+        document.getElementById("vbt-loss").innerHTML='0.0 <span class="unit">%</span>';
+        document.getElementById("vbt-history").innerText="まだありません";
+        return;
+    }
+
+    const means=vbtReps.map(r=>r.mean);
+    const peaks=vbtReps.map(r=>r.peak||r.mean);
     const best=Math.max(...means);
     const current=means[means.length-1]||0;
     const loss=best>0?(1-current/best)*100:0;
+
     document.getElementById("vbt-mean").innerHTML=current.toFixed(3)+' <span class="unit">m/s</span>';
     document.getElementById("vbt-peak").innerHTML=Math.max(...peaks).toFixed(3)+' <span class="unit">m/s</span>';
     document.getElementById("vbt-reps").innerText=vbtReps.length;
     document.getElementById("vbt-loss").innerHTML=loss.toFixed(1)+' <span class="unit">%</span>';
-    document.getElementById("vbt-history").innerHTML=vbtReps.map((r,i)=>`${i+1}レップ：Mean ${r.mean.toFixed(3)} m/s / Peak ${r.peak.toFixed(3)} m/s`).join("<br>");
+
+    document.getElementById("vbt-history").innerHTML=vbtReps.map((r,i)=>{
+        const mode=r.source==="review"?"手動レビュー":"自動";
+        return `${i+1}レップ：Mean ${r.mean.toFixed(3)} m/s / 距離 ${r.distance.toFixed(3)} m / ${r.time.toFixed(3)} s / ${mode}`;
+    }).join("<br>");
+
     const status=document.getElementById("vbt-status");
     if(loss>20&&document.getElementById("vbt-alert20").checked){status.innerText="速度低下20%超：警告";beep(350,.25);}
     else if(loss>15&&document.getElementById("vbt-alert15").checked){status.innerText="速度低下15%超：警告";beep(550,.18);}
     else if(loss>10&&document.getElementById("vbt-alert10").checked){status.innerText="速度低下10%超：警告";beep(750,.12);}
-    else status.innerText="計測中";
+    else if(vbtRunning)status.innerText="計測中";
 }
-document.getElementById("vbt-start").addEventListener("click",()=>{
-    vbtRunning=true;vbtReps=[];vbtSamples=[];vbtLastX=null;vbtLastT=null;vbtUp=false;
-    document.getElementById("vbt-start").disabled=true;document.getElementById("vbt-stop").disabled=false;
+
+function startVbtRecording(){
+    if(!vbtVideo.srcObject||typeof MediaRecorder==="undefined")return;
+    vbtChunks=[];
+    let options={};
+    if(MediaRecorder.isTypeSupported("video/webm;codecs=vp9"))options={mimeType:"video/webm;codecs=vp9"};
+    else if(MediaRecorder.isTypeSupported("video/webm;codecs=vp8"))options={mimeType:"video/webm;codecs=vp8"};
+
+    try{
+        vbtRecorder=new MediaRecorder(vbtVideo.srcObject,options);
+        vbtRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)vbtChunks.push(e.data);};
+        vbtRecorder.onstop=showVbtReview;
+        vbtRecorder.start(100);
+    }catch(e){
+        console.warn("VBT recording unavailable",e);
+        vbtRecorder=null;
+    }
+}
+
+function showVbtReview(){
+    if(!vbtChunks.length)return;
+    const type=vbtRecorder&&vbtRecorder.mimeType?vbtRecorder.mimeType:"video/webm";
+    const blob=new Blob(vbtChunks,{type});
+    if(vbtReviewUrl)URL.revokeObjectURL(vbtReviewUrl);
+    vbtReviewUrl=URL.createObjectURL(blob);
+
+    const review=document.getElementById("vbt-review-video");
+    review.src=vbtReviewUrl;
+    document.getElementById("vbt-review-area").style.display="block";
+    vbtReviewStart=null;
+    vbtReviewEnd=null;
+    document.getElementById("vbt-review-start-label").innerText="未指定";
+    document.getElementById("vbt-review-end-label").innerText="未指定";
+    document.getElementById("vbt-review-duration").innerText="0.000 s";
+    document.getElementById("vbt-review-distance").innerText="0.000 m";
+    document.getElementById("vbt-review-mean").innerText="0.000 m/s";
+    document.getElementById("vbt-add-review-rep").disabled=true;
+}
+
+document.getElementById("vbt-start").addEventListener("click",async()=>{
+    if(!vbtStream)await startVbtCamera();
+    if(!vbtFocus||!vbtTemplate){
+        document.getElementById("vbt-status").innerText="先にプレート中心をタップして対象物を指定してください。";
+        return;
+    }
+
+    vbtRunning=true;
+    vbtReps=[];
+    vbtSamples=[];
+    vbtMotionWindow=[];
+    vbtUp=false;
+    vbtUpStartSample=null;
+    vbtLastTracked=null;
+    vbtLostFrames=0;
+    vbtRecordStartPerf=performance.now();
+
+    const track=vbtVideo.srcObject&&vbtVideo.srcObject.getVideoTracks()[0];
+    const settings=track&&track.getSettings?track.getSettings():{};
+    if(settings.frameRate)vbtActualFps=settings.frameRate;
+
+    startVbtRecording();
+
+    document.getElementById("vbt-start").disabled=true;
+    document.getElementById("vbt-stop").disabled=false;
     document.getElementById("vbt-status").innerText="計測中";
+    renderVbt();
 });
+
 document.getElementById("vbt-stop").addEventListener("click",()=>{
-    vbtRunning=false;document.getElementById("vbt-start").disabled=false;document.getElementById("vbt-stop").disabled=true;
-    document.getElementById("vbt-status").innerText="計測終了";
+    vbtRunning=false;
+    document.getElementById("vbt-start").disabled=false;
+    document.getElementById("vbt-stop").disabled=true;
+    document.getElementById("vbt-status").innerText="計測終了。動画レビューでフレーム確認できます。";
+    if(vbtRecorder&&vbtRecorder.state!=="inactive")vbtRecorder.stop();
+});
+
+/* ---------- VBTレビュー ---------- */
+const vbtReviewVideo=document.getElementById("vbt-review-video");
+const vbtReviewCanvas=document.getElementById("vbt-review-canvas");
+const vbtReviewCtx=vbtReviewCanvas.getContext("2d");
+const vbtReviewSeek=document.getElementById("vbt-review-seek");
+
+vbtReviewVideo.addEventListener("loadedmetadata",()=>{
+    vbtReviewSeek.max=vbtReviewVideo.duration||1;
+    vbtReviewSeek.value=0;
+    drawVbtReviewOverlay();
+});
+vbtReviewVideo.addEventListener("timeupdate",()=>{
+    if(!vbtReviewVideo.seeking){
+        vbtReviewSeek.value=vbtReviewVideo.currentTime;
+        updateVbtReviewTime();
+        drawVbtReviewOverlay();
+    }
+});
+vbtReviewVideo.addEventListener("seeked",()=>{
+    updateVbtReviewTime();
+    drawVbtReviewOverlay();
+});
+vbtReviewSeek.addEventListener("input",()=>{
+    vbtReviewVideo.pause();
+    vbtReviewVideo.currentTime=parseFloat(vbtReviewSeek.value);
+    updateVbtReviewTime();
+});
+
+function updateVbtReviewTime(){
+    const frame=Math.round(vbtReviewVideo.currentTime*vbtActualFps);
+    document.getElementById("vbt-review-time").innerText=`${vbtReviewVideo.currentTime.toFixed(3)} s / Frame ${frame}`;
+}
+
+function vbtStepFrame(dir){
+    vbtReviewVideo.pause();
+    const step=1/Math.max(1,vbtActualFps||30);
+    vbtReviewVideo.currentTime=clamp(vbtReviewVideo.currentTime+dir*step,0,vbtReviewVideo.duration||999);
+}
+document.getElementById("vbt-prev-frame").addEventListener("click",()=>vbtStepFrame(-1));
+document.getElementById("vbt-next-frame").addEventListener("click",()=>vbtStepFrame(1));
+
+function nearestVbtSample(timeSec){
+    if(!vbtSamples.length)return null;
+    const target=timeSec*1000;
+    let best=vbtSamples[0],bestD=Math.abs(vbtSamples[0].t-target);
+    for(let i=1;i<vbtSamples.length;i++){
+        const d=Math.abs(vbtSamples[i].t-target);
+        if(d<bestD){best=vbtSamples[i];bestD=d;}
+    }
+    return best;
+}
+
+function drawVbtReviewOverlay(){
+    if(!vbtReviewVideo.videoWidth)return;
+    vbtReviewCanvas.width=vbtReviewVideo.videoWidth;
+    vbtReviewCanvas.height=vbtReviewVideo.videoHeight;
+    vbtReviewCtx.clearRect(0,0,vbtReviewCanvas.width,vbtReviewCanvas.height);
+
+    const s=nearestVbtSample(vbtReviewVideo.currentTime);
+    if(!s)return;
+
+    vbtReviewCtx.strokeStyle="#00ff66";
+    vbtReviewCtx.lineWidth=4;
+    vbtReviewCtx.beginPath();
+    const r=vbtPlateDiameterPx>0?vbtPlateDiameterPx/2:24;
+    vbtReviewCtx.arc(s.x,s.y,r,0,Math.PI*2);
+    vbtReviewCtx.stroke();
+
+    const upto=vbtSamples.filter(p=>p.t<=vbtReviewVideo.currentTime*1000).slice(-120);
+    if(upto.length>1){
+        vbtReviewCtx.strokeStyle="rgba(0,255,102,.6)";
+        vbtReviewCtx.lineWidth=2;
+        vbtReviewCtx.beginPath();
+        upto.forEach((p,i)=>i?vbtReviewCtx.lineTo(p.x,p.y):vbtReviewCtx.moveTo(p.x,p.y));
+        vbtReviewCtx.stroke();
+    }
+}
+
+document.getElementById("vbt-mark-start").addEventListener("click",()=>{
+    const time=vbtReviewVideo.currentTime;
+    const sample=nearestVbtSample(time);
+    if(!sample)return;
+    vbtReviewStart={time,sample,frame:Math.round(time*vbtActualFps)};
+    document.getElementById("vbt-review-start-label").innerText=`${time.toFixed(3)} s / Frame ${vbtReviewStart.frame}`;
+    calculateVbtReviewRep();
+});
+document.getElementById("vbt-mark-end").addEventListener("click",()=>{
+    const time=vbtReviewVideo.currentTime;
+    const sample=nearestVbtSample(time);
+    if(!sample)return;
+    vbtReviewEnd={time,sample,frame:Math.round(time*vbtActualFps)};
+    document.getElementById("vbt-review-end-label").innerText=`${time.toFixed(3)} s / Frame ${vbtReviewEnd.frame}`;
+    calculateVbtReviewRep();
+});
+
+function calculateVbtReviewRep(){
+    const addBtn=document.getElementById("vbt-add-review-rep");
+    if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time){
+        addBtn.disabled=true;
+        return;
+    }
+
+    const duration=vbtReviewEnd.time-vbtReviewStart.time;
+    const dy=vbtReviewStart.sample.y-vbtReviewEnd.sample.y;
+    const distance=Math.abs(dy)*vbtMetersPerPixel();
+    const mean=duration>0?distance/duration:0;
+
+    document.getElementById("vbt-review-duration").innerText=duration.toFixed(3)+" s";
+    document.getElementById("vbt-review-distance").innerText=distance.toFixed(3)+" m";
+    document.getElementById("vbt-review-mean").innerText=mean.toFixed(3)+" m/s";
+    addBtn.disabled=!(duration>0&&distance>0);
+}
+
+document.getElementById("vbt-add-review-rep").addEventListener("click",()=>{
+    if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time)return;
+
+    const duration=vbtReviewEnd.time-vbtReviewStart.time;
+    const distance=Math.abs(vbtReviewStart.sample.y-vbtReviewEnd.sample.y)*vbtMetersPerPixel();
+    const segment=vbtSamples.filter(s=>s.t>=vbtReviewStart.time*1000&&s.t<=vbtReviewEnd.time*1000);
+    const peak=segment.length?Math.max(...segment.map(s=>Math.max(0,s.v||0)),distance/duration):distance/duration;
+
+    vbtReps.push({
+        mean:distance/duration,
+        peak,
+        distance,
+        time:duration,
+        startT:vbtReviewStart.time,
+        endT:vbtReviewEnd.time,
+        startFrame:vbtReviewStart.frame,
+        endFrame:vbtReviewEnd.frame,
+        source:"review"
+    });
+    renderVbt();
+
+    vbtReviewStart=null;
+    vbtReviewEnd=null;
+    document.getElementById("vbt-review-start-label").innerText="未指定";
+    document.getElementById("vbt-review-end-label").innerText="未指定";
+    document.getElementById("vbt-review-duration").innerText="0.000 s";
+    document.getElementById("vbt-review-distance").innerText="0.000 m";
+    document.getElementById("vbt-review-mean").innerText="0.000 m/s";
+    document.getElementById("vbt-add-review-rep").disabled=true;
 });
 
 /* =========================
@@ -662,11 +1510,27 @@ function calculateMyJump(){
 
 /* =========================
    SPRINTPEAK
-   MediaPipe Poseで腰位置の横移動を追跡し、
-   身長を基準に簡易スケール補正。
+   改善点：
+   ・身長と大腿／下腿ランドマークから動画ごとの px/m を推定
+   ・腰中央の水平移動を80ms前後の時間窓で速度化
+   ・速度は短時間移動平均で平滑化し、単発ノイズを最高速度にしない
+   ・左右の Heel + Foot Index から接地／離地イベントを検出
+   ・最高速度付近の接地イベントからピッチと接地時間を算出
+   ・ストライド = 最高速度 ÷ ピッチ
 ========================= */
 const sprintVideo=document.getElementById("sprint-video"),sprintCanvas=document.getElementById("sprint-canvas"),sprintCtx=sprintCanvas.getContext("2d");
 let sprintStream=null,sprintPose=null,sprintRunning=false,sprintFrames=[],sprintLastPose=null,sprintLastPoseT=0,sprintFootState=[];
+
+/* SPRINTPEAK追加状態 */
+let sprintScaleSamples=[];
+let sprintPositionHistory=[];
+let sprintContacts=[];
+let sprintContactDurations=[];
+let sprintFootTracks={
+    left:{groundY:null,contact:null,hasAirborne:false,contactStart:null,lastY:null,lastT:null},
+    right:{groundY:null,contact:null,hasAirborne:false,contactStart:null,lastY:null,lastT:null}
+};
+
 async function startSprintCamera(){
     if(sprintStream)return;
     try{ sprintStream=await getCameraStream(sprintVideo,currentFacingMode); }catch(e){console.error(e);}
@@ -677,67 +1541,280 @@ async function startSprintCamera(){
         sprintPoseLoop();
     }
 }
+
 async function sprintPoseLoop(){
     if(sprintVideo.readyState>=2&&sprintPose){try{await sprintPose.send({image:sprintVideo});}catch(e){}}
     requestAnimationFrame(sprintPoseLoop);
 }
+
+function sprintMedian(values){
+    const a=values.filter(v=>Number.isFinite(v)&&v>0).sort((x,y)=>x-y);
+    if(!a.length)return 0;
+    const m=Math.floor(a.length/2);
+    return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+
+function sprintDistPx(a,b){
+    const dx=(a.x-b.x)*sprintCanvas.width;
+    const dy=(a.y-b.y)*sprintCanvas.height;
+    return Math.hypot(dx,dy);
+}
+
+function estimateSprintPixelsPerMeter(l,heightM){
+    if(!heightM||heightM<=0||!sprintCanvas.width||!sprintCanvas.height)return 0;
+    const segments=[
+        [23,25,0.245],[24,26,0.245],
+        [25,27,0.246],[26,28,0.246]
+    ];
+    const estimates=[];
+    for(const [a,b,ratio] of segments){
+        const p=l[a],q=l[b];
+        if(!p||!q||p.visibility<.55||q.visibility<.55)continue;
+        const px=sprintDistPx(p,q);
+        const real=heightM*ratio;
+        if(px>8&&real>0)estimates.push(px/real);
+    }
+    return sprintMedian(estimates);
+}
+
+function sprintFootCenter(l,side){
+    const heel=side==="left"?l[29]:l[30];
+    const toe=side==="left"?l[31]:l[32];
+    if(!heel||!toe||heel.visibility<.42||toe.visibility<.42)return null;
+    return {
+        x:(heel.x+toe.x)/2*sprintCanvas.width,
+        y:(heel.y+toe.y)/2*sprintCanvas.height
+    };
+}
+
+function sprintResetFootTracks(){
+    sprintFootTracks={
+        left:{groundY:null,contact:null,hasAirborne:false,contactStart:null,lastY:null,lastT:null},
+        right:{groundY:null,contact:null,hasAirborne:false,contactStart:null,lastY:null,lastT:null}
+    };
+}
+
+function updateSprintFoot(side,foot,t,pxPerMeter){
+    if(!foot||!pxPerMeter)return;
+    const st=sprintFootTracks[side];
+
+    /*
+      groundYは直近に観測した足部最下点を基準にする。
+      高速走では足が上がっている時間が長いため、最大Yは接地面に近い。
+    */
+    if(st.groundY===null)st.groundY=foot.y;
+    if(foot.y>st.groundY)st.groundY=st.groundY*.80+foot.y*.20;
+
+    const contactBand=Math.max(4,pxPerMeter*.022); // 約2.2cm
+    const liftBand=Math.max(7,pxPerMeter*.045);    // 約4.5cm
+
+    if(st.contact===null){
+        st.contact=foot.y>=st.groundY-contactBand;
+        st.lastY=foot.y;
+        st.lastT=t;
+        return;
+    }
+
+    if(st.contact){
+        if(foot.y<st.groundY-liftBand){
+            st.contact=false;
+            st.hasAirborne=true;
+
+            if(st.contactStart!==null){
+                const duration=t-st.contactStart;
+                if(duration>=45&&duration<=250){
+                    sprintContactDurations.push({
+                        side,
+                        start:st.contactStart,
+                        end:t,
+                        duration
+                    });
+                }
+                st.contactStart=null;
+            }
+        }
+    }else{
+        if(st.hasAirborne&&foot.y>=st.groundY-contactBand){
+            st.contact=true;
+            st.contactStart=t;
+            sprintContacts.push({side,t,x:foot.x,y:foot.y});
+        }
+    }
+
+    st.lastY=foot.y;
+    st.lastT=t;
+}
+
 function onSprintResults(results){
     if(!results.poseLandmarks)return;
-    sprintCanvas.width=sprintVideo.videoWidth;sprintCanvas.height=sprintVideo.videoHeight;
+
+    sprintCanvas.width=sprintVideo.videoWidth;
+    sprintCanvas.height=sprintVideo.videoHeight;
     sprintCtx.clearRect(0,0,sprintCanvas.width,sprintCanvas.height);
     drawConnectors(sprintCtx,results.poseLandmarks,POSE_CONNECTIONS,{color:"#ffffffaa",lineWidth:1.5});
     drawLandmarks(sprintCtx,results.poseLandmarks,{color:"#00ff00",lineWidth:1,radius:2});
+
     if(!sprintRunning)return;
-    const l=results.poseLandmarks,lh=l[23],rh=l[24],la=l[27],ra=l[28];
-    const hipX=(lh.x+rh.x)/2, t=performance.now();
-    if(sprintLastPose!==null){
-        const dt=(t-sprintLastPoseT)/1000;
-        if(dt>.01&&dt<.2){
-            const height=(parseFloat(document.getElementById("sprint-height").value)||170)/100;
-            const dx=Math.abs(hipX-sprintLastPose)*height/0.5;
-            const speed=dx/dt;
+
+    const l=results.poseLandmarks;
+    const lh=l[23],rh=l[24];
+    if(!lh||!rh||lh.visibility<.5||rh.visibility<.5)return;
+
+    const t=performance.now();
+    const heightM=(parseFloat(document.getElementById("sprint-height").value)||170)/100;
+    const scaleNow=estimateSprintPixelsPerMeter(l,heightM);
+
+    if(scaleNow>0){
+        sprintScaleSamples.push(scaleNow);
+        if(sprintScaleSamples.length>120)sprintScaleSamples.shift();
+    }
+    const pxPerMeter=sprintMedian(sprintScaleSamples);
+    if(!pxPerMeter)return;
+
+    const hipX=((lh.x+rh.x)/2)*sprintCanvas.width;
+    sprintPositionHistory.push({t,x:hipX,pxPerMeter});
+    if(sprintPositionHistory.length>20)sprintPositionHistory.shift();
+
+    /*
+      1フレーム差ではなく、約70～140ms離れた腰位置を比較。
+      これによりランドマークの1フレームノイズを速度へ直接増幅しない。
+    */
+    let reference=null;
+    for(let i=sprintPositionHistory.length-2;i>=0;i--){
+        const dt=t-sprintPositionHistory[i].t;
+        if(dt>=70&&dt<=140){
+            reference=sprintPositionHistory[i];
+            break;
+        }
+        if(dt>140)break;
+    }
+
+    if(reference){
+        const dt=(t-reference.t)/1000;
+        const avgScale=(pxPerMeter+reference.pxPerMeter)/2;
+        const dxMeters=Math.abs(hipX-reference.x)/avgScale;
+        const speed=dxMeters/dt;
+
+        if(Number.isFinite(speed)&&speed>=0&&speed<15){
             sprintFrames.push({t,speed});
+            if(sprintFrames.length>2000)sprintFrames.shift();
         }
     }
-    sprintLastPose=hipX;sprintLastPoseT=t;
-    /* 足部の接地状態を簡易判定：足先の上下運動周期からピッチを推定 */
-    const footY=(la.y+ra.y)/2;
-    sprintFootState.push({t,y:footY});
-    if(sprintFootState.length>180)sprintFootState.shift();
+
+    sprintLastPose=hipX;
+    sprintLastPoseT=t;
+
+    const leftFoot=sprintFootCenter(l,"left");
+    const rightFoot=sprintFootCenter(l,"right");
+    updateSprintFoot("left",leftFoot,t,pxPerMeter);
+    updateSprintFoot("right",rightFoot,t,pxPerMeter);
+
+    /* 既存変数を維持：足部の代表値も保存 */
+    if(leftFoot&&rightFoot){
+        sprintFootState.push({t,y:(leftFoot.y+rightFoot.y)/2});
+        if(sprintFootState.length>180)sprintFootState.shift();
+    }
 }
+
 document.getElementById("sprint-start").addEventListener("click",async()=>{
     if(!sprintStream)await startSprintCamera();
     sprintRunning=!sprintRunning;
     const btn=document.getElementById("sprint-start");
+
     if(sprintRunning){
-        sprintFrames=[];sprintFootState=[];sprintLastPose=null;
-        btn.innerText="解析終了";document.getElementById("sprint-status").innerText="解析中";
+        sprintFrames=[];
+        sprintFootState=[];
+        sprintLastPose=null;
+        sprintLastPoseT=0;
+        sprintScaleSamples=[];
+        sprintPositionHistory=[];
+        sprintContacts=[];
+        sprintContactDurations=[];
+        sprintResetFootTracks();
+
+        btn.innerText="解析終了";
+        document.getElementById("sprint-status").innerText="解析中";
     }else{
-        calculateSprintPeak();btn.innerText="解析開始";document.getElementById("sprint-status").innerText="解析終了";
+        calculateSprintPeak();
+        btn.innerText="解析開始";
+        document.getElementById("sprint-status").innerText="解析終了";
     }
 });
+
 function calculateSprintPeak(){
-    if(sprintFrames.length<3)return;
-    const speeds=sprintFrames.map(x=>x.speed).filter(x=>isFinite(x)&&x>0);
-    const vmax=Math.max(...speeds);
-    /* 速度の最大付近を対象。ピッチは足部上下波形の局所極値から周期を推定 */
-    const arr=sprintFootState;
-    let peaks=[];
-    for(let i=2;i<arr.length-2;i++){
-        if(arr[i].y<arr[i-1].y&&arr[i].y<arr[i+1].y&&arr[i].y<arr[i-2].y&&arr[i].y<arr[i+2].y)peaks.push(arr[i].t);
+    if(sprintFrames.length<5)return;
+
+    /*
+      速度を5サンプル移動平均。
+      単発のランドマーク飛びを最高速度として採用しない。
+    */
+    const smoothed=[];
+    for(let i=0;i<sprintFrames.length;i++){
+        const from=Math.max(0,i-2);
+        const to=Math.min(sprintFrames.length-1,i+2);
+        const window=sprintFrames.slice(from,to+1).map(v=>v.speed).filter(Number.isFinite);
+        if(window.length){
+            smoothed.push({
+                t:sprintFrames[i].t,
+                speed:window.reduce((a,b)=>a+b,0)/window.length
+            });
+        }
     }
+    if(!smoothed.length)return;
+
+    let maxSample=smoothed[0];
+    for(const s of smoothed){
+        if(s.speed>maxSample.speed)maxSample=s;
+    }
+
+    /*
+      最高速度点の±120msを平均してVmaxを確定。
+      1点だけの最大値より再現性を優先。
+    */
+    const peakWindow=smoothed.filter(s=>Math.abs(s.t-maxSample.t)<=120);
+    const vmax=peakWindow.length
+        ?peakWindow.reduce((a,b)=>a+b.speed,0)/peakWindow.length
+        :maxSample.speed;
+    const peakT=maxSample.t;
+
+    /*
+      最高速度付近±1秒の接地イベントを使用。
+      左右を問わず「1回の接地 = 1歩」として歩/秒を算出。
+    */
+    const nearbyContacts=sprintContacts
+        .filter(e=>Math.abs(e.t-peakT)<=1000)
+        .sort((a,b)=>a.t-b.t);
+
+    const stepIntervals=[];
+    for(let i=1;i<nearbyContacts.length;i++){
+        const dt=(nearbyContacts[i].t-nearbyContacts[i-1].t)/1000;
+        if(dt>=.10&&dt<=.35)stepIntervals.push(dt);
+    }
+
     let pitch=0;
-    if(peaks.length>=2){
-        const intervals=[];for(let i=1;i<peaks.length;i++){const d=(peaks[i]-peaks[i-1])/1000;if(d>.15&&d<.8)intervals.push(d);}
-        if(intervals.length)pitch=1/(intervals.reduce((a,b)=>a+b,0)/intervals.length);
+    if(stepIntervals.length){
+        const stableIntervals=stepIntervals.slice().sort((a,b)=>a-b);
+        const median=sprintMedian(stableIntervals);
+        const filtered=stableIntervals.filter(v=>Math.abs(v-median)<=.06);
+        const use=filtered.length?filtered:stableIntervals;
+        pitch=1/(use.reduce((a,b)=>a+b,0)/use.length);
     }
+
     const stride=pitch>0?vmax/pitch:0;
-    /* 接地時間は現段階では足部波形の周期から推定した値。映像条件により誤差がある */
-    let contact=0;
-    if(peaks.length>=2){
-        const period=(peaks[peaks.length-1]-peaks[0])/1000/(peaks.length-1);
-        contact=Math.min(200,period*.25*1000);
-    }
+
+    /*
+      接地時間は「接地開始→同じ足の離地」の実測イベント。
+      最高速度付近±1秒にある接地だけを平均。
+    */
+    const nearbyDurations=sprintContactDurations
+        .filter(e=>Math.abs(((e.start+e.end)/2)-peakT)<=1000)
+        .map(e=>e.duration)
+        .filter(v=>v>=45&&v<=250);
+
+    const contact=nearbyDurations.length
+        ?nearbyDurations.reduce((a,b)=>a+b,0)/nearbyDurations.length
+        :0;
+
     document.getElementById("sprint-vmax").innerHTML=vmax.toFixed(2)+' <span class="unit">m/s</span>';
     document.getElementById("sprint-pitch").innerHTML=pitch.toFixed(2)+' <span class="unit">歩/秒</span>';
     document.getElementById("sprint-stride").innerHTML=stride.toFixed(2)+' <span class="unit">m</span>';
