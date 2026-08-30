@@ -194,8 +194,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
     </div>
 
     <div id="vbt-review-area" class="settings-card" style="display:none">
-        <h3>VBT 動画レビュー</h3>
-        <div class="info">自動追従結果を動画上で確認し、必要なレップについて1フレームずつ移動しながら「上昇開始」「上昇終了」を指定できます。追跡がずれたフレームでは中心を手動指定できます。2点以上を指定すると、そのアンカー間を拘束して再追跡します。指定したフレームからMean Velocityを再計算します。</div>
+        <h3>VBT 動画レビュー・高精度再解析</h3>
+        <div class="info"><b>複数アンカー式リプレイ再追跡：</b>動画を止め、正しい対象物が分かるフレームで「追跡アンカーを追加」を押してプレート／シャフト中心をタップしてください。<b>各アンカーではそのフレームから追跡特徴を新しく取得</b>します。2点以上のアンカーを置くと、各区間を前方向・逆方向から独立して追跡し、両者を照合して補正軌跡を再構成します。最初のレップより前と最後のレップより後にもアンカーを置くと、セット全体を再計算できます。</div>
         <div class="preview-wrap" id="vbt-review-wrap">
             <video id="vbt-review-video" playsinline controls></video>
             <canvas id="vbt-review-canvas" class="overlay-canvas"></canvas>
@@ -208,8 +208,17 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <button class="action-btn btn-gray" id="vbt-prev-frame">◀ 1フレーム</button>
             <button class="action-btn btn-gray" id="vbt-next-frame">1フレーム ▶</button>
         </div>
-        <button class="action-btn btn-blue" id="vbt-review-correct">現在フレームの追跡位置を修正</button>
-        <div class="small" id="vbt-review-correct-status">追従位置がずれたフレームでは「追跡位置を修正」を押し、プレート中心をタップしてください。</div>
+        <div class="button-row">
+            <button class="action-btn btn-blue" id="vbt-review-correct">＋ 現在フレームに追跡アンカーを追加</button>
+            <button class="action-btn btn-green" id="vbt-review-retrack-all" disabled>全アンカー間を再追跡・全VBT再計算</button>
+        </div>
+        <div class="button-row">
+            <button class="action-btn btn-gray" id="vbt-review-delete-nearest" disabled>現在位置に最も近いアンカーを削除</button>
+            <button class="action-btn btn-gray" id="vbt-review-reset">レビュー補正をリセット</button>
+        </div>
+        <div class="small" id="vbt-review-correct-status">まず、測定対象が明確に見えるフレームを2点以上選び、各フレームで追跡アンカーを追加してください。</div>
+        <div class="small" id="vbt-review-anchor-summary">アンカー：0点 ／ 再解析待ち</div>
+        <div class="small" id="vbt-review-anchor-list"></div>
         <hr>
         <div class="button-row">
             <button class="action-btn btn-blue" id="vbt-mark-start">現在フレームを「上昇開始」</button>
@@ -221,6 +230,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <tr><td>上昇時間</td><td id="vbt-review-duration">0.000 s</td></tr>
             <tr><td>移動距離</td><td id="vbt-review-distance">0.000 m</td></tr>
             <tr><td>Mean Velocity</td><td id="vbt-review-mean">0.000 m/s</td></tr>
+            <tr><td>レビュー補正</td><td id="vbt-review-quality">未実行</td></tr>
+            <tr><td>レビュー距離校正</td><td id="vbt-review-calibration">ライブ校正を使用</td></tr>
         </table>
         <button class="action-btn btn-green" id="vbt-add-review-rep" disabled>この区間をレップとして追加</button>
     </div>
@@ -2127,7 +2138,7 @@ function renderVbt(){
     document.getElementById("vbt-loss").innerHTML=loss.toFixed(1)+' <span class="unit">%</span>';
 
     document.getElementById("vbt-history").innerHTML=vbtReps.map((r,i)=>{
-        const mode=r.source==="review"?"手動レビュー":"自動";
+        const mode=r.source==="review"?"手動レビュー":r.source==="review-auto"?"リプレイ再解析":"自動";
         return `${i+1}レップ：Mean ${r.mean.toFixed(3)} m/s / 距離 ${r.distance.toFixed(3)} m / ${r.time.toFixed(3)} s / ${mode}`;
     }).join("<br>");
 
@@ -2169,14 +2180,7 @@ function showVbtReview(){
     vbtReviewStart=null;
     vbtReviewEnd=null;
     vbtReviewAnchors=[];
-    document.getElementById("vbt-review-start-label").innerText="未指定";
-    document.getElementById("vbt-review-end-label").innerText="未指定";
-    document.getElementById("vbt-review-duration").innerText="0.000 s";
-    document.getElementById("vbt-review-distance").innerText="0.000 m";
-    document.getElementById("vbt-review-mean").innerText="0.000 m/s";
-    document.getElementById("vbt-add-review-rep").disabled=true;
-    const correctStatus=document.getElementById("vbt-review-correct-status");
-    if(correctStatus)correctStatus.innerText="追従位置がずれたフレームでは「追跡位置を修正」を押し、プレート中心をタップしてください。";
+    resetVbtReviewWorkspace(true);
 }
 
 document.getElementById("vbt-start").addEventListener("click",async()=>{
@@ -2223,17 +2227,34 @@ document.getElementById("vbt-stop").addEventListener("click",()=>{
     if(vbtRecorder&&vbtRecorder.state!=="inactive")vbtRecorder.stop();
 });
 
-/* ---------- VBTレビュー ---------- */
+/* ---------- VBTレビュー：複数アンカー式・双方向再追跡・全VBT再計算 ---------- */
 const vbtReviewVideo=document.getElementById("vbt-review-video");
 const vbtReviewCanvas=document.getElementById("vbt-review-canvas");
 const vbtReviewCtx=vbtReviewCanvas.getContext("2d");
 const vbtReviewSeek=document.getElementById("vbt-review-seek");
+
+/*
+  レビュー側はライブ追跡と状態を分離する。
+  ・手動アンカーごとに、そのフレームの中央/外周テンプレートを新規取得
+  ・隣接アンカー間を forward / backward の2本で独立追跡
+  ・両方向が一致した点を優先し、不一致はアンカー間ガイドと特徴一致度で再判定
+  ・補正軌跡から速度を局所回帰で再計算し、全レップを再検出
+*/
+let vbtReviewCorrectedSamples=[];
+let vbtReviewOriginalSamples=[];
+let vbtReviewOriginalReps=[];
+let vbtReviewPixelsPerMeter=0;
+let vbtReviewAnalysisApplied=false;
+let vbtReviewLastQuality=null;
+let vbtReviewTrackGeneration=0;
 
 vbtReviewVideo.addEventListener("loadedmetadata",()=>{
     vbtReviewSeek.max=vbtReviewVideo.duration||1;
     vbtReviewSeek.value=0;
     const size=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);
     if(size.width){vbtReviewCanvas.width=size.width;vbtReviewCanvas.height=size.height;}
+    ensureVbtReviewOffscreen();
+    updateVbtReviewTime();
     drawVbtReviewOverlay();
 });
 vbtReviewVideo.addEventListener("timeupdate",()=>{
@@ -2256,29 +2277,127 @@ vbtReviewSeek.addEventListener("input",()=>{
     updateVbtReviewTime();
 });
 
+function vbtReviewFps(){
+    return Math.max(1,vbtMeasuredVideoFps||vbtActualFps||30);
+}
+
 function updateVbtReviewTime(){
-    const frame=Math.round(vbtReviewVideo.currentTime*vbtActualFps);
+    const fps=vbtReviewFps();
+    const frame=Math.round(vbtReviewVideo.currentTime*fps);
     document.getElementById("vbt-review-time").innerText=`${vbtReviewVideo.currentTime.toFixed(3)} s / Frame ${frame}`;
+    const deleteBtn=document.getElementById("vbt-review-delete-nearest");
+    if(deleteBtn)deleteBtn.disabled=!vbtReviewAnchors.length||vbtReviewBusy;
 }
 
 function vbtStepFrame(dir){
     if(vbtReviewBusy)return;
     vbtReviewVideo.pause();
-    const step=1/Math.max(1,vbtActualFps||30);
+    const step=1/vbtReviewFps();
     vbtReviewVideo.currentTime=clamp(vbtReviewVideo.currentTime+dir*step,0,vbtReviewVideo.duration||999);
 }
 document.getElementById("vbt-prev-frame").addEventListener("click",()=>vbtStepFrame(-1));
 document.getElementById("vbt-next-frame").addEventListener("click",()=>vbtStepFrame(1));
 
-function nearestVbtSample(timeSec){
-    if(!vbtSamples.length)return null;
-    const target=timeSec*1000;
-    let best=vbtSamples[0],bestD=Math.abs(vbtSamples[0].t-target);
-    for(let i=1;i<vbtSamples.length;i++){
-        const d=Math.abs(vbtSamples[i].t-target);
-        if(d<bestD){best=vbtSamples[i];bestD=d;}
+function ensureVbtReviewOffscreen(){
+    if(!vbtReviewOffscreen){
+        vbtReviewOffscreen=document.createElement("canvas");
+        vbtReviewOffCtx=vbtReviewOffscreen.getContext("2d",{willReadFrequently:true});
     }
-    return best;
+    const size=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);
+    if(size.width&&(vbtReviewOffscreen.width!==size.width||vbtReviewOffscreen.height!==size.height)){
+        vbtReviewOffscreen.width=size.width;
+        vbtReviewOffscreen.height=size.height;
+    }
+    return !!size.width;
+}
+
+function resetVbtReviewWorkspace(fromNewRecording=false){
+    if(fromNewRecording||!vbtReviewOriginalSamples.length){
+        vbtReviewOriginalSamples=vbtSamples.map(s=>({...s}));
+        vbtReviewOriginalReps=vbtReps.map(r=>({...r}));
+    }else{
+        vbtSamples=vbtReviewOriginalSamples.map(s=>({...s}));
+        vbtReps=vbtReviewOriginalReps.map(r=>({...r}));
+        renderVbt();
+    }
+    vbtReviewAnchors=[];
+    vbtReviewCorrectedSamples=[];
+    vbtReviewPixelsPerMeter=0;
+    vbtReviewAnalysisApplied=false;
+    vbtReviewLastQuality=null;
+    vbtReviewStart=null;
+    vbtReviewEnd=null;
+    vbtReviewTrackGeneration++;
+    setVbtReviewCorrectionMode(false);
+    const fields={
+        "vbt-review-start-label":"未指定",
+        "vbt-review-end-label":"未指定",
+        "vbt-review-duration":"0.000 s",
+        "vbt-review-distance":"0.000 m",
+        "vbt-review-mean":"0.000 m/s",
+        "vbt-review-quality":"未実行",
+        "vbt-review-calibration":"ライブ校正を使用"
+    };
+    for(const [id,text] of Object.entries(fields)){
+        const el=document.getElementById(id);if(el)el.innerText=text;
+    }
+    const add=document.getElementById("vbt-add-review-rep");if(add)add.disabled=true;
+    const status=document.getElementById("vbt-review-correct-status");
+    if(status)status.innerText="まず、測定対象が明確に見えるフレームを2点以上選び、各フレームで追跡アンカーを追加してください。";
+    renderVbtReviewAnchors();
+    drawVbtReviewOverlay();
+}
+
+document.getElementById("vbt-review-reset").addEventListener("click",()=>{
+    if(vbtReviewBusy)return;
+    resetVbtReviewWorkspace(false);
+    document.getElementById("vbt-review-correct-status").innerText="レビュー補正をリセットし、ライブ計測時の軌跡とVBT値へ戻しました。";
+});
+
+function nearestVbtSampleFrom(samples,timeSec,maxGapSec=Infinity){
+    if(!samples.length)return null;
+    const target=timeSec*1000;
+    let best=samples[0],bestD=Math.abs(samples[0].t-target);
+    for(let i=1;i<samples.length;i++){
+        const d=Math.abs(samples[i].t-target);
+        if(d<bestD){best=samples[i];bestD=d;}
+    }
+    return bestD<=maxGapSec*1000?best:null;
+}
+
+function nearestVbtSample(timeSec){
+    if(vbtReviewAnalysisApplied&&vbtReviewCorrectedSamples.length){
+        const s=nearestVbtSampleFrom(vbtReviewCorrectedSamples,timeSec,2/vbtReviewFps());
+        if(s)return s;
+    }
+    return nearestVbtSampleFrom(vbtSamples,timeSec);
+}
+
+function vbtReviewMetersPerPixel(){
+    if(vbtReviewPixelsPerMeter>0)return 1/vbtReviewPixelsPerMeter;
+    return vbtMetersPerPixel();
+}
+
+function renderVbtReviewAnchors(){
+    vbtReviewAnchors.sort((a,b)=>a.time-b.time);
+    const summary=document.getElementById("vbt-review-anchor-summary");
+    const list=document.getElementById("vbt-review-anchor-list");
+    const retrack=document.getElementById("vbt-review-retrack-all");
+    const del=document.getElementById("vbt-review-delete-nearest");
+    if(retrack)retrack.disabled=vbtReviewAnchors.length<2||vbtReviewBusy;
+    if(del)del.disabled=!vbtReviewAnchors.length||vbtReviewBusy;
+    if(summary){
+        const q=vbtReviewLastQuality?` ／ 軌跡品質 ${Math.round(vbtReviewLastQuality.quality*100)}%`:"";
+        summary.innerText=`アンカー：${vbtReviewAnchors.length}点${q}${vbtReviewAnalysisApplied?" ／ 再解析済み":" ／ 再解析待ち"}`;
+    }
+    if(list){
+        if(!vbtReviewAnchors.length){list.innerText="アンカーはまだありません。";return;}
+        const fps=vbtReviewFps();
+        list.innerHTML=vbtReviewAnchors.map((a,i)=>{
+            const radius=a.feature&&a.feature.radius?` ／ 外周≈${(a.feature.radius*2).toFixed(0)}px (${Math.round((a.feature.radiusConfidence||0)*100)}%)`:"";
+            return `<div style="padding:3px 0">A${i+1}：${a.time.toFixed(3)} s / Frame ${Math.round(a.time*fps)}${radius}</div>`;
+        }).join("");
+    }
 }
 
 function drawVbtReviewOverlay(){
@@ -2290,33 +2409,52 @@ function drawVbtReviewOverlay(){
     }
     vbtReviewCtx.clearRect(0,0,vbtReviewCanvas.width,vbtReviewCanvas.height);
 
-    const s=nearestVbtSample(vbtReviewVideo.currentTime);
-    if(!s)return;
-
-    const conf=s.confidence===undefined?1:s.confidence;
-    const color=conf>=.72?"#00ff66":conf>=.50?"#ff9f1a":"#ff4444";
-    vbtReviewCtx.strokeStyle=color;
-    vbtReviewCtx.lineWidth=4;
-    vbtReviewCtx.beginPath();
-    const r=vbtPlateDiameterPx>0?vbtPlateDiameterPx/2:24;
-    vbtReviewCtx.arc(s.x,s.y,r,0,Math.PI*2);
-    vbtReviewCtx.stroke();
-
-    vbtReviewCtx.font="bold 16px sans-serif";
-    vbtReviewCtx.fillStyle=color;
-    vbtReviewCtx.fillText(`追従 ${Math.round(clamp(conf,0,1)*100)}%`,Math.max(4,s.x-r),Math.max(18,s.y-r-6));
-
-    const upto=vbtSamples.filter(p=>p.t<=vbtReviewVideo.currentTime*1000).slice(-120);
-    if(upto.length>1){
-        vbtReviewCtx.strokeStyle="rgba(0,255,102,.6)";
-        vbtReviewCtx.lineWidth=2;
+    const sourceSamples=vbtReviewAnalysisApplied&&vbtReviewCorrectedSamples.length?vbtReviewCorrectedSamples:vbtSamples;
+    const s=nearestVbtSampleFrom(sourceSamples,vbtReviewVideo.currentTime,2/vbtReviewFps())||nearestVbtSampleFrom(vbtSamples,vbtReviewVideo.currentTime);
+    if(s){
+        const conf=s.confidence===undefined?1:s.confidence;
+        const color=conf>=.75?"#00ff66":conf>=.50?"#ff9f1a":"#ff4444";
+        vbtReviewCtx.strokeStyle=color;
+        vbtReviewCtx.lineWidth=4;
         vbtReviewCtx.beginPath();
-        upto.forEach((p,i)=>i?vbtReviewCtx.lineTo(p.x,p.y):vbtReviewCtx.moveTo(p.x,p.y));
+        const r=(vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:vbtPlateDiameterPx)>0?
+            (vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:vbtPlateDiameterPx)/2:24;
+        vbtReviewCtx.arc(s.x,s.y,Math.max(10,r),0,Math.PI*2);
         vbtReviewCtx.stroke();
+        vbtReviewCtx.font="bold 16px sans-serif";
+        vbtReviewCtx.fillStyle=color;
+        const label=vbtReviewAnalysisApplied?"補正":"追従";
+        vbtReviewCtx.fillText(`${label} ${Math.round(clamp(conf,0,1)*100)}%`,Math.max(4,s.x-r),Math.max(18,s.y-r-6));
     }
+
+    /* 軌跡：全軌跡ではなく現在時刻まで。信頼度が低い区間は橙で可視化 */
+    const upto=sourceSamples.filter(p=>p.t<=vbtReviewVideo.currentTime*1000).slice(-240);
+    if(upto.length>1){
+        for(let i=1;i<upto.length;i++){
+            const a=upto[i-1],b=upto[i];
+            const conf=Math.min(a.confidence===undefined?1:a.confidence,b.confidence===undefined?1:b.confidence);
+            vbtReviewCtx.strokeStyle=conf>=.60?"rgba(0,255,102,.65)":"rgba(255,159,26,.75)";
+            vbtReviewCtx.lineWidth=2;
+            vbtReviewCtx.beginPath();vbtReviewCtx.moveTo(a.x,a.y);vbtReviewCtx.lineTo(b.x,b.y);vbtReviewCtx.stroke();
+        }
+    }
+
+    /* 手動アンカーは番号付きで常時表示 */
+    vbtReviewAnchors.forEach((a,i)=>{
+        const current=Math.abs(a.time-vbtReviewVideo.currentTime)<=.55/vbtReviewFps();
+        vbtReviewCtx.fillStyle=current?"#ffffff":"#00d4ff";
+        vbtReviewCtx.strokeStyle="#004b64";
+        vbtReviewCtx.lineWidth=3;
+        vbtReviewCtx.beginPath();vbtReviewCtx.arc(a.x,a.y,9,0,Math.PI*2);vbtReviewCtx.fill();vbtReviewCtx.stroke();
+        vbtReviewCtx.fillStyle="#001a22";
+        vbtReviewCtx.font="bold 11px sans-serif";
+        vbtReviewCtx.textAlign="center";vbtReviewCtx.textBaseline="middle";
+        vbtReviewCtx.fillText(String(i+1),a.x,a.y+.5);
+    });
+    vbtReviewCtx.textAlign="start";vbtReviewCtx.textBaseline="alphabetic";
 }
 
-/* ---------- レビュー追跡位置の手動アンカー + 前後再追跡 ---------- */
+/* ---------- 手動アンカー作成 ---------- */
 function setVbtReviewCorrectionMode(enabled){
     vbtReviewCorrectionMode=enabled;
     vbtReviewCanvas.style.pointerEvents=enabled?"auto":"none";
@@ -2325,7 +2463,7 @@ function setVbtReviewCorrectionMode(enabled){
     if(btn){
         btn.classList.remove("btn-blue","btn-orange");
         btn.classList.add(enabled?"btn-orange":"btn-blue");
-        btn.innerText=enabled?"画面のプレート中心をタップ":"現在フレームの追跡位置を修正";
+        btn.innerText=enabled?"画面の正しい対象中心をタップ":"＋ 現在フレームに追跡アンカーを追加";
     }
 }
 
@@ -2334,248 +2472,103 @@ document.getElementById("vbt-review-correct").addEventListener("click",()=>{
     vbtReviewVideo.pause();
     setVbtReviewCorrectionMode(!vbtReviewCorrectionMode);
     const status=document.getElementById("vbt-review-correct-status");
-    if(status)status.innerText=vbtReviewCorrectionMode?"現在フレームの正しいプレート中心をタップしてください。":"追跡位置の修正をキャンセルしました。";
+    if(status)status.innerText=vbtReviewCorrectionMode?"現在フレームで、実際のプレート／シャフト中心をタップしてください。このフレーム専用の追跡特徴を取得します。":"アンカー追加をキャンセルしました。";
 });
 
 function seekVbtReviewForTracking(time){
     return new Promise(resolve=>{
         const target=clamp(time,0,vbtReviewVideo.duration||0);
-        if(Math.abs(vbtReviewVideo.currentTime-target)<.0005){
-            requestAnimationFrame(()=>resolve());
-            return;
-        }
+        if(Math.abs(vbtReviewVideo.currentTime-target)<.00045){requestAnimationFrame(()=>resolve());return;}
         let done=false;
         const finish=()=>{
-            if(done)return;
-            done=true;
+            if(done)return;done=true;
             vbtReviewVideo.removeEventListener("seeked",finish);
             requestAnimationFrame(()=>resolve());
         };
         vbtReviewVideo.addEventListener("seeked",finish);
         vbtReviewVideo.currentTime=target;
-        setTimeout(finish,500);
+        setTimeout(finish,650);
     });
 }
 
-function upsertVbtReviewSample(timeSec,pos,confidence,source){
-    const target=timeSec*1000;
-    const tolerance=Math.max(18,700/Math.max(1,vbtActualFps||30));
-    let index=-1,bestD=Infinity;
-    for(let i=0;i<vbtSamples.length;i++){
-        const d=Math.abs(vbtSamples[i].t-target);
-        if(d<bestD){bestD=d;index=i;}
+function vbtReviewEstimateRadius(frame,cx,cy,priorR){
+    const w=frame.width,h=frame.height;
+    const boundary=Math.floor(Math.min(cx,w-cx,cy,h-cy)-5);
+    if(boundary<14)return {radius:0,confidence:0};
+    let minR,maxR;
+    if(priorR>10&&vbtPlateRadiusConfidence>=.45){minR=Math.max(10,priorR*.58);maxR=Math.min(boundary,priorR*1.48);}
+    else if(priorR>10){minR=Math.max(10,priorR*.42);maxR=Math.min(boundary,priorR*1.75);}
+    else{minR=Math.max(10,Math.min(w,h)*.025);maxR=Math.min(boundary,Math.min(w,h)*.34);}
+    if(maxR<minR+5)return {radius:0,confidence:0};
+
+    let best=null;
+    for(let r=Math.round(minR);r<=Math.round(maxR);r+=2){
+        const profile=radialEdgeProfileImage(frame,cx,cy,r);
+        if(!profile)continue;
+        const vals=profile.profile;
+        const med=vbtMedian(vals),q25=vbtQuantile(vals,.25),q75=vbtQuantile(vals,.75);
+        const threshold=Math.max(3,med*.48);
+        const coverage=vals.filter(v=>v>=threshold).length/Math.max(1,vals.length);
+        const circular=clamp((coverage-.42)/.48,0,1);
+        const strength=med*.43+q25*.37+profile.mean*.20;
+        const prior=priorR>10?Math.exp(-.5*Math.pow((r-priorR)/Math.max(8,priorR*.32),2)):1;
+        const score=strength*(.78+.22*prior)*(.55+.45*circular);
+        if(!best||score>best.score)best={radius:r,score,med,q25,q75,coverage};
     }
-    const entry={t:target,x:pos.x,y:pos.y,v:0,confidence,trackMode:"review-retrack",source};
-    if(index>=0&&bestD<=tolerance){
-        Object.assign(vbtSamples[index],entry);
-        return vbtSamples[index];
-    }
-    vbtSamples.push(entry);
-    return entry;
+    if(!best)return {radius:0,confidence:0};
+    let conf=clamp((best.coverage-.42)/.43,0,1)*.38+
+             clamp((best.q25-2)/12,0,1)*.32+
+             clamp((best.med-4)/18,0,1)*.22+
+             clamp((best.q75-best.q25)/30,0,1)*.08;
+    if(best.score<5.5)conf*=.55;
+    return {radius:best.radius,confidence:clamp(conf,0,1)};
 }
 
-function recomputeVbtSampleVelocities(){
-    vbtSamples.sort((a,b)=>a.t-b.t);
-    const mpp=vbtMetersPerPixel();
-    for(let i=0;i<vbtSamples.length;i++){
-        if(i===0){vbtSamples[i].v=0;continue;}
-        const dt=(vbtSamples[i].t-vbtSamples[i-1].t)/1000;
-        if(dt>0&&dt<.25)vbtSamples[i].v=(vbtSamples[i-1].y-vbtSamples[i].y)*mpp/dt;
-        else vbtSamples[i].v=0;
+function captureVbtReviewAnchorFeature(cx,cy){
+    if(!ensureVbtReviewOffscreen())return null;
+    vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
+    const w=vbtReviewOffscreen.width,h=vbtReviewOffscreen.height;
+    if(cx<12||cy<12||cx>w-12||cy>h-12)return null;
+    const frame=vbtReviewOffCtx.getImageData(0,0,w,h);
+    const priorR=vbtPlateDiameterPx>0?vbtPlateDiameterPx/2:0;
+    const radiusEstimate=vbtReviewEstimateRadius(frame,cx,cy,priorR);
+    const radius=radiusEstimate.radius||priorR||0;
+    const outerHalf=clamp(Math.round(radius>0?radius*.62:28),18,48);
+    let centerHalf=clamp(Math.round(radius>0?radius*.105:14),10,22);
+    let center=createVbtDescriptorFromContext(vbtReviewOffCtx,w,h,cx,cy,centerHalf*2,3);
+    if(center&&center.std<5.5&&centerHalf<25){
+        centerHalf=Math.min(25,centerHalf+4);
+        center=createVbtDescriptorFromContext(vbtReviewOffCtx,w,h,cx,cy,centerHalf*2,3);
     }
+    const outer=createVbtDescriptorFromContext(vbtReviewOffCtx,w,h,cx,cy,outerHalf*2,5);
+    if(!center||!outer)return null;
+    const shapeHalf=Math.max(10,Math.min(outerHalf,radius>0?radius*.32:outerHalf));
+    const stats=patchStatsImage(frame,cx,cy,shapeHalf);
+    const radialProfile=radius>8?radialEdgeProfileImage(frame,cx,cy,radius):null;
+    const radial=radius>8?radialEdgeScoreImage(frame,cx,cy,radius):0;
+    const textureQuality=clamp((center.std-2.5)/15,.18,1);
+    return {
+        center,outer,centerHalf,outerHalf,radius,
+        radiusConfidence:radiusEstimate.confidence||0,
+        stats,radialProfile,radial,textureQuality
+    };
 }
 
-async function trackVbtReviewDirection(anchorTime,anchorPos,dir){
-    const fps=Math.max(1,vbtActualFps||30);
-    const step=1/fps;
-    const horizon=.90;
-    const maxFrames=Math.min(90,Math.ceil(horizon*fps));
-    let prev={x:anchorPos.x,y:anchorPos.y,t:anchorTime};
-    let prev2=null;
-    let failures=0;
-
-    for(let i=1;i<=maxFrames;i++){
-        const time=anchorTime+dir*i*step;
-        if(time<0||time>(vbtReviewVideo.duration||0))break;
-        await seekVbtReviewForTracking(time);
-        vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
-
-        let vx=0,vy=0;
-        if(prev2&&Math.abs(prev.t-prev2.t)>.0001){
-            vx=(prev.x-prev2.x)/(prev.t-prev2.t);
-            vy=(prev.y-prev2.y)/(prev.t-prev2.t);
-        }
-        const dt=time-prev.t;
-        const predicted={
-            x:clamp(prev.x+vx*dt,vbtTemplateHalf+2,vbtReviewOffscreen.width-vbtTemplateHalf-2),
-            y:clamp(prev.y+vy*dt,vbtTemplateHalf+2,vbtReviewOffscreen.height-vbtTemplateHalf-2),
-            vx,vy,dt:Math.abs(dt),elapsed:Math.abs(dt),baseX:prev.x,baseY:prev.y
-        };
-
-        const sx=clamp(42+Math.abs(vx*dt)*2.5,42,125);
-        const sy=clamp(68+Math.abs(vy*dt)*2.5,68,190);
-        let best=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,sx,sy,3,true,predicted,1.4,"expanded");
-        if(!best||best.confidence<.60){
-            const expanded=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,Math.min(180,sx*1.65),Math.min(260,sy*1.65),5,true,predicted,2.0,"recovery");
-            if(expanded&&(!best||expanded.confidence>best.confidence))best=expanded;
-        }
-
-        if(!best||best.confidence<.55){
-            failures++;
-            if(failures>=3)break;
-            continue;
-        }
-        failures=0;
-        const current={x:best.x,y:best.y,t:time};
-        upsertVbtReviewSample(time,current,best.confidence,"review-retrack");
-        prev2=prev;prev=current;
+function addVbtReviewAnchor(time,pos,feature){
+    const tolerance=.65/vbtReviewFps();
+    let anchor=vbtReviewAnchors.find(a=>Math.abs(a.time-time)<=tolerance);
+    if(anchor){
+        anchor.time=time;anchor.x=pos.x;anchor.y=pos.y;anchor.feature=feature;
+    }else{
+        anchor={time,x:pos.x,y:pos.y,feature};
+        vbtReviewAnchors.push(anchor);
     }
-}
-
-function addVbtReviewAnchor(time,pos){
-    const tolerance=1/Math.max(1,vbtActualFps||30)*.6;
-    const existing=vbtReviewAnchors.find(a=>Math.abs(a.time-time)<=tolerance);
-    if(existing){existing.x=pos.x;existing.y=pos.y;return existing;}
-    const anchor={time,x:pos.x,y:pos.y};
-    vbtReviewAnchors.push(anchor);
     vbtReviewAnchors.sort((a,b)=>a.time-b.time);
+    vbtReviewAnalysisApplied=false;
+    vbtReviewCorrectedSamples=[];
+    vbtReviewLastQuality=null;
+    renderVbtReviewAnchors();
     return anchor;
-}
-
-async function trackVbtReviewAnchorPass(startAnchor,endAnchor,dir,frames){
-    const fps=Math.max(1,vbtActualFps||30),step=1/fps;
-    const results=new Map();
-    let prev={x:startAnchor.x,y:startAnchor.y,t:startAnchor.time};
-    let prev2=null;
-    const ordered=dir>0?frames:frames.slice().reverse();
-
-    for(const frame of ordered){
-        const time=frame/fps;
-        await seekVbtReviewForTracking(time);
-        vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
-        let vx=0,vy=0;
-        if(prev2&&Math.abs(prev.t-prev2.t)>.0001){
-            vx=(prev.x-prev2.x)/(prev.t-prev2.t);
-            vy=(prev.y-prev2.y)/(prev.t-prev2.t);
-        }
-        const remaining=endAnchor.time-prev.t;
-        if(Math.abs(remaining)>.0001){
-            const avx=(endAnchor.x-prev.x)/remaining,avy=(endAnchor.y-prev.y)/remaining;
-            vx=vx*.62+avx*.38;vy=vy*.62+avy*.38;
-        }
-        const dt=time-prev.t;
-        const predicted={
-            x:clamp(prev.x+vx*dt,vbtTemplateHalf+2,vbtReviewOffscreen.width-vbtTemplateHalf-2),
-            y:clamp(prev.y+vy*dt,vbtTemplateHalf+2,vbtReviewOffscreen.height-vbtTemplateHalf-2),
-            vx,vy,dt:Math.abs(dt),elapsed:Math.abs(dt),baseX:prev.x,baseY:prev.y
-        };
-        let best=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,68,125,3,true,predicted,1.55,"expanded");
-        if(!best||best.confidence<.61){
-            const wider=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,115,205,5,true,predicted,2.2,"recovery");
-            if(wider&&(!best||wider.confidence>best.confidence))best=wider;
-        }
-        if(best&&best.confidence>=.54){
-            results.set(frame,best);
-            prev2=prev;prev={x:best.x,y:best.y,t:time};
-        }
-    }
-    return results;
-}
-
-async function retrackVbtReviewBetweenAnchors(a,b){
-    if(!a||!b||b.time<=a.time)return;
-    const fps=Math.max(1,vbtActualFps||30);
-    const startFrame=Math.round(a.time*fps),endFrame=Math.round(b.time*fps);
-    const frames=[];
-    for(let f=startFrame+1;f<endFrame;f++)frames.push(f);
-    if(!frames.length){
-        upsertVbtReviewSample(a.time,{x:a.x,y:a.y},1,"manual-anchor");
-        upsertVbtReviewSample(b.time,{x:b.x,y:b.y},1,"manual-anchor");
-        return;
-    }
-
-    const forward=await trackVbtReviewAnchorPass(a,b,1,frames);
-    const backward=await trackVbtReviewAnchorPass(b,a,-1,frames);
-    const plateGate=Math.max(12,(vbtPlateDiameterPx||60)*.24);
-
-    for(const frame of frames){
-        const time=frame/fps;
-        const ratio=clamp((time-a.time)/(b.time-a.time),0,1);
-        const linear={x:a.x+(b.x-a.x)*ratio,y:a.y+(b.y-a.y)*ratio};
-        const f=forward.get(frame),r=backward.get(frame);
-        let pos=linear,conf=.45,source="review-anchor-interpolation";
-
-        if(f&&r){
-            const disagreement=Math.hypot(f.x-r.x,f.y-r.y);
-            if(disagreement<=plateGate){
-                const wf=Math.max(.05,f.confidence),wr=Math.max(.05,r.confidence),sum=wf+wr;
-                pos={x:(f.x*wf+r.x*wr)/sum,y:(f.y*wf+r.y*wr)/sum};
-                conf=clamp((f.confidence+r.confidence)/2+.08,0,1);
-                source="review-bidirectional";
-            }else{
-                const fd=Math.hypot(f.x-linear.x,f.y-linear.y),rd=Math.hypot(r.x-linear.x,r.y-linear.y);
-                const fs=f.confidence-fd/Math.max(40,plateGate*4)*.18;
-                const rs=r.confidence-rd/Math.max(40,plateGate*4)*.18;
-                const chosen=fs>=rs?f:r;
-                pos={x:chosen.x,y:chosen.y};
-                conf=clamp(chosen.confidence*.78,0,1);
-                source="review-bidirectional-disagreement";
-            }
-        }else if(f||r){
-            const chosen=f||r;
-            const d=Math.hypot(chosen.x-linear.x,chosen.y-linear.y);
-            if(chosen.confidence>=.58&&d<=plateGate*2.2){
-                pos={x:chosen.x,y:chosen.y};conf=chosen.confidence*.82;source="review-single-direction";
-            }
-        }
-        upsertVbtReviewSample(time,pos,conf,source);
-    }
-    upsertVbtReviewSample(a.time,{x:a.x,y:a.y},1,"manual-anchor");
-    upsertVbtReviewSample(b.time,{x:b.x,y:b.y},1,"manual-anchor");
-}
-
-async function retrackVbtReviewAround(anchorTime,anchorPos){
-    if(!vbtTemplate||!vbtReviewVideo.videoWidth)return;
-    vbtReviewBusy=true;
-    const btn=document.getElementById("vbt-review-correct");
-    if(btn)btn.disabled=true;
-    const status=document.getElementById("vbt-review-correct-status");
-    if(status)status.innerText="指定位置を基準に前後のフレームを再追跡しています…";
-
-    if(!vbtReviewOffscreen){
-        vbtReviewOffscreen=document.createElement("canvas");
-        vbtReviewOffCtx=vbtReviewOffscreen.getContext("2d",{willReadFrequently:true});
-    }
-    const offSize=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);
-    vbtReviewOffscreen.width=offSize.width;
-    vbtReviewOffscreen.height=offSize.height;
-
-    const restoreTime=anchorTime;
-    const currentAnchor=addVbtReviewAnchor(anchorTime,anchorPos);
-    upsertVbtReviewSample(anchorTime,anchorPos,1,"manual-anchor");
-
-    try{
-        await trackVbtReviewDirection(anchorTime,anchorPos,1);
-        await trackVbtReviewDirection(anchorTime,anchorPos,-1);
-        const idx=vbtReviewAnchors.indexOf(currentAnchor);
-        const prevAnchor=idx>0?vbtReviewAnchors[idx-1]:null;
-        const nextAnchor=idx>=0&&idx<vbtReviewAnchors.length-1?vbtReviewAnchors[idx+1]:null;
-        if(prevAnchor)await retrackVbtReviewBetweenAnchors(prevAnchor,currentAnchor);
-        if(nextAnchor)await retrackVbtReviewBetweenAnchors(currentAnchor,nextAnchor);
-        recomputeVbtSampleVelocities();
-        if(status)status.innerText=vbtReviewAnchors.length>=2?"2つの手動アンカーを固定し、前方向・逆方向の独立追跡を照合して区間を再構成しました。":"手動アンカーを基準に前後約0.9秒を再追跡しました。別のずれたフレームも指定すると2点間を双方向追跡で照合します。";
-    }catch(e){
-        console.warn("VBT review retracking failed",e);
-        if(status)status.innerText="再追跡の途中で処理できないフレームがありました。別のフレームで再指定してください。";
-    }
-
-    await seekVbtReviewForTracking(restoreTime);
-    vbtReviewBusy=false;
-    if(btn)btn.disabled=false;
-    vbtReviewSeek.value=vbtReviewVideo.currentTime;
-    updateVbtReviewTime();
-    drawVbtReviewOverlay();
-    calculateVbtReviewRep();
 }
 
 vbtReviewCanvas.addEventListener("click",async e=>{
@@ -2585,14 +2578,439 @@ vbtReviewCanvas.addEventListener("click",async e=>{
     const y=(e.clientY-rect.top)*(vbtReviewCanvas.height/rect.height);
     const time=vbtReviewVideo.currentTime;
     setVbtReviewCorrectionMode(false);
-    await retrackVbtReviewAround(time,{x,y});
+    const status=document.getElementById("vbt-review-correct-status");
+    if(status)status.innerText="このフレームから追跡特徴を取得しています…";
+    await seekVbtReviewForTracking(time);
+    const feature=captureVbtReviewAnchorFeature(x,y);
+    if(!feature){
+        if(status)status.innerText="この位置では追跡特徴を作成できませんでした。対象中心が画面端に寄りすぎていないフレームで再指定してください。";
+        return;
+    }
+    addVbtReviewAnchor(time,{x,y},feature);
+    const idx=vbtReviewAnchors.findIndex(a=>Math.abs(a.time-time)<=.65/vbtReviewFps());
+    if(status)status.innerText=`アンカー A${idx+1} を追加しました。別の時刻にも追加してください。2点以上で双方向再追跡できます。`;
+    drawVbtReviewOverlay();
 });
 
+document.getElementById("vbt-review-delete-nearest").addEventListener("click",()=>{
+    if(vbtReviewBusy||!vbtReviewAnchors.length)return;
+    const t=vbtReviewVideo.currentTime;
+    let idx=0,best=Infinity;
+    vbtReviewAnchors.forEach((a,i)=>{const d=Math.abs(a.time-t);if(d<best){best=d;idx=i;}});
+    const removed=vbtReviewAnchors.splice(idx,1)[0];
+    vbtReviewCorrectedSamples=[];vbtReviewAnalysisApplied=false;vbtReviewLastQuality=null;
+    renderVbtReviewAnchors();drawVbtReviewOverlay();
+    document.getElementById("vbt-review-correct-status").innerText=`${removed.time.toFixed(3)}秒のアンカーを削除しました。再解析する場合はアンカーを2点以上にしてください。`;
+});
+
+/* ---------- レビュー専用・アンカー特徴を使う独立トラッカー ---------- */
+function vbtReviewDescriptorConfidence(frame,cx,cy,descriptor){
+    return vbtCorrConfidence(templateCorrelationForDescriptor(frame,frame.width,cx,cy,descriptor));
+}
+
+function vbtReviewFeatureEvidence(frame,cx,cy,feature){
+    if(!feature)return {identity:0,center:0,outer:0,shape:0};
+    const center=vbtReviewDescriptorConfidence(frame,cx,cy,feature.center);
+    const outer=vbtReviewDescriptorConfidence(frame,cx,cy,feature.outer);
+    const stats=patchStatsImage(frame,cx,cy,Math.max(9,Math.min(feature.outerHalf,feature.radius>0?feature.radius*.30:feature.outerHalf)));
+    const refStd=Math.max(3,feature.stats.std);
+    const stdRatio=Math.min(stats.std/refStd,refStd/Math.max(3,stats.std));
+    const meanConf=clamp(1-Math.abs(stats.mean-feature.stats.mean)/95,0,1);
+    let radial=.5;
+    if(feature.radius>8&&feature.radialProfile){
+        const candidate=radialEdgeProfileImage(frame,cx,cy,feature.radius);
+        radial=radialProfileSimilarity(candidate,feature.radialProfile);
+    }
+    const shape=clamp(radial*.56+clamp(stdRatio,0,1)*.30+meanConf*.14,0,1);
+    const centerWeight=.56+.10*feature.textureQuality;
+    const identity=clamp(center*centerWeight+outer*.22+shape*(.78-centerWeight),0,1);
+    return {identity,center,outer,shape};
+}
+
+function vbtReviewBlendedEvidence(frame,cx,cy,featureA,featureB,ratio){
+    const a=vbtReviewFeatureEvidence(frame,cx,cy,featureA);
+    const b=vbtReviewFeatureEvidence(frame,cx,cy,featureB);
+    const wa=clamp(1-ratio,.18,.82),wb=1-wa;
+    return {
+        identity:a.identity*wa+b.identity*wb,
+        center:a.center*wa+b.center*wb,
+        outer:a.outer*wa+b.outer*wb,
+        shape:a.shape*wa+b.shape*wb,
+        a,b
+    };
+}
+
+function vbtReviewQuickCenter(frame,cx,cy,featureA,featureB,ratio){
+    const a=vbtReviewDescriptorConfidence(frame,cx,cy,featureA.center);
+    const b=vbtReviewDescriptorConfidence(frame,cx,cy,featureB.center);
+    const wa=clamp(1-ratio,.18,.82);
+    return a*wa+b*(1-wa);
+}
+
+function searchVbtReviewCandidate(frame,predicted,guide,featureA,featureB,ratio,searchX,searchY,wide=false){
+    const w=frame.width,h=frame.height;
+    const maxHalf=Math.max(featureA.outerHalf,featureB.outerHalf,featureA.centerHalf,featureB.centerHalf)+4;
+    const x0=Math.max(maxHalf,Math.round(predicted.x-searchX));
+    const x1=Math.min(w-maxHalf-1,Math.round(predicted.x+searchX));
+    const y0=Math.max(maxHalf,Math.round(predicted.y-searchY));
+    const y1=Math.min(h-maxHalf-1,Math.round(predicted.y+searchY));
+    if(x1<=x0||y1<=y0)return null;
+
+    const area=(x1-x0)*(y1-y0);
+    const coarse=wide?clamp(Math.ceil(Math.sqrt(area/6500)),5,11):clamp(Math.ceil(Math.sqrt(area/8500)),4,8);
+    const top=[];
+    const gate=Math.max(28,Math.max(featureA.radius||0,featureB.radius||0)*.75);
+    function add(c){
+        const near=top.findIndex(o=>Math.hypot(o.x-c.x,o.y-c.y)<7);
+        if(near>=0){if(c.quick<=top[near].quick)return;top.splice(near,1);}
+        top.push(c);top.sort((a,b)=>b.quick-a.quick);if(top.length>9)top.length=9;
+    }
+    for(let y=y0;y<=y1;y+=coarse){
+        for(let x=x0;x<=x1;x+=coarse){
+            const center=vbtReviewQuickCenter(frame,x,y,featureA,featureB,ratio);
+            if(center<.18)continue;
+            const dp=Math.hypot(x-predicted.x,y-predicted.y);
+            const dg=Math.hypot(x-guide.x,y-guide.y);
+            const motion=Math.exp(-.5*Math.pow(dp/Math.max(24,gate),2));
+            const guidePrior=Math.exp(-.5*Math.pow(dg/Math.max(45,gate*1.55),2));
+            const quick=center*.76+motion*.14+guidePrior*.10;
+            add({x,y,quick,center});
+        }
+    }
+    if(!top.length)return null;
+
+    const candidates=[];
+    for(const c of top.slice(0,6)){
+        let bx=c.x,by=c.y,bq=c.quick;
+        const rr=Math.max(2,Math.min(5,coarse));
+        for(let dy=-rr;dy<=rr;dy++)for(let dx=-rr;dx<=rr;dx++){
+            const x=c.x+dx,y=c.y+dy;
+            if(x<maxHalf||y<maxHalf||x>=w-maxHalf||y>=h-maxHalf)continue;
+            const center=vbtReviewQuickCenter(frame,x,y,featureA,featureB,ratio);
+            const dp=Math.hypot(x-predicted.x,y-predicted.y);
+            const dg=Math.hypot(x-guide.x,y-guide.y);
+            const q=center*.76+Math.exp(-.5*Math.pow(dp/Math.max(24,gate),2))*.14+Math.exp(-.5*Math.pow(dg/Math.max(45,gate*1.55),2))*.10;
+            if(q>bq){bq=q;bx=x;by=y;}
+        }
+        const evidence=vbtReviewBlendedEvidence(frame,bx,by,featureA,featureB,ratio);
+        const dp=Math.hypot(bx-predicted.x,by-predicted.y);
+        const dg=Math.hypot(bx-guide.x,by-guide.y);
+        const motion=Math.exp(-.5*Math.pow(dp/Math.max(28,gate),2));
+        const guidePrior=Math.exp(-.5*Math.pow(dg/Math.max(55,gate*1.8),2));
+        let confidence=evidence.identity*.77+motion*.14+guidePrior*.09;
+        if(evidence.center<.30&&evidence.outer<.36)confidence*=.62;
+        if(evidence.shape<.28)confidence*=.78;
+        candidates.push({x:bx,y:by,confidence,evidence,dp,dg});
+    }
+    candidates.sort((a,b)=>b.confidence-a.confidence);
+    const winner=candidates[0];
+    const rival=candidates.slice(1).find(c=>Math.hypot(c.x-winner.x,c.y-winner.y)>Math.max(12,gate*.35));
+    if(rival&&winner.confidence-rival.confidence<.045)winner.confidence*=.84;
+    return winner;
+}
+
+async function trackVbtReviewAnchorPass(startAnchor,endAnchor,dir,frameNumbers,generation){
+    const fps=vbtReviewFps();
+    const ordered=dir>0?frameNumbers:frameNumbers.slice().reverse();
+    const results=new Map();
+    let prev={x:startAnchor.x,y:startAnchor.y,t:startAnchor.time};
+    let prev2=null,failures=0;
+    const from=dir>0?startAnchor:endAnchor;
+    const to=dir>0?endAnchor:startAnchor;
+
+    for(let n=0;n<ordered.length;n++){
+        if(generation!==vbtReviewTrackGeneration)break;
+        const frameNo=ordered[n],time=frameNo/fps;
+        await seekVbtReviewForTracking(time);
+        vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
+        const frame=vbtReviewOffCtx.getImageData(0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
+        const globalRatio=clamp((time-startAnchor.time)/(endAnchor.time-startAnchor.time),0,1);
+        const localRatio=dir>0?globalRatio:1-globalRatio;
+        const guide={
+            x:startAnchor.x+(endAnchor.x-startAnchor.x)*globalRatio,
+            y:startAnchor.y+(endAnchor.y-startAnchor.y)*globalRatio
+        };
+
+        let vx=(to.x-from.x)/Math.max(.001,to.time-from.time),vy=(to.y-from.y)/Math.max(.001,to.time-from.time);
+        if(prev2&&Math.abs(prev.t-prev2.t)>.0005){
+            const dt=prev.t-prev2.t;
+            const pvx=(prev.x-prev2.x)/dt,pvy=(prev.y-prev2.y)/dt;
+            vx=pvx*.72+vx*.28;vy=pvy*.72+vy*.28;
+        }
+        const dt=time-prev.t;
+        const raw={x:prev.x+vx*dt,y:prev.y+vy*dt};
+        const guideWeight=failures?clamp(.28+failures*.12,.28,.62):.22;
+        const predicted={x:raw.x*(1-guideWeight)+guide.x*guideWeight,y:raw.y*(1-guideWeight)+guide.y*guideWeight};
+        const expectedMove=Math.hypot(vx*dt,vy*dt);
+        const sx=clamp(38+expectedMove*3.2+failures*18,38,150);
+        const sy=clamp(52+expectedMove*3.8+failures*24,52,210);
+
+        let best=searchVbtReviewCandidate(frame,predicted,guide,from.feature,to.feature,localRatio,sx,sy,false);
+        if(!best||best.confidence<.48){
+            const widePred={x:predicted.x*.55+guide.x*.45,y:predicted.y*.55+guide.y*.45};
+            const wide=searchVbtReviewCandidate(frame,widePred,guide,from.feature,to.feature,localRatio,Math.min(220,sx*1.75),Math.min(300,sy*1.65),true);
+            if(wide&&(!best||wide.confidence>best.confidence))best=wide;
+        }
+
+        if(!best||best.confidence<.36){
+            failures++;
+            continue;
+        }
+        failures=0;
+        results.set(frameNo,best);
+        prev2=prev;prev={x:best.x,y:best.y,t:time};
+    }
+    return results;
+}
+
+function vbtReviewPointEvidenceAt(frame,x,y,a,b,ratio){
+    const e=vbtReviewBlendedEvidence(frame,x,y,a.feature,b.feature,ratio);
+    return e.identity;
+}
+
+async function retrackVbtReviewBetweenAnchors(a,b,generation,onProgress){
+    if(!a||!b||b.time<=a.time)return [];
+    const fps=vbtReviewFps();
+    const startFrame=Math.round(a.time*fps),endFrame=Math.round(b.time*fps);
+    const frames=[];
+    for(let f=startFrame+1;f<endFrame;f++)frames.push(f);
+    if(!frames.length)return [
+        {t:a.time*1000,x:a.x,y:a.y,v:0,confidence:1,source:"manual-anchor"},
+        {t:b.time*1000,x:b.x,y:b.y,v:0,confidence:1,source:"manual-anchor"}
+    ];
+
+    const forward=await trackVbtReviewAnchorPass(a,b,1,frames,generation);
+    if(onProgress)onProgress(.45);
+    const backward=await trackVbtReviewAnchorPass(a,b,-1,frames,generation);
+    if(onProgress)onProgress(.78);
+    const out=[{t:a.time*1000,x:a.x,y:a.y,v:0,confidence:1,source:"manual-anchor"}];
+    const radius=vbtMedian([a.feature.radius||0,b.feature.radius||0].filter(Boolean));
+    const agreeGate=Math.max(11,radius*.34);
+    const singleGate=Math.max(45,radius*1.65);
+
+    for(let i=0;i<frames.length;i++){
+        if(generation!==vbtReviewTrackGeneration)break;
+        const frameNo=frames[i],time=frameNo/fps,ratio=clamp((time-a.time)/(b.time-a.time),0,1);
+        const guide={x:a.x+(b.x-a.x)*ratio,y:a.y+(b.y-a.y)*ratio};
+        const f=forward.get(frameNo),r=backward.get(frameNo);
+        let x=guide.x,y=guide.y,confidence=.22,source="review-anchor-guide";
+        if(f&&r){
+            const disagreement=Math.hypot(f.x-r.x,f.y-r.y);
+            if(disagreement<=agreeGate){
+                const wf=Math.max(.05,f.confidence),wr=Math.max(.05,r.confidence),sum=wf+wr;
+                x=(f.x*wf+r.x*wr)/sum;y=(f.y*wf+r.y*wr)/sum;
+                confidence=clamp((f.confidence+r.confidence)/2+.12*(1-disagreement/agreeGate),0,1);
+                source="review-bidirectional";
+            }else{
+                /* 両方向が割れた時は、アンカー間ガイドだけで決めず、現在フレーム上の特徴一致を再評価 */
+                await seekVbtReviewForTracking(time);
+                vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
+                const frame=vbtReviewOffCtx.getImageData(0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
+                const ef=vbtReviewPointEvidenceAt(frame,f.x,f.y,a,b,ratio);
+                const er=vbtReviewPointEvidenceAt(frame,r.x,r.y,a,b,ratio);
+                const fd=Math.hypot(f.x-guide.x,f.y-guide.y),rd=Math.hypot(r.x-guide.x,r.y-guide.y);
+                const fs=f.confidence*.62+ef*.30+Math.exp(-fd/Math.max(35,singleGate))*.08;
+                const rs=r.confidence*.62+er*.30+Math.exp(-rd/Math.max(35,singleGate))*.08;
+                const c=fs>=rs?f:r;
+                x=c.x;y=c.y;confidence=clamp(Math.max(fs,rs)*.82,0,1);source="review-bidirectional-disagreement";
+            }
+        }else if(f||r){
+            const c=f||r,d=Math.hypot(c.x-guide.x,c.y-guide.y);
+            if(c.confidence>=.40&&d<=singleGate){x=c.x;y=c.y;confidence=c.confidence*.78;source="review-single-direction";}
+        }
+        out.push({t:time*1000,x,y,v:0,confidence,source});
+    }
+    out.push({t:b.time*1000,x:b.x,y:b.y,v:0,confidence:1,source:"manual-anchor"});
+    if(onProgress)onProgress(1);
+    return out;
+}
+
+function dedupeVbtReviewSamples(samples){
+    samples.sort((a,b)=>a.t-b.t);
+    const out=[];
+    const tol=1000/vbtReviewFps()*.35;
+    for(const s of samples){
+        const last=out[out.length-1];
+        if(last&&Math.abs(last.t-s.t)<=tol){
+            if((s.confidence||0)>=(last.confidence||0))out[out.length-1]=s;
+        }else out.push(s);
+    }
+    return out;
+}
+
+function updateVbtReviewCalibrationFromAnchors(){
+    const diameterCm=parseFloat(document.getElementById("vbt-plate-diameter").value);
+    const good=vbtReviewAnchors
+        .filter(a=>a.feature&&a.feature.radius>8&&(a.feature.radiusConfidence||0)>=.34)
+        .map(a=>a.feature.radius*2);
+    let reviewDiameter=0;
+    if(good.length){
+        const median=vbtMedian(good);
+        const filtered=good.filter(v=>Math.abs(v-median)<=Math.max(8,median*.18));
+        reviewDiameter=vbtMedian(filtered.length?filtered:good);
+    }
+    if(reviewDiameter>0&&diameterCm>0)vbtReviewPixelsPerMeter=reviewDiameter/(diameterCm/100);
+    else if(vbtPixelsPerMeter>0)vbtReviewPixelsPerMeter=vbtPixelsPerMeter;
+    else vbtReviewPixelsPerMeter=0;
+
+    const el=document.getElementById("vbt-review-calibration");
+    if(el){
+        if(reviewDiameter>0&&diameterCm>0)el.innerText=`アンカー外周中央値 ${reviewDiameter.toFixed(0)} px ／ ${diameterCm.toFixed(1)} cm ／ ${vbtReviewPixelsPerMeter.toFixed(1)} px/m`;
+        else if(vbtPixelsPerMeter>0)el.innerText=`アンカー外周が不十分なためライブ校正 ${vbtPixelsPerMeter.toFixed(1)} px/m を使用`;
+        else el.innerText="プレート外周校正なし：身長簡易補正を使用";
+    }
+    return reviewDiameter;
+}
+
+/* 局所線形回帰で速度を出す。1フレーム差分より位置ノイズの影響を抑える。 */
+function recomputeVbtReviewVelocities(samples){
+    const mpp=vbtReviewMetersPerPixel();
+    const fps=vbtReviewFps();
+    const halfWindow=Math.max(2,Math.round(fps*.065));
+    for(let i=0;i<samples.length;i++){
+        const lo=Math.max(0,i-halfWindow),hi=Math.min(samples.length-1,i+halfWindow);
+        let n=0,sumT=0,sumY=0;
+        for(let j=lo;j<=hi;j++){const t=samples[j].t/1000;n++;sumT+=t;sumY+=samples[j].y;}
+        if(n<3){samples[i].v=0;continue;}
+        const mt=sumT/n,my=sumY/n;
+        let num=0,den=0;
+        for(let j=lo;j<=hi;j++){
+            const dt=samples[j].t/1000-mt;
+            num+=dt*(samples[j].y-my);den+=dt*dt;
+        }
+        samples[i].v=den>1e-8?-num/den*mpp:0;
+    }
+    /* 3点メディアンで単発スパイクだけを抑える */
+    const raw=samples.map(s=>s.v);
+    for(let i=1;i<samples.length-1;i++)samples[i].v=vbtMedian([raw[i-1],raw[i],raw[i+1]]);
+}
+
+function detectVbtReviewReps(samples){
+    if(samples.length<4)return [];
+    const fps=vbtReviewFps();
+    const startNeed=Math.max(2,Math.round(fps*.055));
+    const endNeed=Math.max(2,Math.round(fps*.075));
+    const startThreshold=.055,endThreshold=.028;
+    const mpp=vbtReviewMetersPerPixel();
+    const reps=[];
+    let state="idle",startCandidate=-1,startCount=0,endCount=0,startIndex=-1,topIndex=-1;
+
+    for(let i=0;i<samples.length;i++){
+        const s=samples[i],v=s.v||0;
+        if(state==="idle"){
+            if(v>startThreshold){
+                if(startCount===0)startCandidate=i;
+                startCount++;
+                if(startCount>=startNeed){
+                    startIndex=Math.max(0,startCandidate-1);topIndex=i;state="up";endCount=0;
+                }
+            }else{startCount=0;startCandidate=-1;}
+        }else{
+            if(samples[i].y<samples[topIndex].y)topIndex=i;
+            if(v<endThreshold)endCount++;else endCount=0;
+            if(endCount>=endNeed||i===samples.length-1){
+                const endIndex=Math.max(startIndex+1,topIndex);
+                const start=samples[startIndex],end=samples[endIndex];
+                const duration=(end.t-start.t)/1000;
+                const distance=(start.y-end.y)*mpp;
+                const segment=samples.slice(startIndex,endIndex+1);
+                const positive=segment.map(p=>p.v||0).filter(x=>x>0&&Number.isFinite(x));
+                const peak=positive.length?vbtQuantile(positive,.95):distance/Math.max(.001,duration);
+                const meanConf=segment.reduce((a,p)=>a+(p.confidence===undefined?1:p.confidence),0)/segment.length;
+                if(duration>=.10&&duration<=4.0&&distance>=.015&&distance<=2.0&&distance/duration<=4.5){
+                    reps.push({
+                        mean:distance/duration,
+                        peak:Math.max(distance/duration,peak),
+                        distance,time:duration,
+                        startT:start.t/1000,endT:end.t/1000,
+                        startFrame:Math.round(start.t/1000*fps),endFrame:Math.round(end.t/1000*fps),
+                        source:"review-auto",quality:meanConf
+                    });
+                }
+                state="idle";startCount=0;startCandidate=-1;endCount=0;startIndex=-1;topIndex=-1;
+            }
+        }
+    }
+    return reps;
+}
+
+function calculateVbtReviewTrajectoryQuality(samples,reviewDiameterPx){
+    if(!samples.length)return {quality:0,bidirectional:0,low:1,reviewDiameterPx};
+    const bid=samples.filter(s=>s.source==="review-bidirectional"||s.source==="manual-anchor").length/samples.length;
+    const low=samples.filter(s=>(s.confidence||0)<.45).length/samples.length;
+    const mean=samples.reduce((a,s)=>a+clamp(s.confidence||0,0,1),0)/samples.length;
+    const quality=clamp(mean*.58+bid*.32+(1-low)*.10,0,1);
+    return {quality,bidirectional:bid,low,reviewDiameterPx};
+}
+
+async function rerunVbtReviewAll(){
+    if(vbtReviewBusy||vbtReviewAnchors.length<2)return;
+    vbtReviewBusy=true;
+    vbtReviewVideo.pause();
+    setVbtReviewCorrectionMode(false);
+    ensureVbtReviewOffscreen();
+    vbtReviewTrackGeneration++;
+    const generation=vbtReviewTrackGeneration;
+    const restoreTime=vbtReviewVideo.currentTime;
+    const status=document.getElementById("vbt-review-correct-status");
+    const btn=document.getElementById("vbt-review-retrack-all");
+    if(btn)btn.disabled=true;
+    document.getElementById("vbt-review-correct").disabled=true;
+    document.getElementById("vbt-review-delete-nearest").disabled=true;
+    document.getElementById("vbt-review-reset").disabled=true;
+
+    try{
+        vbtReviewAnchors.sort((a,b)=>a.time-b.time);
+        const all=[];
+        const segments=vbtReviewAnchors.length-1;
+        for(let i=0;i<segments;i++){
+            const a=vbtReviewAnchors[i],b=vbtReviewAnchors[i+1];
+            if(status)status.innerText=`再追跡中：A${i+1} → A${i+2}（${i+1}/${segments}区間）…`;
+            const seg=await retrackVbtReviewBetweenAnchors(a,b,generation,p=>{
+                if(status)status.innerText=`再追跡中：A${i+1} → A${i+2}（${Math.round((i+p)/segments*100)}%）…`;
+            });
+            if(generation!==vbtReviewTrackGeneration)throw new Error("cancelled");
+            all.push(...seg);
+        }
+        vbtReviewCorrectedSamples=dedupeVbtReviewSamples(all);
+        const reviewDiameter=updateVbtReviewCalibrationFromAnchors();
+        recomputeVbtReviewVelocities(vbtReviewCorrectedSamples);
+        const reps=detectVbtReviewReps(vbtReviewCorrectedSamples);
+        vbtReviewLastQuality=calculateVbtReviewTrajectoryQuality(vbtReviewCorrectedSamples,reviewDiameter);
+        vbtReviewAnalysisApplied=true;
+
+        /* 「全VBT値再計算」：ライブ値ではなく、補正軌跡から再構築した値を正式表示へ反映 */
+        vbtSamples=vbtReviewCorrectedSamples.map(s=>({...s}));
+        vbtReps=reps;
+        renderVbt();
+        const q=Math.round(vbtReviewLastQuality.quality*100);
+        const low=Math.round(vbtReviewLastQuality.low*100);
+        document.getElementById("vbt-review-quality").innerText=`軌跡品質 ${q}% ／ 低信頼区間 ${low}% ／ 自動再検出 ${reps.length}レップ`;
+        if(status){
+            if(reps.length)status.innerText=`再解析完了：${vbtReviewAnchors.length}アンカー、${segments}区間を双方向追跡し、補正軌跡から${reps.length}レップの全VBT値を再計算しました。橙色の軌跡が残る箇所は、その前後にアンカーを追加して再実行してください。`;
+            else status.innerText="双方向再追跡は完了しましたが、自動レップ判定条件を満たす上昇区間を検出できませんでした。軌跡を確認し、必要ならアンカーを追加したうえで再実行するか、上昇開始・終了を手動指定してください。";
+        }
+        renderVbtReviewAnchors();
+    }catch(e){
+        console.warn("VBT full review retracking failed",e);
+        if(status)status.innerText="リプレイ再解析の途中で処理できないフレームがありました。アンカー位置を確認して再実行してください。";
+    }finally{
+        await seekVbtReviewForTracking(restoreTime);
+        vbtReviewBusy=false;
+        document.getElementById("vbt-review-correct").disabled=false;
+        document.getElementById("vbt-review-reset").disabled=false;
+        renderVbtReviewAnchors();
+        updateVbtReviewTime();drawVbtReviewOverlay();calculateVbtReviewRep();
+    }
+}
+document.getElementById("vbt-review-retrack-all").addEventListener("click",rerunVbtReviewAll);
+
+/* ---------- 手動レップ指定：補正済み軌跡を必ず参照 ---------- */
 document.getElementById("vbt-mark-start").addEventListener("click",()=>{
     const time=vbtReviewVideo.currentTime;
     const sample=nearestVbtSample(time);
     if(!sample)return;
-    vbtReviewStart={time,sample,frame:Math.round(time*vbtActualFps)};
+    vbtReviewStart={time,sample,frame:Math.round(time*vbtReviewFps())};
     document.getElementById("vbt-review-start-label").innerText=`${time.toFixed(3)} s / Frame ${vbtReviewStart.frame}`;
     calculateVbtReviewRep();
 });
@@ -2600,7 +3018,7 @@ document.getElementById("vbt-mark-end").addEventListener("click",()=>{
     const time=vbtReviewVideo.currentTime;
     const sample=nearestVbtSample(time);
     if(!sample)return;
-    vbtReviewEnd={time,sample,frame:Math.round(time*vbtActualFps)};
+    vbtReviewEnd={time,sample,frame:Math.round(time*vbtReviewFps())};
     document.getElementById("vbt-review-end-label").innerText=`${time.toFixed(3)} s / Frame ${vbtReviewEnd.frame}`;
     calculateVbtReviewRep();
 });
@@ -2608,19 +3026,14 @@ document.getElementById("vbt-mark-end").addEventListener("click",()=>{
 function calculateVbtReviewRep(){
     const addBtn=document.getElementById("vbt-add-review-rep");
     if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time){
-        addBtn.disabled=true;
-        return;
+        addBtn.disabled=true;return;
     }
-
-    /* 補正後の最新座標を必ず再取得 */
     vbtReviewStart.sample=nearestVbtSample(vbtReviewStart.time)||vbtReviewStart.sample;
     vbtReviewEnd.sample=nearestVbtSample(vbtReviewEnd.time)||vbtReviewEnd.sample;
-
     const duration=vbtReviewEnd.time-vbtReviewStart.time;
     const dy=vbtReviewStart.sample.y-vbtReviewEnd.sample.y;
-    const distance=Math.abs(dy)*vbtMetersPerPixel();
+    const distance=Math.abs(dy)*vbtReviewMetersPerPixel();
     const mean=duration>0?distance/duration:0;
-
     document.getElementById("vbt-review-duration").innerText=duration.toFixed(3)+" s";
     document.getElementById("vbt-review-distance").innerText=distance.toFixed(3)+" m";
     document.getElementById("vbt-review-mean").innerText=mean.toFixed(3)+" m/s";
@@ -2629,31 +3042,20 @@ function calculateVbtReviewRep(){
 
 document.getElementById("vbt-add-review-rep").addEventListener("click",()=>{
     if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time)return;
-
     vbtReviewStart.sample=nearestVbtSample(vbtReviewStart.time)||vbtReviewStart.sample;
     vbtReviewEnd.sample=nearestVbtSample(vbtReviewEnd.time)||vbtReviewEnd.sample;
-
     const duration=vbtReviewEnd.time-vbtReviewStart.time;
-    const distance=Math.abs(vbtReviewStart.sample.y-vbtReviewEnd.sample.y)*vbtMetersPerPixel();
-    const segment=vbtSamples.filter(s=>s.t>=vbtReviewStart.time*1000&&s.t<=vbtReviewEnd.time*1000);
-    const trustedSegment=segment.filter(s=>s.confidence===undefined||s.confidence>=.55);
-    const peak=trustedSegment.length?Math.max(...trustedSegment.map(s=>Math.max(0,s.v||0)),distance/duration):distance/duration;
-
+    const distance=Math.abs(vbtReviewStart.sample.y-vbtReviewEnd.sample.y)*vbtReviewMetersPerPixel();
+    const segment=(vbtReviewAnalysisApplied?vbtReviewCorrectedSamples:vbtSamples).filter(s=>s.t>=vbtReviewStart.time*1000&&s.t<=vbtReviewEnd.time*1000);
+    const positive=segment.map(s=>s.v||0).filter(v=>v>0&&Number.isFinite(v));
+    const peak=positive.length?Math.max(distance/duration,vbtQuantile(positive,.95)):distance/duration;
     vbtReps.push({
-        mean:distance/duration,
-        peak,
-        distance,
-        time:duration,
-        startT:vbtReviewStart.time,
-        endT:vbtReviewEnd.time,
-        startFrame:vbtReviewStart.frame,
-        endFrame:vbtReviewEnd.frame,
-        source:"review"
+        mean:distance/duration,peak,distance,time:duration,
+        startT:vbtReviewStart.time,endT:vbtReviewEnd.time,
+        startFrame:vbtReviewStart.frame,endFrame:vbtReviewEnd.frame,source:"review"
     });
     renderVbt();
-
-    vbtReviewStart=null;
-    vbtReviewEnd=null;
+    vbtReviewStart=null;vbtReviewEnd=null;
     document.getElementById("vbt-review-start-label").innerText="未指定";
     document.getElementById("vbt-review-end-label").innerText="未指定";
     document.getElementById("vbt-review-duration").innerText="0.000 s";
