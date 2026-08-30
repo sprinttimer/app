@@ -157,14 +157,15 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 <!-- VBT -->
 <div id="tab-vbt" class="tab-content">
-    <div class="notice"><b>VBT撮影注意：</b>必ず三脚を使用し、対象物（シャフト・バーベル・プレート等）が上下方向に動くよう、できるだけ真横から撮影してください。プレートを使用する場合は直径を入力し、画面上のプレート中心をタップしてください。入力したプレート直径と画像上の円周を基準に距離を補正します。</div>
+    <div class="notice"><b>VBT撮影注意：</b>必ず三脚を使用し、対象物（シャフト・バーベル・プレート等）をできるだけ真横から撮影してください。<b>VBTはアウトカメラを初期選択し、60fpsを優先して取得します。</b>インカメラは端末によって実映像FPSが低くなる場合があり、高速動作では追従精度が低下します。プレートを使用する場合は直径を入力し、<b>プレート中央のシャフト／カラー中心</b>をタップしてください。アプリは中央特徴を主追跡し、プレート外周・運動学・シャフト候補で二重確認します。</div>
+    <div class="info" id="vbt-camera-info">カメラ：アウト優先 ／ 実映像FPS：-- ／ 追跡FPS：-- ／ 解析負荷：--</div>
     <div class="feature-video" id="vbt-video-container">
         <video id="vbt-video" playsinline muted></video>
         <canvas id="vbt-canvas" class="overlay-canvas"></canvas>
         <div id="vbt-focus" class="focus-ring"></div>
     </div>
     <div class="button-row">
-        <button class="action-btn btn-gray" onclick="toggleCamera('vbt')">カメラ切替</button>
+        <button class="action-btn btn-gray" id="vbt-camera-toggle">カメラ切替（アウト推奨）</button>
         <button class="action-btn btn-blue" id="vbt-focus-btn">対象物を指定</button>
     </div>
     <div class="settings-card">
@@ -194,7 +195,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
     <div id="vbt-review-area" class="settings-card" style="display:none">
         <h3>VBT 動画レビュー</h3>
-        <div class="info">自動追従結果を動画上で確認し、必要なレップについて1フレームずつ移動しながら「上昇開始」「上昇終了」を指定できます。指定したフレームからMean Velocityを再計算します。</div>
+        <div class="info">自動追従結果を動画上で確認し、必要なレップについて1フレームずつ移動しながら「上昇開始」「上昇終了」を指定できます。追跡がずれたフレームでは中心を手動指定できます。2点以上を指定すると、そのアンカー間を拘束して再追跡します。指定したフレームからMean Velocityを再計算します。</div>
         <div class="preview-wrap" id="vbt-review-wrap">
             <video id="vbt-review-video" playsinline controls></video>
             <canvas id="vbt-review-canvas" class="overlay-canvas"></canvas>
@@ -825,10 +826,11 @@ document.getElementById("cam-start-btn").addEventListener("click",()=>{
 /* =========================
    VBT
    ・プレート中心をタップして対象を指定
-   ・速度予測 + 静的テンプレート + 適応テンプレートで追跡
-   ・プレート形状 / シャフト候補 / 運動学を独立評価し信頼度統合
-   ・1次元KalmanフィルタをX/Yに適用して位置と速度を推定
-   ・信頼度低下時は探索範囲を段階的に拡大し、広域再捕捉
+   ・中央シャフト/カラーをZNCCで高速主追跡、固定テンプレートをドリフト防止に維持
+   ・プレート外周プロファイル / シャフト候補 / 運動学を独立評価して二重確認
+   ・Kalman + 直近速度/加速度予測を統合し、実速度ベクトル方向へ探索範囲を拡張
+   ・疎探索→1px精密化→外周確認の3段階で処理量を削減し、ロスト時のみ全画面再捕捉
+   ・VBT専用アウトカメラ初期選択、60fps優先、実映像FPS/追跡FPS/解析負荷を監視
    ・入力したプレート直径と画像上の推定直径から pixels/m を校正
    ・上昇開始→上昇終了を自動判定
    ・撮影終了後は動画レビューで1フレーム単位に手動指定可能
@@ -873,6 +875,33 @@ let vbtFrameCounter=0;
 let vbtAnchorX=null;
 let vbtTrackAcceptedThisFrame=false;
 let vbtLastTrackPerf=0;
+let vbtCenterTemplate=null;          // プレート中央のシャフト/カラーを主追跡する固定テンプレート
+let vbtCenterAdaptiveTemplate=null;  // 高信頼時のみ更新する中央特徴テンプレート
+let vbtCenterHalf=14;
+let vbtVideoFrameTimes=[];           // requestVideoFrameCallback到着時刻から実映像FPSを測定
+let vbtTrackingFrameTimes=[];        // VBT追跡処理の実行FPS
+let vbtMeasuredVideoFps=0;
+let vbtMeasuredTrackingFps=0;
+let vbtLastTelemetryUpdate=0;
+let vbtReviewAnchors=[];             // 手動補正アンカー。複数点を保持して区間を拘束
+
+/* 高速追従・実FPS・VBT専用カメラ */
+const VBT_TARGET_FPS=60;
+const VBT_ANALYSIS_MAX_DIM=960;
+let vbtFacingMode="environment";
+let vbtCameraSwitching=false;
+let vbtLoopStarted=false;
+let vbtFrameMetaHistory=[];
+let vbtCurrentMediaTime=null;
+let vbtRecordStartMediaTime=null;
+let vbtProcessingTimes=[];
+let vbtAcceptedTimes=[];
+let vbtAverageProcessingMs=0;
+let vbtSkippedFrameRatio=0;
+let vbtAcceptedHistory=[];
+let vbtCenterReliability=1;
+let vbtRecentCenterTemplate=null;
+let vbtPlateRadiusConfidence=0;
 
 /* レビュー補正用状態 */
 let vbtReviewCorrectionMode=false;
@@ -906,89 +935,286 @@ function setVbtTargetUiState(state){
     }
 }
 
-async function startVbtCamera(){
-    if(vbtStream)return;
+function vbtAnalysisSize(videoWidth,videoHeight){
+    if(!videoWidth||!videoHeight)return {width:0,height:0,scale:1};
+    const scale=Math.min(1,VBT_ANALYSIS_MAX_DIM/Math.max(videoWidth,videoHeight));
+    return {
+        width:Math.max(2,Math.round(videoWidth*scale)),
+        height:Math.max(2,Math.round(videoHeight*scale)),
+        scale
+    };
+}
+
+function resetVbtTargetAfterCameraChange(message){
+    vbtFocus=null;
+    vbtTemplate=null;
+    vbtAdaptiveTemplate=null;
+    vbtCenterTemplate=null;
+    vbtCenterAdaptiveTemplate=null;
+    vbtRecentCenterTemplate=null;
+    vbtFeatureRef=null;
+    vbtPlateDiameterPx=0;
+    vbtPlateRadiusConfidence=0;
+    vbtPixelsPerMeter=0;
+    vbtKalman=null;
+    vbtAcceptedHistory=[];
+    vbtLostFrames=0;
+    vbtTrackConfidence=0;
+    vbtTrackMode="idle";
+    const ring=document.getElementById("vbt-focus");
+    if(ring)ring.style.display="none";
+    setVbtTargetUiState("idle");
+    updateVbtCalibration();
+    if(message)document.getElementById("vbt-status").innerText=message;
+}
+
+async function openVbtCamera(facingMode){
+    if(vbtCameraSwitching)return vbtVideo.srcObject;
+    vbtCameraSwitching=true;
+    const old=vbtVideo.srcObject;
+    if(old)old.getTracks().forEach(t=>t.stop());
+
+    const profiles=[
+        {video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:VBT_TARGET_FPS,min:50,max:VBT_TARGET_FPS}},audio:false},
+        {video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:VBT_TARGET_FPS,max:VBT_TARGET_FPS}},audio:false},
+        {video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:VBT_TARGET_FPS}},audio:false},
+        {video:{facingMode:{ideal:facingMode}},audio:false}
+    ];
+
+    let stream=null,lastError=null;
     try{
-        vbtStream=await getCameraStream(vbtVideo,currentFacingMode);
-        const track=vbtStream.getVideoTracks()[0];
+        for(const constraints of profiles){
+            try{
+                stream=await navigator.mediaDevices.getUserMedia(constraints);
+                if(stream)break;
+            }catch(e){lastError=e;}
+        }
+        if(!stream)throw lastError||new Error("VBT camera unavailable");
+
+        vbtVideo.srcObject=stream;
+        await vbtVideo.play();
+        vbtStream=stream;
+        cameraStreams[vbtVideo.id]=stream;
+
+        const track=stream.getVideoTracks()[0];
+        const caps=track&&track.getCapabilities?track.getCapabilities():{};
         const settings=track&&track.getSettings?track.getSettings():{};
-        if(settings.frameRate) vbtActualFps=settings.frameRate;
-        scheduleNextVbtFrame();
+        if(settings.frameRate)vbtActualFps=settings.frameRate;
+
+        /* 120fpsを無条件に要求するより、720p前後・60fpsを優先して処理落ちを抑える。 */
+        if(track&&track.applyConstraints){
+            const capMax=caps.frameRate&&Number.isFinite(caps.frameRate.max)?caps.frameRate.max:VBT_TARGET_FPS;
+            const target=Math.min(VBT_TARGET_FPS,capMax||VBT_TARGET_FPS);
+            try{await track.applyConstraints({frameRate:{ideal:target,max:target},width:{ideal:1280},height:{ideal:720}});}catch(e){}
+        }
+
+        vbtFrameMetaHistory=[];
+        vbtTrackingFrameTimes=[];
+        vbtProcessingTimes=[];
+        vbtAcceptedTimes=[];
+        vbtMeasuredVideoFps=0;
+        vbtMeasuredTrackingFps=0;
+        vbtAverageProcessingMs=0;
+        vbtSkippedFrameRatio=0;
+        updateVbtCameraTelemetry(true);
+        return stream;
+    }finally{
+        vbtCameraSwitching=false;
+    }
+}
+
+async function startVbtCamera(){
+    if(vbtVideo.srcObject&&vbtVideo.srcObject.getVideoTracks().some(t=>t.readyState==="live")){
+        vbtStream=vbtVideo.srcObject;
+        if(!vbtLoopStarted){vbtLoopStarted=true;scheduleNextVbtFrame();}
+        return;
+    }
+    try{
+        /* VBTだけは他タブのカメラ状態に依存せず、必ずアウトカメラから開始する。 */
+        vbtFacingMode="environment";
+        await openVbtCamera(vbtFacingMode);
+        if(!vbtLoopStarted){vbtLoopStarted=true;scheduleNextVbtFrame();}
     }catch(e){
         console.error(e);
         document.getElementById("vbt-status").innerText="カメラの起動に失敗しました。";
     }
 }
 
+document.getElementById("vbt-camera-toggle").addEventListener("click",async()=>{
+    if(vbtCameraSwitching)return;
+    vbtFacingMode=vbtFacingMode==="environment"?"user":"environment";
+    resetVbtTargetAfterCameraChange("カメラを切り替えています…切替後に対象物を再指定してください。");
+    try{
+        await openVbtCamera(vbtFacingMode);
+        const label=vbtFacingMode==="environment"?"アウトカメラ":"インカメラ";
+        document.getElementById("vbt-status").innerText=`${label}に切り替えました。プレート中心を再指定してください。`;
+    }catch(e){
+        console.error(e);
+        document.getElementById("vbt-status").innerText="カメラの切替に失敗しました。";
+    }
+});
+
 /* video frame callback が使える端末では実動画フレームに同期。未対応端末はRAFへフォールバック */
 function scheduleNextVbtFrame(){
     if(typeof vbtVideo.requestVideoFrameCallback==="function"){
-        vbtRaf=vbtVideo.requestVideoFrameCallback(()=>requestVbtFrame());
+        vbtRaf=vbtVideo.requestVideoFrameCallback((now,metadata)=>requestVbtFrame(now,metadata));
     }else{
-        vbtRaf=requestAnimationFrame(requestVbtFrame);
+        vbtRaf=requestAnimationFrame(now=>requestVbtFrame(now,null));
     }
 }
 
-function requestVbtFrame(){
-    if(!vbtVideo.videoWidth){
+function ensureVbtAnalysisCanvas(){
+    const size=vbtAnalysisSize(vbtVideo.videoWidth,vbtVideo.videoHeight);
+    if(!size.width)return false;
+    if(vbtCanvas.width!==size.width||vbtCanvas.height!==size.height){
+        vbtCanvas.width=size.width;
+        vbtCanvas.height=size.height;
+        /* 解析解像度が変わった場合、旧座標の対象物は使用しない。 */
+        if(vbtFocus)resetVbtTargetAfterCameraChange("解析解像度が変わりました。対象物を再指定してください。");
+    }
+    return true;
+}
+
+function requestVbtFrame(videoCallbackNow,videoMetadata){
+    const callbackNow=Number.isFinite(videoCallbackNow)?videoCallbackNow:performance.now();
+    const processStart=performance.now();
+    recordVbtVideoFrame(callbackNow,videoMetadata);
+    if(!vbtVideo.videoWidth||!ensureVbtAnalysisCanvas()){
         scheduleNextVbtFrame();
         return;
     }
-    if(vbtCanvas.width!==vbtVideo.videoWidth||vbtCanvas.height!==vbtVideo.videoHeight){
-        vbtCanvas.width=vbtVideo.videoWidth;
-        vbtCanvas.height=vbtVideo.videoHeight;
-    }
 
-    /* 毎フレーム最初に生映像で全面を上書きするため、前フレームの描画は追跡画像へ混入しない */
+    /* 解析は最大960pxへ縮小。録画映像は元解像度のまま保持する。 */
     vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
     vbtTrackAcceptedThisFrame=false;
 
     if(vbtFocus&&vbtTemplate){
         const now=performance.now();
+        recordVbtTrackingFrame(now);
         const tracked=trackVbtTemplateAdvanced(now);
         if(tracked){
             const wasLost=vbtLostFrames>=8;
+            const previousLost=vbtLostFrames;
             vbtFocus={x:tracked.x,y:tracked.y};
             vbtTrackConfidence=tracked.confidence;
             vbtTrackMode=tracked.mode;
             vbtLostFrames=0;
             vbtTrackAcceptedThisFrame=true;
             vbtLastTrackPerf=now;
+            vbtAcceptedTimes.push(now);
+            trimVbtFpsTimes(vbtAcceptedTimes,now);
+            vbtAcceptedHistory.push({
+                x:tracked.measurementX,y:tracked.measurementY,perf:now,
+                mediaTime:Number.isFinite(vbtCurrentMediaTime)?vbtCurrentMediaTime:null,
+                confidence:tracked.confidence
+            });
+            if(vbtAcceptedHistory.length>8)vbtAcceptedHistory.shift();
 
-            /* 高信頼時だけ補助テンプレートを更新。初期テンプレートは固定してドリフトを防止 */
-            if(vbtTrackConfidence>=.88&&vbtFrameCounter%6===0){
+            /* 固定テンプレートを基準にし、高信頼かつ外周確認も通った時だけ適応テンプレートを更新。 */
+            if(vbtTrackConfidence>=.88&&tracked.centerFixedConfidence>=.72&&tracked.shapeConfidence>=.55&&vbtFrameCounter%7===0){
                 updateVbtAdaptiveTemplate(vbtCtx,vbtCanvas.width,vbtCanvas.height,tracked.measurementX,tracked.measurementY);
+                updateVbtCenterAdaptiveTemplate(vbtCtx,vbtCanvas.width,vbtCanvas.height,tracked.measurementX,tracked.measurementY);
+            }
+            if(vbtTrackConfidence>=.82&&tracked.centerFixedConfidence>=.62){
+                updateVbtRecentCenterTemplate(vbtCtx,vbtCanvas.width,vbtCanvas.height,tracked.measurementX,tracked.measurementY);
             }
 
-            if(wasLost){
+            if(wasLost||previousLost>=3){
                 setVbtTargetUiState("tracking");
-                document.getElementById("vbt-status").innerText=vbtRunning?"計測中・対象物を再追従しました。":"対象物を再追従しました。";
+                document.getElementById("vbt-status").innerText=vbtRunning?"計測中・対象物を再捕捉しました。":"対象物を再捕捉しました。";
             }
         }else{
             vbtLostFrames++;
-            vbtTrackConfidence=Math.max(0,vbtTrackConfidence*.72);
-            vbtTrackMode=vbtLostFrames>=2?"recovery":"expanded";
+            vbtTrackConfidence=Math.max(0,vbtTrackConfidence*.68);
+            vbtTrackMode=vbtLostFrames>=3?"recovery":"expanded";
             if(vbtLostFrames===8){
-                /* 追跡が長く途切れたレップは誤計測しないよう自動レップ状態を破棄 */
                 vbtUp=false;
                 vbtUpStartSample=null;
                 vbtStableEndFrames=0;
                 vbtMotionWindow=[];
                 vbtLastTracked=null;
                 setVbtTargetUiState("lost");
-                document.getElementById("vbt-status").innerText="対象物を見失いました。自動再探索中です。再捕捉できない場合はプレート中心をもう一度タップしてください。";
+                document.getElementById("vbt-status").innerText="対象物を見失いました。固定テンプレートとプレート外周を使って広域再探索中です。再捕捉できない場合は中心を再指定してください。";
             }
         }
     }
 
     drawVbtOverlay();
 
-    /* 検出結果を採用できたフレームだけ速度計算へ渡す。予測座標だけではVBT値を作らない */
     if(vbtRunning&&vbtFocus&&vbtTrackAcceptedThisFrame&&vbtLostFrames<8){
-        analyzeVbtMotion();
+        analyzeVbtMotion(callbackNow,videoMetadata);
     }
 
+    const processMs=performance.now()-processStart;
+    vbtProcessingTimes.push({t:performance.now(),ms:processMs});
+    const cutoff=performance.now()-1600;
+    while(vbtProcessingTimes.length&&vbtProcessingTimes[0].t<cutoff)vbtProcessingTimes.shift();
+    if(vbtProcessingTimes.length){
+        vbtAverageProcessingMs=vbtProcessingTimes.reduce((a,b)=>a+b.ms,0)/vbtProcessingTimes.length;
+    }
+    updateVbtCameraTelemetry(false);
     scheduleNextVbtFrame();
+}
+
+function fpsFromTimes(times){
+    if(times.length<3)return 0;
+    const span=(times[times.length-1]-times[0])/1000;
+    return span>0?(times.length-1)/span:0;
+}
+function trimVbtFpsTimes(times,now){
+    while(times.length&&now-times[0]>1600)times.shift();
+}
+function recordVbtVideoFrame(now,metadata){
+    if(metadata&&Number.isFinite(metadata.mediaTime))vbtCurrentMediaTime=metadata.mediaTime;
+    if(metadata&&Number.isFinite(metadata.mediaTime)){
+        vbtFrameMetaHistory.push({
+            callbackNow:now,
+            mediaTime:metadata.mediaTime,
+            presentedFrames:Number.isFinite(metadata.presentedFrames)?metadata.presentedFrames:null
+        });
+        while(vbtFrameMetaHistory.length&&now-vbtFrameMetaHistory[0].callbackNow>1800)vbtFrameMetaHistory.shift();
+        if(vbtFrameMetaHistory.length>=3){
+            const first=vbtFrameMetaHistory[0],last=vbtFrameMetaHistory[vbtFrameMetaHistory.length-1];
+            const mediaSpan=last.mediaTime-first.mediaTime;
+            let frames=0;
+            if(last.presentedFrames!=null&&first.presentedFrames!=null)frames=last.presentedFrames-first.presentedFrames;
+            else frames=vbtFrameMetaHistory.length-1;
+            if(mediaSpan>.25&&frames>1)vbtMeasuredVideoFps=frames/mediaSpan;
+        }
+    }else{
+        vbtVideoFrameTimes.push(now);
+        trimVbtFpsTimes(vbtVideoFrameTimes,now);
+        vbtMeasuredVideoFps=fpsFromTimes(vbtVideoFrameTimes);
+    }
+    if(vbtMeasuredVideoFps>0)vbtActualFps=vbtMeasuredVideoFps;
+}
+function recordVbtTrackingFrame(now){
+    vbtTrackingFrameTimes.push(now);
+    trimVbtFpsTimes(vbtTrackingFrameTimes,now);
+    vbtMeasuredTrackingFps=fpsFromTimes(vbtTrackingFrameTimes);
+}
+function updateVbtCameraTelemetry(force){
+    const now=performance.now();
+    if(!force&&now-vbtLastTelemetryUpdate<350)return;
+    vbtLastTelemetryUpdate=now;
+    const info=document.getElementById("vbt-camera-info");
+    if(!info)return;
+    const track=vbtVideo.srcObject&&vbtVideo.srcObject.getVideoTracks?vbtVideo.srcObject.getVideoTracks()[0]:null;
+    const settings=track&&track.getSettings?track.getSettings():{};
+    const facing=settings.facingMode||vbtFacingMode;
+    const cameraLabel=facing==="environment"?"アウト":facing==="user"?"イン":"不明";
+    const vf=vbtMeasuredVideoFps>0?vbtMeasuredVideoFps:(settings.frameRate||0);
+    const tf=vbtMeasuredTrackingFps||0;
+    const acceptedFps=fpsFromTimes(vbtAcceptedTimes);
+    if(vf>0&&tf>0)vbtSkippedFrameRatio=clamp(1-tf/vf,0,1);
+    else vbtSkippedFrameRatio=0;
+    const resolution=settings.width&&settings.height?`${settings.width}×${settings.height}`:(vbtVideo.videoWidth?`${vbtVideo.videoWidth}×${vbtVideo.videoHeight}`:"--");
+    let warning="";
+    if(cameraLabel==="イン")warning+=" ／ ⚠ インカメラ：アウト推奨";
+    if(vf>0&&vf<45)warning+=` ／ ⚠ 映像${vf.toFixed(1)}FPS`;
+    if(vf>=35&&tf>0&&tf<vf*.72)warning+=` ／ ⚠ 解析が映像に追いついていません`;
+    if(vbtAverageProcessingMs>0&&vf>0&&vbtAverageProcessingMs>(1000/vf)*.82)warning+=` ／ ⚠ 処理負荷高`;
+    info.innerText=`カメラ：${cameraLabel} ${resolution} ／ 実映像FPS：${vf?vf.toFixed(1):"--"} ／ 追跡FPS：${tf?tf.toFixed(1):"--"} ／ 採用FPS：${acceptedFps?acceptedFps.toFixed(1):"--"} ／ 解析負荷：${vbtAverageProcessingMs?vbtAverageProcessingMs.toFixed(1)+"ms":"--"}${warning}`;
 }
 
 function drawVbtOverlay(){
@@ -1041,48 +1267,81 @@ function grayAt(data,w,x,y){
     return data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
 }
 
+function vbtMedian(values){
+    if(!values.length)return 0;
+    const a=values.slice().sort((x,y)=>x-y),mid=Math.floor(a.length/2);
+    return a.length%2?a[mid]:(a[mid-1]+a[mid])/2;
+}
+function vbtQuantile(values,q){
+    if(!values.length)return 0;
+    const a=values.slice().sort((x,y)=>x-y);
+    const pos=(a.length-1)*q,lo=Math.floor(pos),hi=Math.ceil(pos);
+    return lo===hi?a[lo]:a[lo]*(hi-pos)+a[hi]*(pos-lo);
+}
+
+/*
+  プレート外周推定：
+  単純な「平均エッジが強い一番外側」を選ばず、円周の多くの角度で同じ符号の境界が
+  継続しているかを評価する。背景・腕・ラックの局所エッジを巨大な円として誤採用しにくくする。
+*/
 function estimatePlateRadius(cx,cy){
     const w=vbtCanvas.width,h=vbtCanvas.height;
-    const maxR=Math.min(220,Math.floor(Math.min(cx,w-cx,cy,h-cy)-3));
-    if(maxR<15)return 0;
+    const edgeLimit=Math.floor(Math.min(cx,w-cx,cy,h-cy)-4);
+    const maxR=Math.min(260,edgeLimit);
+    const minR=Math.max(14,Math.round(Math.min(w,h)*.032));
+    if(maxR<minR+8)return {radius:0,confidence:0};
 
-    const x0=Math.max(0,Math.floor(cx-maxR-4));
-    const y0=Math.max(0,Math.floor(cy-maxR-4));
-    const x1=Math.min(w,Math.ceil(cx+maxR+4));
-    const y1=Math.min(h,Math.ceil(cy+maxR+4));
+    const x0=Math.max(0,Math.floor(cx-maxR-7));
+    const y0=Math.max(0,Math.floor(cy-maxR-7));
+    const x1=Math.min(w,Math.ceil(cx+maxR+7));
+    const y1=Math.min(h,Math.ceil(cy+maxR+7));
     const image=vbtCtx.getImageData(x0,y0,x1-x0,y1-y0);
-    const data=image.data,iw=image.width;
+    const data=image.data,iw=image.width,ih=image.height;
     const lcX=cx-x0,lcY=cy-y0;
+    const angles=40;
+    const candidates=[];
 
-    const scores=[];
-    let maxScore=0;
-    const angles=32;
-
-    for(let r=12;r<=maxR;r+=2){
-        let score=0,valid=0;
+    for(let r=minR;r<=maxR;r+=2){
+        const delta=clamp(Math.round(r*.045),2,5);
+        const signed=[],absVals=[];
         for(let a=0;a<angles;a++){
-            const th=(Math.PI*2*a)/angles;
-            const ax=Math.cos(th),ay=Math.sin(th);
-            const px1=Math.round(lcX+ax*(r-3));
-            const py1=Math.round(lcY+ay*(r-3));
-            const px2=Math.round(lcX+ax*(r+3));
-            const py2=Math.round(lcY+ay*(r+3));
-            if(px1<0||px1>=image.width||px2<0||px2>=image.width||py1<0||py1>=image.height||py2<0||py2>=image.height)continue;
-            score+=Math.abs(grayAt(data,iw,px2,py2)-grayAt(data,iw,px1,py1));
-            valid++;
+            const th=Math.PI*2*a/angles,ax=Math.cos(th),ay=Math.sin(th);
+            const xi=Math.round(lcX+ax*(r-delta)),yi=Math.round(lcY+ay*(r-delta));
+            const xo=Math.round(lcX+ax*(r+delta)),yo=Math.round(lcY+ay*(r+delta));
+            if(xi<0||xi>=iw||xo<0||xo>=iw||yi<0||yi>=ih||yo<0||yo>=ih)continue;
+            const d=grayAt(data,iw,xo,yo)-grayAt(data,iw,xi,yi);
+            signed.push(d);absVals.push(Math.abs(d));
         }
-        if(valid>=angles*.8){
-            score/=valid;
-            scores.push({r,score});
-            if(score>maxScore)maxScore=score;
-        }
+        if(absVals.length<angles*.80)continue;
+        const medianAbs=vbtMedian(absVals),q25=vbtQuantile(absVals,.25),meanAbs=absVals.reduce((a,b)=>a+b,0)/absVals.length;
+        const strongThreshold=Math.max(5,medianAbs*.48);
+        const coverage=absVals.filter(v=>v>=strongThreshold).length/absVals.length;
+        const pos=signed.filter(v=>v>2).length/signed.length,neg=signed.filter(v=>v<-2).length/signed.length;
+        const signConsistency=Math.max(pos,neg);
+        /* 円周全体で弱い半径は、数本の強い背景線があっても候補にしない。 */
+        if(coverage<.56||signConsistency<.54||q25<2.2)continue;
+        const raw=(medianAbs*.42+q25*.32+meanAbs*.26);
+        const circularity=(.48+.52*coverage)*(.58+.42*signConsistency);
+        const radiusPrior=1+.12*Math.log(1+r/minR);
+        const score=raw*circularity*radiusPrior;
+        candidates.push({r,score,coverage,signConsistency,q25,medianAbs,meanAbs});
     }
+    if(!candidates.length)return {radius:0,confidence:0};
+    candidates.sort((a,b)=>b.score-a.score);
+    const bestScore=candidates[0].score;
+    /* 内側ハブより外周を選ぶが、円周整合性が十分な候補だけに限定する。 */
+    const strong=candidates.filter(c=>c.score>=bestScore*.70&&c.coverage>=.60&&c.signConsistency>=.57&&c.q25>=2.8);
+    let best=strong.length?strong.reduce((a,b)=>b.r>a.r?b:a):candidates[0];
 
-    if(maxScore<7)return 0;
-
-    /* 内側の穴や文字ではなく、十分強い円周のうち外側を優先 */
-    const candidates=scores.filter(o=>o.score>=maxScore*.72&&o.score>=7);
-    return candidates.length?candidates[candidates.length-1].r:0;
+    /* 半径が極端に大きいのに円周の下位25%が弱い場合は背景誤検出として抑制。 */
+    const relativeR=best.r/Math.max(1,Math.min(w,h));
+    let confidence=clamp((best.coverage-.50)/.38,0,1)*.38+
+                   clamp((best.signConsistency-.50)/.38,0,1)*.28+
+                   clamp((best.q25-2)/12,0,1)*.20+
+                   clamp((best.medianAbs-4)/18,0,1)*.14;
+    if(relativeR>.30&&best.q25<6)confidence*=.60;
+    if(best.score<7)confidence*=.55;
+    return {radius:best.r,confidence:clamp(confidence,0,1)};
 }
 
 function createVbtDescriptorFromContext(ctx,w,h,cx,cy,size,step=4){
@@ -1090,21 +1349,21 @@ function createVbtDescriptorFromContext(ctx,w,h,cx,cy,size,step=4){
     const x=Math.round(cx-half),y=Math.round(cy-half);
     if(x<0||y<0||x+size>=w||y+size>=h)return null;
     const patch=ctx.getImageData(x,y,size,size);
-    const sample=[];
+    const raw=[];
     let rawSum=0,rawSq=0;
     for(let py=2;py<size-2;py+=step){
         for(let px=2;px<size-2;px+=step){
             const i=(py*size+px)*4;
             const g=patch.data[i]*.299+patch.data[i+1]*.587+patch.data[i+2]*.114;
-            sample.push(g);
-            rawSum+=g;
-            rawSq+=g*g;
+            raw.push(g);rawSum+=g;rawSq+=g*g;
         }
     }
-    if(!sample.length)return null;
-    const mean=rawSum/sample.length;
-    const variance=Math.max(0,rawSq/sample.length-mean*mean);
-    return {sample:sample.map(v=>v-mean),size,step,mean,std:Math.sqrt(variance)};
+    if(!raw.length)return null;
+    const mean=rawSum/raw.length;
+    const sample=raw.map(v=>v-mean);
+    const norm=Math.sqrt(sample.reduce((a,v)=>a+v*v,0));
+    const variance=Math.max(0,rawSq/raw.length-mean*mean);
+    return {sample,size,step,mean,std:Math.sqrt(variance),norm:Math.max(1e-6,norm),count:raw.length};
 }
 
 function radialEdgeScoreImage(imageData,cx,cy,r){
@@ -1127,6 +1386,57 @@ function radialEdgeScoreImage(imageData,cx,cy,r){
     return valid>=angles*.65?score/valid:0;
 }
 
+function radialEdgeProfileImage(imageData,cx,cy,r){
+    if(!r||r<8)return null;
+    const data=imageData.data,w=imageData.width,h=imageData.height;
+    const angles=32;
+    const delta=clamp(Math.round(r*.055),2,5);
+    const profile=[];
+    let mean=0;
+    for(let a=0;a<angles;a++){
+        const th=Math.PI*2*a/angles,ax=Math.cos(th),ay=Math.sin(th);
+        const x1=Math.round(cx+ax*(r-delta)),y1=Math.round(cy+ay*(r-delta));
+        const x2=Math.round(cx+ax*(r+delta)),y2=Math.round(cy+ay*(r+delta));
+        if(x1<0||x1>=w||x2<0||x2>=w||y1<0||y1>=h||y2<0||y2>=h){profile.push(0);continue;}
+        const v=Math.abs(grayAt(data,w,x2,y2)-grayAt(data,w,x1,y1));
+        profile.push(v);mean+=v;
+    }
+    mean/=angles;
+    const centered=profile.map(v=>v-mean);
+    const norm=Math.sqrt(centered.reduce((a,v)=>a+v*v,0));
+    return {profile,mean,centered,norm:Math.max(1e-6,norm)};
+}
+
+function radialProfileSimilarity(a,b){
+    if(!a||!b||a.centered.length!==b.centered.length)return .5;
+    let dot=0;
+    for(let i=0;i<a.centered.length;i++)dot+=a.centered[i]*b.centered[i];
+    const corr=clamp(dot/(a.norm*b.norm),-1,1);
+    const corrConf=clamp((corr+.20)/1.20,0,1);
+    const strengthRatio=Math.min(a.mean/Math.max(2,b.mean),b.mean/Math.max(2,a.mean));
+    return clamp(corrConf*.72+clamp(strengthRatio,0,1)*.28,0,1);
+}
+
+function refineVbtPlateCenter(cx,cy,r){
+    if(!r||r<10)return {x:cx,y:cy};
+    const w=vbtCanvas.width,h=vbtCanvas.height;
+    const margin=r+14;
+    const x0=clamp(Math.floor(cx-margin),0,w-1),y0=clamp(Math.floor(cy-margin),0,h-1);
+    const x1=clamp(Math.ceil(cx+margin),1,w),y1=clamp(Math.ceil(cy+margin),1,h);
+    if(x1-x0<20||y1-y0<20)return {x:cx,y:cy};
+    const frame=vbtCtx.getImageData(x0,y0,x1-x0,y1-y0);
+    let best={x:cx,y:cy,score:radialEdgeScoreImage(frame,cx-x0,cy-y0,r)};
+    for(let dy=-8;dy<=8;dy+=2){
+        for(let dx=-8;dx<=8;dx+=2){
+            const tx=cx+dx,ty=cy+dy;
+            const score=radialEdgeScoreImage(frame,tx-x0,ty-y0,r);
+            if(score>best.score)best={x:tx,y:ty,score};
+        }
+    }
+    return {x:best.x,y:best.y};
+}
+
+
 function patchStatsImage(imageData,cx,cy,half){
     const data=imageData.data,w=imageData.width,h=imageData.height;
     const x0=clamp(Math.round(cx-half),0,w-1),x1=clamp(Math.round(cx+half),0,w-1);
@@ -1147,22 +1457,56 @@ function patchStatsImage(imageData,cx,cy,half){
 function captureVbtTemplate(){
     if(!vbtFocus)return false;
     const w=vbtCanvas.width,h=vbtCanvas.height;
-    const detectedR=estimatePlateRadius(Math.round(vbtFocus.x),Math.round(vbtFocus.y));
-    if(detectedR>0){
-        vbtPlateDiameterPx=detectedR*2;
-        vbtTemplateHalf=clamp(Math.round(detectedR*.65),18,48);
+    let radiusEstimate=estimatePlateRadius(Math.round(vbtFocus.x),Math.round(vbtFocus.y));
+    let detectedR=radiusEstimate.radius||0;
+    vbtPlateRadiusConfidence=radiusEstimate.confidence||0;
+    if(detectedR>0&&vbtPlateRadiusConfidence>=.25){
+        const refined=refineVbtPlateCenter(vbtFocus.x,vbtFocus.y,detectedR);
+        vbtFocus={x:refined.x,y:refined.y};
+        /* 中心補正後に再評価。2回の半径が大きく食い違う場合は校正に使わない。 */
+        const second=estimatePlateRadius(Math.round(vbtFocus.x),Math.round(vbtFocus.y));
+        if(second.radius>0&&second.confidence>=.45){
+            const ratio=Math.max(second.radius/detectedR,detectedR/second.radius);
+            if(ratio<=1.24){
+                detectedR=(detectedR+second.radius)/2;
+                vbtPlateRadiusConfidence=clamp((vbtPlateRadiusConfidence+second.confidence)/2+.06,0,1);
+            }else{
+                vbtPlateRadiusConfidence*=.55;
+            }
+        }
+        if(vbtPlateRadiusConfidence>=.35){
+            vbtPlateDiameterPx=detectedR*2;
+            vbtTemplateHalf=clamp(Math.round(detectedR*.62),18,46);
+        }else{
+            vbtPlateDiameterPx=0;
+            vbtTemplateHalf=28;
+        }
     }else{
         vbtPlateDiameterPx=0;
+        vbtPlateRadiusConfidence=0;
         vbtTemplateHalf=28;
     }
 
     const size=vbtTemplateHalf*2;
-    const descriptor=createVbtDescriptorFromContext(vbtCtx,w,h,vbtFocus.x,vbtFocus.y,size,4);
+    const descriptor=createVbtDescriptorFromContext(vbtCtx,w,h,vbtFocus.x,vbtFocus.y,size,5);
     if(!descriptor)return false;
     vbtTemplate=descriptor;
     vbtAdaptiveTemplate={...descriptor,sample:descriptor.sample.slice()};
 
-    const refHalf=Math.max(12,vbtPlateDiameterPx>0?vbtPlateDiameterPx*.32:vbtTemplateHalf);
+    /* 中央シャフト/カラーは高速探索用に小さく保持。低コントラストなら自動で少し拡大する。 */
+    vbtCenterHalf=clamp(Math.round((vbtPlateDiameterPx>0?vbtPlateDiameterPx*.105:14)),10,20);
+    let centerDescriptor=createVbtDescriptorFromContext(vbtCtx,w,h,vbtFocus.x,vbtFocus.y,vbtCenterHalf*2,3);
+    if(centerDescriptor&&centerDescriptor.std<6&&vbtCenterHalf<24){
+        vbtCenterHalf=Math.min(24,vbtCenterHalf+5);
+        centerDescriptor=createVbtDescriptorFromContext(vbtCtx,w,h,vbtFocus.x,vbtFocus.y,vbtCenterHalf*2,3);
+    }
+    if(!centerDescriptor)return false;
+    vbtCenterTemplate=centerDescriptor;
+    vbtCenterAdaptiveTemplate={...centerDescriptor,sample:centerDescriptor.sample.slice()};
+    vbtRecentCenterTemplate={...centerDescriptor,sample:centerDescriptor.sample.slice()};
+    vbtCenterReliability=clamp((centerDescriptor.std-3)/16,.30,1);
+
+    const refHalf=Math.max(12,vbtPlateDiameterPx>0?vbtPlateDiameterPx*.34:vbtTemplateHalf);
     const x0=clamp(Math.floor(vbtFocus.x-refHalf-8),0,w-1);
     const y0=clamp(Math.floor(vbtFocus.y-refHalf-8),0,h-1);
     const x1=clamp(Math.ceil(vbtFocus.x+refHalf+8),1,w);
@@ -1171,10 +1515,12 @@ function captureVbtTemplate(){
     const lcX=vbtFocus.x-x0,lcY=vbtFocus.y-y0;
     const stats=patchStatsImage(refFrame,lcX,lcY,Math.min(refHalf,Math.min(refFrame.width,refFrame.height)/2-2));
     const radial=vbtPlateDiameterPx>0?radialEdgeScoreImage(refFrame,lcX,lcY,vbtPlateDiameterPx/2):0;
-    vbtFeatureRef={mean:stats.mean,std:stats.std,radial};
+    const radialProfile=vbtPlateDiameterPx>0?radialEdgeProfileImage(refFrame,lcX,lcY,vbtPlateDiameterPx/2):null;
+    vbtFeatureRef={mean:stats.mean,std:stats.std,radial,radialProfile};
 
     vbtAnchorX=vbtFocus.x;
     resetVbtKalman(vbtFocus.x,vbtFocus.y);
+    vbtAcceptedHistory=[];
     vbtTrackConfidence=1;
     vbtLastShapeConfidence=1;
     vbtTrackMode="normal";
@@ -1196,15 +1542,35 @@ function updateVbtAdaptiveTemplate(ctx,w,h,cx,cy){
     vbtAdaptiveTemplate.std=vbtAdaptiveTemplate.std*(1-alpha)+next.std*alpha;
 }
 
+function updateVbtCenterAdaptiveTemplate(ctx,w,h,cx,cy){
+    if(!vbtCenterTemplate||!vbtCenterAdaptiveTemplate)return;
+    const next=createVbtDescriptorFromContext(ctx,w,h,cx,cy,vbtCenterTemplate.size,vbtCenterTemplate.step);
+    if(!next||next.sample.length!==vbtCenterAdaptiveTemplate.sample.length)return;
+    const alpha=.06;
+    for(let i=0;i<next.sample.length;i++){
+        vbtCenterAdaptiveTemplate.sample[i]=vbtCenterAdaptiveTemplate.sample[i]*(1-alpha)+next.sample[i]*alpha;
+    }
+    vbtCenterAdaptiveTemplate.mean=vbtCenterAdaptiveTemplate.mean*(1-alpha)+next.mean*alpha;
+    vbtCenterAdaptiveTemplate.std=vbtCenterAdaptiveTemplate.std*(1-alpha)+next.std*alpha;
+}
+
+function updateVbtRecentCenterTemplate(ctx,w,h,cx,cy){
+    if(!vbtCenterTemplate)return;
+    const next=createVbtDescriptorFromContext(ctx,w,h,cx,cy,vbtCenterTemplate.size,vbtCenterTemplate.step);
+    if(!next||next.sample.length!==vbtCenterTemplate.sample.length)return;
+    vbtRecentCenterTemplate={...next,sample:next.sample.slice()};
+}
+
+
 function updateVbtCalibration(){
     const diameterCm=parseFloat(document.getElementById("vbt-plate-diameter").value);
     const info=document.getElementById("vbt-calibration-info");
     if(vbtPlateDiameterPx>0&&diameterCm>0){
         vbtPixelsPerMeter=vbtPlateDiameterPx/(diameterCm/100);
-        info.innerText=`画像上のプレート直径：約 ${vbtPlateDiameterPx.toFixed(0)} px ／ 実直径 ${diameterCm.toFixed(1)} cm ／ 補正 ${vbtPixelsPerMeter.toFixed(1)} px/m`;
+        info.innerText=`画像上のプレート直径：約 ${vbtPlateDiameterPx.toFixed(0)} px ／ 円周信頼度 ${Math.round(vbtPlateRadiusConfidence*100)}% ／ 実直径 ${diameterCm.toFixed(1)} cm ／ 補正 ${vbtPixelsPerMeter.toFixed(1)} px/m`;
     }else{
         vbtPixelsPerMeter=0;
-        info.innerText="円周の自動検出ができませんでした。プレート中心をもう一度タップしてください。検出できない場合は従来の身長簡易補正を使用します。";
+        info.innerText="プレート円周を十分な信頼度で検出できませんでした。誤った直径は採用せず、身長簡易補正へ切り替えます。プレート全体が見える状態で中心を再指定すると再検出できます。";
     }
 }
 document.getElementById("vbt-plate-diameter").addEventListener("input",updateVbtCalibration);
@@ -1237,7 +1603,7 @@ function updateVbtKalmanAxis(a,measurement,r){
 }
 function resetVbtKalman(x,y){
     vbtKalman={
-        x:createVbtKalmanAxis(x,900),
+        x:createVbtKalmanAxis(x,2800),
         y:createVbtKalmanAxis(y,5200),
         lastPerf:performance.now()
     };
@@ -1245,7 +1611,13 @@ function resetVbtKalman(x,y){
 function predictVbtKalman(now){
     if(!vbtKalman&&vbtFocus)resetVbtKalman(vbtFocus.x,vbtFocus.y);
     if(!vbtKalman)return null;
-    const dt=clamp((now-vbtKalman.lastPerf)/1000,1/240,.12);
+    const dt=clamp((now-vbtKalman.lastPerf)/1000,1/240,.18);
+    /* ロスト中は古い速度で画面外へ暴走しないよう徐々に減衰 */
+    if(vbtLostFrames>=3){
+        const decay=Math.pow(.86,Math.min(3,dt*60));
+        vbtKalman.x.vel*=decay;
+        vbtKalman.y.vel*=decay;
+    }
     predictVbtKalmanAxis(vbtKalman.x,dt);
     predictVbtKalmanAxis(vbtKalman.y,dt);
     vbtKalman.lastPerf=now;
@@ -1260,43 +1632,47 @@ function updateVbtKalmanMeasurement(x,y,confidence){
 }
 
 /* ---------- テンプレート / 形状 / シャフト / 運動学の並列評価 ---------- */
-function templateScoreForDescriptor(imageData,w,cx,cy,descriptor){
-    if(!descriptor)return Infinity;
+function templateCorrelationForDescriptor(imageData,w,cx,cy,descriptor){
+    if(!descriptor)return -1;
     const size=descriptor.size,half=size/2,step=descriptor.step;
-    let idx=0,sum=0,count=0,mean=0;
-
+    let idx=0,sum=0,sq=0,dot=0,n=0;
     for(let py=2;py<size-2;py+=step){
         for(let px=2;px<size-2;px+=step){
             const x=Math.round(cx-half+px),y=Math.round(cy-half+py);
-            if(x<0||x>=w||y<0||y>=imageData.height)return Infinity;
-            mean+=grayAt(imageData.data,w,x,y);
-            count++;
+            if(x<0||x>=w||y<0||y>=imageData.height)return -1;
+            const g=grayAt(imageData.data,w,x,y);
+            sum+=g;sq+=g*g;dot+=descriptor.sample[idx++]*g;n++;
         }
     }
-    mean/=Math.max(1,count);
-
-    for(let py=2;py<size-2;py+=step){
-        for(let px=2;px<size-2;px+=step){
-            const x=Math.round(cx-half+px),y=Math.round(cy-half+py);
-            const val=grayAt(imageData.data,w,x,y)-mean;
-            sum+=Math.abs(val-descriptor.sample[idx++]);
-        }
-    }
-    return sum/Math.max(1,idx);
+    if(!n)return -1;
+    const varSum=sq-sum*sum/n;
+    if(varSum<1||descriptor.norm<1e-6)return -1;
+    return clamp(dot/(descriptor.norm*Math.sqrt(varSum)),-1,1);
 }
-
-function combinedTemplateScore(imageData,w,cx,cy){
-    const fixed=templateScoreForDescriptor(imageData,w,cx,cy,vbtTemplate);
-    if(!vbtAdaptiveTemplate)return fixed;
-    const adaptive=templateScoreForDescriptor(imageData,w,cx,cy,vbtAdaptiveTemplate);
-    return fixed*.72+adaptive*.28;
+function vbtCorrConfidence(corr){
+    return clamp((corr-.05)/.88,0,1);
+}
+function vbtCenterQuickConfidence(imageData,w,cx,cy){
+    return vbtCorrConfidence(templateCorrelationForDescriptor(imageData,w,cx,cy,vbtCenterTemplate));
+}
+function combinedTemplateEvidence(imageData,w,cx,cy){
+    const centerFixed=vbtCorrConfidence(templateCorrelationForDescriptor(imageData,w,cx,cy,vbtCenterTemplate));
+    const centerAdaptive=vbtCenterAdaptiveTemplate?vbtCorrConfidence(templateCorrelationForDescriptor(imageData,w,cx,cy,vbtCenterAdaptiveTemplate)):centerFixed;
+    const recent=vbtRecentCenterTemplate?vbtCorrConfidence(templateCorrelationForDescriptor(imageData,w,cx,cy,vbtRecentCenterTemplate)):centerFixed;
+    const outerFixed=vbtCorrConfidence(templateCorrelationForDescriptor(imageData,w,cx,cy,vbtTemplate));
+    const outerAdaptive=vbtAdaptiveTemplate?vbtCorrConfidence(templateCorrelationForDescriptor(imageData,w,cx,cy,vbtAdaptiveTemplate)):outerFixed;
+    const centerMix=centerFixed*.58+centerAdaptive*.17+recent*.25;
+    const outerMix=outerFixed*.78+outerAdaptive*.22;
+    const centerWeight=.55+.20*vbtCenterReliability;
+    const combined=centerMix*centerWeight+outerMix*(1-centerWeight);
+    return {combined,centerFixed,centerAdaptive,recent,outerFixed,outerAdaptive,centerMix,outerMix};
 }
 
 function vbtShapeConfidence(imageData,cx,cy){
     if(!vbtFeatureRef)return .5;
     const half=Math.max(10,Math.min(vbtTemplateHalf,vbtPlateDiameterPx>0?vbtPlateDiameterPx*.30:vbtTemplateHalf));
     const stats=patchStatsImage(imageData,cx,cy,half);
-    const meanConf=clamp(1-Math.abs(stats.mean-vbtFeatureRef.mean)/85,0,1);
+    const meanConf=clamp(1-Math.abs(stats.mean-vbtFeatureRef.mean)/90,0,1);
     const refStd=Math.max(4,vbtFeatureRef.std);
     const stdRatio=Math.min(stats.std/refStd,refStd/Math.max(4,stats.std));
     const contrastConf=clamp(stdRatio,0,1);
@@ -1304,8 +1680,10 @@ function vbtShapeConfidence(imageData,cx,cy){
     if(vbtPlateDiameterPx>0&&vbtFeatureRef.radial>0){
         const radial=radialEdgeScoreImage(imageData,cx,cy,vbtPlateDiameterPx/2);
         const ref=Math.max(2,vbtFeatureRef.radial);
-        const radialRatio=Math.min(radial/ref,ref/Math.max(2,radial));
-        return clamp(radialRatio*.56+contrastConf*.29+meanConf*.15,0,1);
+        const radialRatio=clamp(Math.min(radial/ref,ref/Math.max(2,radial)),0,1);
+        const candidateProfile=radialEdgeProfileImage(imageData,cx,cy,vbtPlateDiameterPx/2);
+        const profileConf=radialProfileSimilarity(candidateProfile,vbtFeatureRef.radialProfile);
+        return clamp(profileConf*.48+radialRatio*.22+contrastConf*.20+meanConf*.10,0,1);
     }
     return clamp(contrastConf*.62+meanConf*.38,0,1);
 }
@@ -1343,169 +1721,251 @@ function vbtShaftSupport(imageData,cx,cy){
     return {confidence:strength*centerAgreement,y:bestY};
 }
 
-function insertTopVbtCandidate(arr,item,limit){
+function insertTopVbtCandidate(arr,item,limit,minDistance=0){
+    if(minDistance>0){
+        const near=arr.findIndex(o=>Math.hypot(o.cx-item.cx,o.cy-item.cy)<minDistance);
+        if(near>=0){
+            if(item.quick<=arr[near].quick)return;
+            arr.splice(near,1);
+        }
+    }
     arr.push(item);
-    arr.sort((a,b)=>a.score-b.score);
+    arr.sort((a,b)=>b.quick-a.quick);
     if(arr.length>limit)arr.length=limit;
 }
 
-function searchVbtCandidates(ctx,w,h,predicted,searchX,searchY,step,featureCheck,motion,stageMultiplier=1){
-    if(!vbtTemplate)return null;
-    /* 形状チェックとシャフト補助が候補周辺を参照できるよう、プレート径に応じて余白を確保 */
-    const featureMargin=vbtPlateDiameterPx>0?Math.min(180,vbtPlateDiameterPx*.85+8):0;
-    const margin=Math.max(vbtTemplateHalf+7,featureMargin);
+function searchVbtCandidates(ctx,w,h,predicted,searchX,searchY,step,featureCheck,motion,stageMultiplier=1,searchMode="normal"){
+    if(!vbtTemplate||!vbtCenterTemplate)return null;
+    const featureMargin=vbtPlateDiameterPx>0?Math.min(170,vbtPlateDiameterPx*.78+8):0;
+    const margin=Math.max(vbtTemplateHalf+7,featureMargin,vbtCenterHalf+5);
     const x0=Math.max(0,Math.floor(predicted.x-searchX-margin));
     const y0=Math.max(0,Math.floor(predicted.y-searchY-margin));
     const x1=Math.min(w,Math.ceil(predicted.x+searchX+margin));
     const y1=Math.min(h,Math.ceil(predicted.y+searchY+margin));
-    if(x1-x0<vbtTemplate.size||y1-y0<vbtTemplate.size)return null;
+    if(x1-x0<vbtCenterTemplate.size||y1-y0<vbtCenterTemplate.size)return null;
 
     const frame=ctx.getImageData(x0,y0,x1-x0,y1-y0);
     const baseX=predicted.x-x0,baseY=predicted.y-y0;
+    const roiArea=Math.max(1,(searchX*2)*(searchY*2));
+    const budgetStep=clamp(Math.ceil(Math.sqrt(roiArea/5200)),3,10);
+    const coarseStep=Math.max(step,budgetStep);
     const top=[];
+    const minDistance=Math.max(7,vbtCenterHalf*.65);
+    const gateX=Math.max(18,(24+Math.abs(motion.vx||0)*Math.max(.01,motion.dt||.016)*1.45)*stageMultiplier);
+    const gateY=Math.max(20,(26+Math.abs(motion.vy||0)*Math.max(.01,motion.dt||.016)*1.45)*stageMultiplier);
+    const motionPriorWeight=searchMode==="global"?.05:.14;
 
-    for(let dy=-searchY;dy<=searchY;dy+=step){
-        for(let dx=-searchX;dx<=searchX;dx+=step){
+    /* 第1段階：中央特徴だけを疎に走査。外周判定は上位候補に限定し処理落ちを防ぐ。 */
+    for(let dy=-searchY;dy<=searchY;dy+=coarseStep){
+        for(let dx=-searchX;dx<=searchX;dx+=coarseStep){
             const cx=baseX+dx,cy=baseY+dy;
-            if(cx-vbtTemplateHalf<1||cy-vbtTemplateHalf<1||cx+vbtTemplateHalf>=frame.width||cy+vbtTemplateHalf>=frame.height)continue;
-            const score=combinedTemplateScore(frame,frame.width,cx,cy);
-            if(Number.isFinite(score))insertTopVbtCandidate(top,{cx,cy,score},10);
+            if(cx-vbtCenterHalf<2||cy-vbtCenterHalf<2||cx+vbtCenterHalf>=frame.width||cy+vbtCenterHalf>=frame.height)continue;
+            const centerConf=vbtCenterQuickConfidence(frame,frame.width,cx,cy);
+            if(centerConf<.24)continue;
+            const nx=(x0+cx-predicted.x)/gateX,ny=(y0+cy-predicted.y)/gateY;
+            const prior=Math.exp(-.5*(nx*nx+ny*ny));
+            const quick=centerConf*(1-motionPriorWeight)+prior*motionPriorWeight;
+            insertTopVbtCandidate(top,{cx,cy,quick,centerConf},12,minDistance);
         }
     }
     if(!top.length)return null;
 
-    /* 上位候補だけ1px刻みで微調整 */
+    /* 第2段階：上位候補のみ1px近傍で中央特徴を精密化。 */
     const refined=[];
-    for(const c of top.slice(0,4)){
+    for(const c of top.slice(0,7)){
         let best=c;
-        const radius=Math.max(2,step);
+        const radius=Math.max(2,Math.min(6,coarseStep));
         for(let yy=-radius;yy<=radius;yy++){
             for(let xx=-radius;xx<=radius;xx++){
                 const cx=c.cx+xx,cy=c.cy+yy;
-                if(cx-vbtTemplateHalf<1||cy-vbtTemplateHalf<1||cx+vbtTemplateHalf>=frame.width||cy+vbtTemplateHalf>=frame.height)continue;
-                const score=combinedTemplateScore(frame,frame.width,cx,cy);
-                if(score<best.score)best={cx,cy,score};
+                if(cx-vbtCenterHalf<2||cy-vbtCenterHalf<2||cx+vbtCenterHalf>=frame.width||cy+vbtCenterHalf>=frame.height)continue;
+                const centerConf=vbtCenterQuickConfidence(frame,frame.width,cx,cy);
+                const nx=(x0+cx-predicted.x)/gateX,ny=(y0+cy-predicted.y)/gateY;
+                const prior=Math.exp(-.5*(nx*nx+ny*ny));
+                const quick=centerConf*(1-motionPriorWeight)+prior*motionPriorWeight;
+                if(quick>best.quick)best={cx,cy,quick,centerConf};
             }
         }
-        insertTopVbtCandidate(refined,best,6);
+        insertTopVbtCandidate(refined,best,7,minDistance*.75);
     }
 
-    let winner=null;
-    const gateX=Math.max(16,(20+Math.abs(motion.vx||0)*Math.max(.01,motion.dt||.016)*1.25)*stageMultiplier);
-    const gateY=Math.max(22,(26+Math.abs(motion.vy||0)*Math.max(.01,motion.dt||.016)*1.65)*stageMultiplier);
+    const evaluated=[];
+    const elapsed=Math.max(.008,motion.elapsed||motion.dt||.016);
+    const baseMotionX=Number.isFinite(motion.baseX)?motion.baseX:(vbtFocus?vbtFocus.x:predicted.x);
+    const baseMotionY=Number.isFinite(motion.baseY)?motion.baseY:(vbtFocus?vbtFocus.y:predicted.y);
 
+    /* 第3段階：上位候補だけ固定/適応テンプレート・外周・シャフト・運動学を二重確認。 */
     for(const c of refined){
         const globalX=x0+c.cx,globalY=y0+c.cy;
-        const templateConfidence=Math.exp(-c.score/28);
-        if(c.score>64&&templateConfidence<.11)continue;
+        const evidence=combinedTemplateEvidence(frame,frame.width,c.cx,c.cy);
+        if(evidence.centerFixed<.30&&evidence.outerFixed<.38)continue;
 
-        const nx=(globalX-predicted.x)/gateX;
-        const ny=(globalY-predicted.y)/gateY;
-        const motionConfidence=Math.exp(-.5*(nx*nx+ny*ny));
-
-        /* 速度・加速度がVBTとして極端に不自然な候補は、テンプレートが似ていても減点する */
-        const elapsed=Math.max(.008,motion.elapsed||motion.dt||.016);
-        const baseX=vbtFocus?vbtFocus.x:predicted.x;
-        const baseY=vbtFocus?vbtFocus.y:predicted.y;
-        const candidateVx=(globalX-baseX)/elapsed;
-        const candidateVy=(globalY-baseY)/elapsed;
+        const nx=(globalX-predicted.x)/gateX,ny=(globalY-predicted.y)/gateY;
+        const motionConfidence=searchMode==="global"?.65:Math.exp(-.5*(nx*nx+ny*ny));
+        const candidateVx=(globalX-baseMotionX)/elapsed;
+        const candidateVy=(globalY-baseMotionY)/elapsed;
         let speedConfidence=1,accelConfidence=1;
         if(vbtPixelsPerMeter>0){
             const speedMps=Math.hypot(candidateVx,candidateVy)/vbtPixelsPerMeter;
-            if(speedMps>5.0)speedConfidence=Math.exp(-Math.pow((speedMps-5.0)/1.5,2));
+            if(speedMps>5.5)speedConfidence=Math.exp(-Math.pow((speedMps-5.5)/1.7,2));
             const accelMps2=Math.hypot(candidateVx-(motion.vx||0),candidateVy-(motion.vy||0))/elapsed/vbtPixelsPerMeter;
-            if(accelMps2>60)accelConfidence=Math.exp(-Math.pow((accelMps2-60)/35,2));
-        }else{
-            const speedPx=Math.hypot(candidateVx,candidateVy);
-            const accelPx=Math.hypot(candidateVx-(motion.vx||0),candidateVy-(motion.vy||0))/elapsed;
-            if(speedPx>vbtCanvas.height*3.2)speedConfidence=.55;
-            if(accelPx>vbtCanvas.height*22)accelConfidence=.55;
+            if(accelMps2>75)accelConfidence=Math.exp(-Math.pow((accelMps2-75)/40,2));
         }
-        const kinematicConfidence=motionConfidence*.56+speedConfidence*.24+accelConfidence*.20;
+        const kinematicConfidence=clamp(motionConfidence*.50+speedConfidence*.28+accelConfidence*.22,0,1);
+        const shapeConfidence=featureCheck?vbtShapeConfidence(frame,c.cx,c.cy):vbtLastShapeConfidence;
+        const shaft=featureCheck?vbtShaftSupport(frame,c.cx,c.cy):{confidence:0,y:c.cy};
 
-        let shapeConfidence=vbtLastShapeConfidence;
-        let shaft={confidence:0,y:c.cy};
-        if(featureCheck){
-            shapeConfidence=vbtShapeConfidence(frame,c.cx,c.cy);
-            shaft=vbtShaftSupport(frame,c.cx,c.cy);
-        }
+        const identityConfidence=clamp(
+            evidence.centerFixed*(.36+.12*vbtCenterReliability)+
+            evidence.centerAdaptive*.09+
+            evidence.recent*.12+
+            evidence.outerFixed*.16+
+            evidence.outerAdaptive*.05+
+            shapeConfidence*.17+
+            shaft.confidence*.05,0,1
+        );
+        let confidence=identityConfidence*.74+kinematicConfidence*.26;
 
-        const shaftAvailable=shaft.confidence>.16;
-        let confidence;
-        if(shaftAvailable){
-            confidence=templateConfidence*.50+shapeConfidence*.24+kinematicConfidence*.18+shaft.confidence*.08;
-        }else{
-            confidence=templateConfidence*.56+shapeConfidence*.25+kinematicConfidence*.19;
-        }
+        /* 固定特徴の最低条件。適応テンプレートだけで別物へドリフトするのを禁止。 */
+        const fixedIdentityOk=evidence.centerFixed>=.46||(evidence.outerFixed>=.58&&shapeConfidence>=.48);
+        const recoveryIdentityOk=evidence.centerFixed>=.52&&(shapeConfidence>=.42||evidence.outerFixed>=.54);
+        if(!fixedIdentityOk)confidence*=.58;
+        if(searchMode!=="normal"&&!recoveryIdentityOk)confidence*=.68;
+        if(shapeConfidence<.30&&evidence.outerFixed<.50)confidence*=.62;
+        if(speedConfidence<.45||accelConfidence<.38)confidence*=.70;
 
-        /* 水平方向の突然の飛びを追加で減点。VBTは主に上下運動 */
-        if(Math.abs(globalX-predicted.x)>gateX*1.6)confidence*=.72;
+        evaluated.push({
+            x:globalX,y:globalY,confidence,identityConfidence,
+            templateConfidence:evidence.combined,
+            centerFixedConfidence:evidence.centerFixed,
+            outerFixedConfidence:evidence.outerFixed,
+            shapeConfidence,motionConfidence,kinematicConfidence,
+            speedConfidence,accelConfidence,shaftConfidence:shaft.confidence,
+            quick:c.quick
+        });
+    }
+    if(!evaluated.length)return null;
+    evaluated.sort((a,b)=>b.confidence-a.confidence);
+    const winner=evaluated[0];
 
-        const evaluated={
-            x:globalX,y:globalY,score:c.score,confidence,
-            templateConfidence,shapeConfidence,motionConfidence,kinematicConfidence,
-            speedConfidence,accelConfidence,shaftConfidence:shaft.confidence
-        };
-        if(!winner||evaluated.confidence>winner.confidence)winner=evaluated;
+    /* 同程度の別候補が遠方にある時は曖昧判定として信頼度を下げる。 */
+    const farThreshold=Math.max(14,(vbtPlateDiameterPx||50)*.25);
+    const rival=evaluated.slice(1).find(o=>Math.hypot(o.x-winner.x,o.y-winner.y)>=farThreshold);
+    if(rival){
+        const gap=winner.confidence-rival.confidence;
+        if(gap<.035)winner.confidence*=.78;
+        else if(gap<.07)winner.confidence*=.88;
     }
     return winner;
 }
 
+function vbtKinematicPrediction(now,kalmanPrediction){
+    if(!vbtAcceptedHistory.length)return kalmanPrediction;
+    const last=vbtAcceptedHistory[vbtAcceptedHistory.length-1];
+    const elapsed=clamp((now-last.perf)/1000,0,.25);
+    let vx=kalmanPrediction.vx||0,vy=kalmanPrediction.vy||0,ax=0,ay=0;
+    if(vbtAcceptedHistory.length>=2){
+        const p1=vbtAcceptedHistory[vbtAcceptedHistory.length-2];
+        const dt1=(last.perf-p1.perf)/1000;
+        if(dt1>.004){vx=(last.x-p1.x)/dt1;vy=(last.y-p1.y)/dt1;}
+    }
+    if(vbtAcceptedHistory.length>=3){
+        const p1=vbtAcceptedHistory[vbtAcceptedHistory.length-2];
+        const p2=vbtAcceptedHistory[vbtAcceptedHistory.length-3];
+        const dt1=(last.perf-p1.perf)/1000,dt0=(p1.perf-p2.perf)/1000;
+        if(dt1>.004&&dt0>.004){
+            const vx0=(p1.x-p2.x)/dt0,vy0=(p1.y-p2.y)/dt0;
+            ax=clamp((vx-vx0)/Math.max(.006,(dt1+dt0)/2),-9000,9000);
+            ay=clamp((vy-vy0)/Math.max(.006,(dt1+dt0)/2),-14000,14000);
+        }
+    }
+    const rawX=last.x+vx*elapsed+.5*ax*elapsed*elapsed;
+    const rawY=last.y+vy*elapsed+.5*ay*elapsed*elapsed;
+    const rawWeight=vbtLostFrames?0.62:0.44;
+    return {
+        x:kalmanPrediction.x*(1-rawWeight)+rawX*rawWeight,
+        y:kalmanPrediction.y*(1-rawWeight)+rawY*rawWeight,
+        vx:kalmanPrediction.vx*.35+vx*.65,
+        vy:kalmanPrediction.vy*.35+vy*.65,
+        dt:kalmanPrediction.dt,elapsed,
+        baseX:last.x,baseY:last.y
+    };
+}
+
 function trackVbtTemplateAdvanced(now){
-    if(!vbtFocus||!vbtTemplate)return null;
+    if(!vbtFocus||!vbtTemplate||!vbtCenterTemplate)return null;
     vbtFrameCounter++;
 
-    const prediction=predictVbtKalman(now)||{x:vbtFocus.x,y:vbtFocus.y,vx:0,vy:0,dt:1/Math.max(30,vbtActualFps||30)};
+    let kalmanPrediction=predictVbtKalman(now)||{x:vbtFocus.x,y:vbtFocus.y,vx:0,vy:0,dt:1/Math.max(30,vbtActualFps||30)};
+    let prediction=vbtKinematicPrediction(now,kalmanPrediction);
     prediction.x=clamp(prediction.x,vbtTemplateHalf+2,vbtCanvas.width-vbtTemplateHalf-2);
     prediction.y=clamp(prediction.y,vbtTemplateHalf+2,vbtCanvas.height-vbtTemplateHalf-2);
-
     prediction.elapsed=vbtLastTrackPerf?clamp((now-vbtLastTrackPerf)/1000,prediction.dt,.25):prediction.dt;
-    const featureCheck=(vbtFrameCounter%3===0)||vbtLostFrames>0||vbtTrackConfidence<.68;
-    const searchX=clamp(30+Math.abs(prediction.vx)*prediction.dt*1.4,30,78);
-    const searchY=clamp(72+Math.abs(prediction.vy)*prediction.dt*2.3,72,180);
 
-    let best=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,prediction,searchX,searchY,3,featureCheck,prediction,1);
+    const featureStride=vbtTrackConfidence>=.84&&vbtLostFrames===0?4:1;
+    const featureCheck=(vbtFrameCounter%featureStride===0)||vbtLostFrames>0||vbtTrackConfidence<.80;
+    const travelX=Math.abs(prediction.vx)*Math.max(prediction.elapsed||prediction.dt,prediction.dt);
+    const travelY=Math.abs(prediction.vy)*Math.max(prediction.elapsed||prediction.dt,prediction.dt);
+
+    /* 縦固定ではなく実際の速度ベクトル方向へ探索領域を伸ばす。カール等の横成分にも追従。 */
+    const searchX=clamp(32+travelX*3.0,32,Math.min(170,vbtCanvas.width*.34));
+    const searchY=clamp(48+travelY*3.0,48,Math.min(280,vbtCanvas.height*.34));
+
+    let best=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,prediction,searchX,searchY,3,featureCheck,prediction,1,"normal");
     let mode="normal";
 
-    if(!best||best.confidence<.56){
-        const expandedX=clamp(Math.max(58,searchX*1.7),58,125);
-        const expandedY=clamp(Math.max(145,searchY*1.65),145,290);
-        const expanded=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,prediction,expandedX,expandedY,4,true,prediction,1.55);
+    if(!best||best.confidence<.76){
+        const expandedX=clamp(Math.max(72,searchX*1.75),72,Math.min(230,vbtCanvas.width*.44));
+        const expandedY=clamp(Math.max(105,searchY*1.75),105,Math.min(340,vbtCanvas.height*.44));
+        const expanded=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,prediction,expandedX,expandedY,4,true,prediction,1.65,"expanded");
         if(expanded&&(!best||expanded.confidence>best.confidence))best=expanded;
         mode="expanded";
     }
 
-    /* 通常/拡大探索で弱い場合は、初期X付近の縦長回廊を粗く再探索 */
-    if((!best||best.confidence<.49)&&vbtLostFrames>=1){
-        const corridorCenter={
-            ...prediction,
-            x:clamp((prediction.x*.7+(vbtAnchorX??prediction.x)*.3),vbtTemplateHalf+2,vbtCanvas.width-vbtTemplateHalf-2)
-        };
-        const corridorX=clamp(vbtCanvas.width*.16,90,190);
-        let corridorY;
-        if(vbtLostFrames>=4){
-            corridorCenter.y=vbtCanvas.height/2;
-            corridorY=Math.max(120,vbtCanvas.height/2-vbtTemplateHalf-8);
-        }else{
-            corridorY=clamp(Math.max(230,searchY*2.1),230,390);
-        }
-        const recovery=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,corridorCenter,corridorX,corridorY,6,true,prediction,2.4);
+    if((!best||best.confidence<.69)&&vbtLostFrames>=1){
+        const recoveryX=clamp(Math.max(120,searchX*2.2),120,Math.min(310,vbtCanvas.width*.48));
+        const recoveryY=clamp(Math.max(185,searchY*2.2),185,Math.min(420,vbtCanvas.height*.48));
+        const recovery=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,prediction,recoveryX,recoveryY,6,true,prediction,2.4,"recovery");
         if(recovery&&(!best||recovery.confidence>best.confidence))best=recovery;
         mode="recovery";
     }
 
+    /* 3フレーム以上ロストしたら、2フレームに1回だけ全画面を粗探索。固定特徴＋外周一致を必須化。 */
+    if((!best||best.confidence<.67)&&vbtLostFrames>=3&&vbtFrameCounter%2===0){
+        const globalCenter={
+            x:vbtCanvas.width/2,y:vbtCanvas.height/2,
+            vx:prediction.vx,vy:prediction.vy,dt:prediction.dt,elapsed:prediction.elapsed,
+            baseX:prediction.baseX,baseY:prediction.baseY
+        };
+        const gx=Math.max(40,vbtCanvas.width/2-vbtTemplateHalf-4);
+        const gy=Math.max(40,vbtCanvas.height/2-vbtTemplateHalf-4);
+        const global=searchVbtCandidates(vbtCtx,vbtCanvas.width,vbtCanvas.height,globalCenter,gx,gy,8,true,prediction,5.0,"global");
+        if(global&&(!best||global.confidence>best.confidence))best=global;
+        mode="global";
+    }
+
     if(!best)return null;
-    const threshold=mode==="normal"?.53:mode==="expanded"?.47:.43;
+    const threshold=mode==="normal"?.70:mode==="expanded"?.68:mode==="recovery"?.64:.66;
     if(best.confidence<threshold)return null;
+    /* 回復時は固定中央特徴または外周確認が弱い候補を採用しない。 */
+    if(mode!=="normal"&&best.centerFixedConfidence<.50&&!(best.outerFixedConfidence>=.58&&best.shapeConfidence>=.50))return null;
 
     vbtLastShapeConfidence=best.shapeConfidence;
-    const filtered=updateVbtKalmanMeasurement(best.x,best.y,best.confidence);
+    let filtered;
+    const jump=vbtFocus?Math.hypot(best.x-vbtFocus.x,best.y-vbtFocus.y):0;
+    if(vbtLostFrames>=4||jump>Math.max(90,(vbtPlateDiameterPx||60)*1.1)){
+        resetVbtKalman(best.x,best.y);
+        filtered={x:best.x,y:best.y};
+    }else{
+        filtered=updateVbtKalmanMeasurement(best.x,best.y,best.confidence);
+    }
     return {
         x:filtered.x,y:filtered.y,
         measurementX:best.x,measurementY:best.y,
-        confidence:best.confidence,
-        mode,
+        confidence:best.confidence,mode,
         templateConfidence:best.templateConfidence,
+        centerFixedConfidence:best.centerFixedConfidence,
+        outerFixedConfidence:best.outerFixedConfidence,
         shapeConfidence:best.shapeConfidence,
         motionConfidence:best.motionConfidence,
         shaftConfidence:best.shaftConfidence,
@@ -1543,7 +2003,7 @@ document.getElementById("vbt-video").addEventListener("click",e=>{
         ring.style.left=((e.clientX-r.left)/r.width*100)+"%";
         ring.style.top=((e.clientY-r.top)/r.height*100)+"%";
         setVbtTargetUiState("tracking");
-        document.getElementById("vbt-status").innerText="対象物を固定しました。予測追従・形状確認・運動学チェックを開始します。";
+        document.getElementById("vbt-status").innerText="対象物を固定しました。中央シャフト/カラー主追跡＋外周確認＋運動学チェックを開始します。";
     }else{
         setVbtTargetUiState("lost");
         document.getElementById("vbt-status").innerText="対象物の指定に失敗しました。プレート全体が映る位置をタップしてください。";
@@ -1560,38 +2020,59 @@ function smoothVbtVelocity(){
     return recent.reduce((a,b)=>a+b.v,0)/recent.length;
 }
 
-function analyzeVbtMotion(){
+function estimateVbtRegressionVelocity(currentSample){
+    const recent=vbtSamples.slice(-8).concat([currentSample]).filter(s=>currentSample.t-s.t<=180&&currentSample.t-s.t>=0);
+    if(recent.length<2)return 0;
+    let sw=0,st=0,sy=0;
+    for(const s of recent){
+        const w=clamp(s.confidence===undefined?1:s.confidence,.25,1);
+        const t=s.t/1000;
+        sw+=w;st+=w*t;sy+=w*s.y;
+    }
+    if(sw<=0)return 0;
+    const mt=st/sw,my=sy/sw;
+    let num=0,den=0;
+    for(const s of recent){
+        const w=clamp(s.confidence===undefined?1:s.confidence,.25,1);
+        const dt=s.t/1000-mt;
+        num+=w*dt*(s.y-my);
+        den+=w*dt*dt;
+    }
+    if(den<1e-7)return 0;
+    const slopePxPerSec=num/den;
+    return -slopePxPerSec*vbtMetersPerPixel();
+}
+
+function analyzeVbtMotion(callbackNow,videoMetadata){
     if(!vbtFocus)return;
     const now=performance.now();
-    const relMs=now-vbtRecordStartPerf;
+    let relMs=now-vbtRecordStartPerf;
+    const mediaTime=videoMetadata&&Number.isFinite(videoMetadata.mediaTime)?videoMetadata.mediaTime:vbtCurrentMediaTime;
+    if(Number.isFinite(mediaTime)&&Number.isFinite(vbtRecordStartMediaTime)){
+        relMs=Math.max(0,(mediaTime-vbtRecordStartMediaTime)*1000);
+    }
     const sample={
         t:relMs,x:vbtFocus.x,y:vbtFocus.y,v:0,
         confidence:vbtTrackConfidence,trackMode:vbtTrackMode,source:"live"
     };
 
     if(vbtLastTracked){
-        const dt=(now-vbtLastTracked.perf)/1000;
-        if(dt>0&&dt<.25){
-            const dy=vbtLastTracked.y-vbtFocus.y; // 上方向が正
-            const meters=dy*vbtMetersPerPixel();
-            sample.v=meters/dt;
+        const dt=(relMs-vbtLastTracked.t)/1000;
+        if(dt>0&&dt<.22){
+            sample.v=estimateVbtRegressionVelocity(sample);
             vbtMotionWindow.push({v:sample.v,t:relMs});
             if(vbtMotionWindow.length>20)vbtMotionWindow.shift();
-
             const sv=smoothVbtVelocity();
 
             if(!vbtUp){
                 if(sv>0.045){
-                    if(!vbtUpStartSample){
-                        vbtUpStartSample={...sample};
-                    }else if(relMs-vbtUpStartSample.t>=45){
+                    if(!vbtUpStartSample)vbtUpStartSample={...sample};
+                    else if(relMs-vbtUpStartSample.t>=45){
                         vbtUp=true;
                         vbtStableEndFrames=0;
                         document.getElementById("vbt-status").innerText="上昇を検出中";
                     }
-                }else{
-                    vbtUpStartSample=null;
-                }
+                }else vbtUpStartSample=null;
             }else{
                 if(sv<0.025)vbtStableEndFrames++;
                 else vbtStableEndFrames=0;
@@ -1600,32 +2081,28 @@ function analyzeVbtMotion(){
                     const endSample={...sample};
                     const duration=(endSample.t-vbtUpStartSample.t)/1000;
                     const distance=(vbtUpStartSample.y-endSample.y)*vbtMetersPerPixel();
-
                     if(duration>=.10&&distance>=.015){
-                        const segment=vbtSamples.filter(s=>s.t>=vbtUpStartSample.t&&s.t<=endSample.t);
-                        const peak=segment.length?Math.max(...segment.map(s=>s.v||0),0):distance/duration;
+                        const segment=vbtSamples.filter(s=>s.t>=vbtUpStartSample.t&&s.t<=endSample.t&&(s.confidence===undefined||s.confidence>=.60));
+                        const peak=segment.length?Math.max(...segment.map(s=>Math.max(0,s.v||0)),distance/duration):distance/duration;
                         vbtReps.push({
-                            mean:distance/duration,
-                            peak,
-                            distance,
-                            time:duration,
-                            startT:vbtUpStartSample.t/1000,
-                            endT:endSample.t/1000,
-                            source:"auto"
+                            mean:distance/duration,peak,distance,time:duration,
+                            startT:vbtUpStartSample.t/1000,endT:endSample.t/1000,source:"auto"
                         });
                         renderVbt();
                     }
-                    vbtUp=false;
-                    vbtUpStartSample=null;
-                    vbtStableEndFrames=0;
+                    vbtUp=false;vbtUpStartSample=null;vbtStableEndFrames=0;
                 }
             }
+        }else if(dt>=.22){
+            /* 長い追跡ギャップを1レップとして橋渡ししない。 */
+            vbtMotionWindow=[];
+            vbtUp=false;vbtUpStartSample=null;vbtStableEndFrames=0;
         }
     }
 
     vbtSamples.push(sample);
     if(vbtSamples.length>20000)vbtSamples.shift();
-    vbtLastTracked={x:vbtFocus.x,y:vbtFocus.y,perf:now};
+    vbtLastTracked={x:vbtFocus.x,y:vbtFocus.y,t:relMs,perf:now};
 }
 
 function renderVbt(){
@@ -1691,6 +2168,7 @@ function showVbtReview(){
     document.getElementById("vbt-review-area").style.display="block";
     vbtReviewStart=null;
     vbtReviewEnd=null;
+    vbtReviewAnchors=[];
     document.getElementById("vbt-review-start-label").innerText="未指定";
     document.getElementById("vbt-review-end-label").innerText="未指定";
     document.getElementById("vbt-review-duration").innerText="0.000 s";
@@ -1720,8 +2198,10 @@ document.getElementById("vbt-start").addEventListener("click",async()=>{
     vbtTrackConfidence=1;
     vbtTrackMode="normal";
     vbtFrameCounter=0;
+    vbtAcceptedHistory=[];
     resetVbtKalman(vbtFocus.x,vbtFocus.y);
     vbtRecordStartPerf=performance.now();
+    vbtRecordStartMediaTime=Number.isFinite(vbtCurrentMediaTime)?vbtCurrentMediaTime:null;
 
     const track=vbtVideo.srcObject&&vbtVideo.srcObject.getVideoTracks()[0];
     const settings=track&&track.getSettings?track.getSettings():{};
@@ -1752,6 +2232,8 @@ const vbtReviewSeek=document.getElementById("vbt-review-seek");
 vbtReviewVideo.addEventListener("loadedmetadata",()=>{
     vbtReviewSeek.max=vbtReviewVideo.duration||1;
     vbtReviewSeek.value=0;
+    const size=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);
+    if(size.width){vbtReviewCanvas.width=size.width;vbtReviewCanvas.height=size.height;}
     drawVbtReviewOverlay();
 });
 vbtReviewVideo.addEventListener("timeupdate",()=>{
@@ -1801,8 +2283,11 @@ function nearestVbtSample(timeSec){
 
 function drawVbtReviewOverlay(){
     if(!vbtReviewVideo.videoWidth)return;
-    vbtReviewCanvas.width=vbtReviewVideo.videoWidth;
-    vbtReviewCanvas.height=vbtReviewVideo.videoHeight;
+    const reviewSize=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);
+    if(vbtReviewCanvas.width!==reviewSize.width||vbtReviewCanvas.height!==reviewSize.height){
+        vbtReviewCanvas.width=reviewSize.width;
+        vbtReviewCanvas.height=reviewSize.height;
+    }
     vbtReviewCtx.clearRect(0,0,vbtReviewCanvas.width,vbtReviewCanvas.height);
 
     const s=nearestVbtSample(vbtReviewVideo.currentTime);
@@ -1904,7 +2389,7 @@ async function trackVbtReviewDirection(anchorTime,anchorPos,dir){
     const fps=Math.max(1,vbtActualFps||30);
     const step=1/fps;
     const horizon=.90;
-    const maxFrames=Math.min(72,Math.ceil(horizon*fps));
+    const maxFrames=Math.min(90,Math.ceil(horizon*fps));
     let prev={x:anchorPos.x,y:anchorPos.y,t:anchorTime};
     let prev2=null;
     let failures=0;
@@ -1924,27 +2409,129 @@ async function trackVbtReviewDirection(anchorTime,anchorPos,dir){
         const predicted={
             x:clamp(prev.x+vx*dt,vbtTemplateHalf+2,vbtReviewOffscreen.width-vbtTemplateHalf-2),
             y:clamp(prev.y+vy*dt,vbtTemplateHalf+2,vbtReviewOffscreen.height-vbtTemplateHalf-2),
-            vx,vy,dt:Math.abs(dt)
+            vx,vy,dt:Math.abs(dt),elapsed:Math.abs(dt),baseX:prev.x,baseY:prev.y
         };
 
-        let best=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,48,105,3,true,predicted,1.35);
-        if(!best||best.confidence<.47){
-            const expanded=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,82,185,5,true,predicted,2.0);
+        const sx=clamp(42+Math.abs(vx*dt)*2.5,42,125);
+        const sy=clamp(68+Math.abs(vy*dt)*2.5,68,190);
+        let best=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,sx,sy,3,true,predicted,1.4,"expanded");
+        if(!best||best.confidence<.60){
+            const expanded=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,Math.min(180,sx*1.65),Math.min(260,sy*1.65),5,true,predicted,2.0,"recovery");
             if(expanded&&(!best||expanded.confidence>best.confidence))best=expanded;
         }
 
-        if(!best||best.confidence<.42){
+        if(!best||best.confidence<.55){
             failures++;
             if(failures>=3)break;
             continue;
         }
-
         failures=0;
         const current={x:best.x,y:best.y,t:time};
         upsertVbtReviewSample(time,current,best.confidence,"review-retrack");
-        prev2=prev;
-        prev=current;
+        prev2=prev;prev=current;
     }
+}
+
+function addVbtReviewAnchor(time,pos){
+    const tolerance=1/Math.max(1,vbtActualFps||30)*.6;
+    const existing=vbtReviewAnchors.find(a=>Math.abs(a.time-time)<=tolerance);
+    if(existing){existing.x=pos.x;existing.y=pos.y;return existing;}
+    const anchor={time,x:pos.x,y:pos.y};
+    vbtReviewAnchors.push(anchor);
+    vbtReviewAnchors.sort((a,b)=>a.time-b.time);
+    return anchor;
+}
+
+async function trackVbtReviewAnchorPass(startAnchor,endAnchor,dir,frames){
+    const fps=Math.max(1,vbtActualFps||30),step=1/fps;
+    const results=new Map();
+    let prev={x:startAnchor.x,y:startAnchor.y,t:startAnchor.time};
+    let prev2=null;
+    const ordered=dir>0?frames:frames.slice().reverse();
+
+    for(const frame of ordered){
+        const time=frame/fps;
+        await seekVbtReviewForTracking(time);
+        vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
+        let vx=0,vy=0;
+        if(prev2&&Math.abs(prev.t-prev2.t)>.0001){
+            vx=(prev.x-prev2.x)/(prev.t-prev2.t);
+            vy=(prev.y-prev2.y)/(prev.t-prev2.t);
+        }
+        const remaining=endAnchor.time-prev.t;
+        if(Math.abs(remaining)>.0001){
+            const avx=(endAnchor.x-prev.x)/remaining,avy=(endAnchor.y-prev.y)/remaining;
+            vx=vx*.62+avx*.38;vy=vy*.62+avy*.38;
+        }
+        const dt=time-prev.t;
+        const predicted={
+            x:clamp(prev.x+vx*dt,vbtTemplateHalf+2,vbtReviewOffscreen.width-vbtTemplateHalf-2),
+            y:clamp(prev.y+vy*dt,vbtTemplateHalf+2,vbtReviewOffscreen.height-vbtTemplateHalf-2),
+            vx,vy,dt:Math.abs(dt),elapsed:Math.abs(dt),baseX:prev.x,baseY:prev.y
+        };
+        let best=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,68,125,3,true,predicted,1.55,"expanded");
+        if(!best||best.confidence<.61){
+            const wider=searchVbtCandidates(vbtReviewOffCtx,vbtReviewOffscreen.width,vbtReviewOffscreen.height,predicted,115,205,5,true,predicted,2.2,"recovery");
+            if(wider&&(!best||wider.confidence>best.confidence))best=wider;
+        }
+        if(best&&best.confidence>=.54){
+            results.set(frame,best);
+            prev2=prev;prev={x:best.x,y:best.y,t:time};
+        }
+    }
+    return results;
+}
+
+async function retrackVbtReviewBetweenAnchors(a,b){
+    if(!a||!b||b.time<=a.time)return;
+    const fps=Math.max(1,vbtActualFps||30);
+    const startFrame=Math.round(a.time*fps),endFrame=Math.round(b.time*fps);
+    const frames=[];
+    for(let f=startFrame+1;f<endFrame;f++)frames.push(f);
+    if(!frames.length){
+        upsertVbtReviewSample(a.time,{x:a.x,y:a.y},1,"manual-anchor");
+        upsertVbtReviewSample(b.time,{x:b.x,y:b.y},1,"manual-anchor");
+        return;
+    }
+
+    const forward=await trackVbtReviewAnchorPass(a,b,1,frames);
+    const backward=await trackVbtReviewAnchorPass(b,a,-1,frames);
+    const plateGate=Math.max(12,(vbtPlateDiameterPx||60)*.24);
+
+    for(const frame of frames){
+        const time=frame/fps;
+        const ratio=clamp((time-a.time)/(b.time-a.time),0,1);
+        const linear={x:a.x+(b.x-a.x)*ratio,y:a.y+(b.y-a.y)*ratio};
+        const f=forward.get(frame),r=backward.get(frame);
+        let pos=linear,conf=.45,source="review-anchor-interpolation";
+
+        if(f&&r){
+            const disagreement=Math.hypot(f.x-r.x,f.y-r.y);
+            if(disagreement<=plateGate){
+                const wf=Math.max(.05,f.confidence),wr=Math.max(.05,r.confidence),sum=wf+wr;
+                pos={x:(f.x*wf+r.x*wr)/sum,y:(f.y*wf+r.y*wr)/sum};
+                conf=clamp((f.confidence+r.confidence)/2+.08,0,1);
+                source="review-bidirectional";
+            }else{
+                const fd=Math.hypot(f.x-linear.x,f.y-linear.y),rd=Math.hypot(r.x-linear.x,r.y-linear.y);
+                const fs=f.confidence-fd/Math.max(40,plateGate*4)*.18;
+                const rs=r.confidence-rd/Math.max(40,plateGate*4)*.18;
+                const chosen=fs>=rs?f:r;
+                pos={x:chosen.x,y:chosen.y};
+                conf=clamp(chosen.confidence*.78,0,1);
+                source="review-bidirectional-disagreement";
+            }
+        }else if(f||r){
+            const chosen=f||r;
+            const d=Math.hypot(chosen.x-linear.x,chosen.y-linear.y);
+            if(chosen.confidence>=.58&&d<=plateGate*2.2){
+                pos={x:chosen.x,y:chosen.y};conf=chosen.confidence*.82;source="review-single-direction";
+            }
+        }
+        upsertVbtReviewSample(time,pos,conf,source);
+    }
+    upsertVbtReviewSample(a.time,{x:a.x,y:a.y},1,"manual-anchor");
+    upsertVbtReviewSample(b.time,{x:b.x,y:b.y},1,"manual-anchor");
 }
 
 async function retrackVbtReviewAround(anchorTime,anchorPos){
@@ -1959,17 +2546,24 @@ async function retrackVbtReviewAround(anchorTime,anchorPos){
         vbtReviewOffscreen=document.createElement("canvas");
         vbtReviewOffCtx=vbtReviewOffscreen.getContext("2d",{willReadFrequently:true});
     }
-    vbtReviewOffscreen.width=vbtReviewVideo.videoWidth;
-    vbtReviewOffscreen.height=vbtReviewVideo.videoHeight;
+    const offSize=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);
+    vbtReviewOffscreen.width=offSize.width;
+    vbtReviewOffscreen.height=offSize.height;
 
     const restoreTime=anchorTime;
+    const currentAnchor=addVbtReviewAnchor(anchorTime,anchorPos);
     upsertVbtReviewSample(anchorTime,anchorPos,1,"manual-anchor");
 
     try{
         await trackVbtReviewDirection(anchorTime,anchorPos,1);
         await trackVbtReviewDirection(anchorTime,anchorPos,-1);
+        const idx=vbtReviewAnchors.indexOf(currentAnchor);
+        const prevAnchor=idx>0?vbtReviewAnchors[idx-1]:null;
+        const nextAnchor=idx>=0&&idx<vbtReviewAnchors.length-1?vbtReviewAnchors[idx+1]:null;
+        if(prevAnchor)await retrackVbtReviewBetweenAnchors(prevAnchor,currentAnchor);
+        if(nextAnchor)await retrackVbtReviewBetweenAnchors(currentAnchor,nextAnchor);
         recomputeVbtSampleVelocities();
-        if(status)status.innerText="手動指定を基準に前後約0.9秒を再追跡しました。必要なら別のずれたフレームでも同じ操作を行ってください。";
+        if(status)status.innerText=vbtReviewAnchors.length>=2?"2つの手動アンカーを固定し、前方向・逆方向の独立追跡を照合して区間を再構成しました。":"手動アンカーを基準に前後約0.9秒を再追跡しました。別のずれたフレームも指定すると2点間を双方向追跡で照合します。";
     }catch(e){
         console.warn("VBT review retracking failed",e);
         if(status)status.innerText="再追跡の途中で処理できないフレームがありました。別のフレームで再指定してください。";
@@ -2042,7 +2636,8 @@ document.getElementById("vbt-add-review-rep").addEventListener("click",()=>{
     const duration=vbtReviewEnd.time-vbtReviewStart.time;
     const distance=Math.abs(vbtReviewStart.sample.y-vbtReviewEnd.sample.y)*vbtMetersPerPixel();
     const segment=vbtSamples.filter(s=>s.t>=vbtReviewStart.time*1000&&s.t<=vbtReviewEnd.time*1000);
-    const peak=segment.length?Math.max(...segment.map(s=>Math.max(0,s.v||0)),distance/duration):distance/duration;
+    const trustedSegment=segment.filter(s=>s.confidence===undefined||s.confidence>=.55);
+    const peak=trustedSegment.length?Math.max(...trustedSegment.map(s=>Math.max(0,s.v||0)),distance/duration):distance/duration;
 
     vbtReps.push({
         mean:distance/duration,
@@ -2573,8 +3168,5 @@ if("serviceWorker" in navigator) {
     });
 }
 </script>
-<div style="margin:30px 0 15px;color:#999;font-size:11px;text-align:center;">
-    Sprint Timer Pro　Ver. 1.1.0 / Build 2026.08.30
-</div>
 </body>
 </html>
