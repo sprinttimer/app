@@ -855,6 +855,32 @@ let vbtReviewStart=null;
 let vbtReviewEnd=null;
 let vbtReviewUrl=null;
 
+/* VBT対象物の状態表示専用。追跡・計測ロジックには影響しない */
+let vbtTargetUiState="idle";
+function setVbtTargetUiState(state){
+    if(vbtTargetUiState===state)return;
+    vbtTargetUiState=state;
+
+    const btn=document.getElementById("vbt-focus-btn");
+    if(!btn)return;
+
+    btn.classList.remove("btn-blue","btn-green","btn-orange","btn-red");
+
+    if(state==="waiting"){
+        btn.classList.add("btn-orange");
+        btn.innerText="画面のプレート中心をタップ";
+    }else if(state==="tracking"){
+        btn.classList.add("btn-green");
+        btn.innerText="✓ 対象物固定済み・自動追従中";
+    }else if(state==="lost"){
+        btn.classList.add("btn-red");
+        btn.innerText="⚠ 対象物を再指定";
+    }else{
+        btn.classList.add("btn-blue");
+        btn.innerText="対象物を指定";
+    }
+}
+
 async function startVbtCamera(){
     if(vbtStream)return;
     try{
@@ -884,10 +910,19 @@ function requestVbtFrame(){
     if(vbtFocus&&vbtTemplate){
         const tracked=trackVbtTemplate();
         if(tracked){
+            const wasLost=vbtLostFrames>=8;
             vbtFocus=tracked;
             vbtLostFrames=0;
+            if(wasLost){
+                setVbtTargetUiState("tracking");
+                document.getElementById("vbt-status").innerText=vbtRunning?"計測中・対象物を再追従しました。":"対象物を再追従しました。";
+            }
         }else{
             vbtLostFrames++;
+            if(vbtLostFrames===8){
+                setVbtTargetUiState("lost");
+                document.getElementById("vbt-status").innerText="対象物を見失いました。プレート中心をもう一度タップしてください。";
+            }
         }
     }
 
@@ -1122,12 +1157,15 @@ document.getElementById("vbt-video").addEventListener("click",e=>{
         ring.style.display="block";
         ring.style.left=((e.clientX-r.left)/r.width*100)+"%";
         ring.style.top=((e.clientY-r.top)/r.height*100)+"%";
+        setVbtTargetUiState("tracking");
         document.getElementById("vbt-status").innerText="対象物を固定しました。自動追従を開始します。";
     }else{
+        setVbtTargetUiState("lost");
         document.getElementById("vbt-status").innerText="対象物の指定に失敗しました。プレート全体が映る位置をタップしてください。";
     }
 });
 document.getElementById("vbt-focus-btn").addEventListener("click",()=>{
+    setVbtTargetUiState("waiting");
     document.getElementById("vbt-status").innerText="画面上のプレート中心をタップしてください。";
 });
 
@@ -1276,6 +1314,7 @@ function showVbtReview(){
 document.getElementById("vbt-start").addEventListener("click",async()=>{
     if(!vbtStream)await startVbtCamera();
     if(!vbtFocus||!vbtTemplate){
+        setVbtTargetUiState("waiting");
         document.getElementById("vbt-status").innerText="先にプレート中心をタップして対象物を指定してください。";
         return;
     }
