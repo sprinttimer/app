@@ -195,7 +195,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
     <div id="vbt-review-area" class="settings-card" style="display:none">
         <h3>VBT 動画レビュー・高精度再解析</h3>
-        <div class="info"><b>複数アンカー式リプレイ再追跡：</b>動画を止め、正しい対象物が分かるフレームで「追跡アンカーを追加」を押してプレート／シャフト中心をタップしてください。<b>各アンカーではそのフレームから追跡特徴を新しく取得</b>します。2点以上のアンカーを置くと、各区間を前方向・逆方向から独立して追跡し、両者を照合して補正軌跡を再構成します。最初のレップより前と最後のレップより後にもアンカーを置くと、セット全体を再計算できます。</div>
+        <div class="info"><b>高信頼レビュー解析：</b>動画を止め、正しい対象物が明確に見えるフレームで「追跡アンカーを追加」を押し、プレート／シャフト中心をタップしてください。各アンカーでは<b>円形マスク内だけから固定追跡特徴を取得</b>し、解析中に身体や背景を新しい追跡特徴として学習しません。隣接アンカー間は前方向・逆方向から独立追跡し、<b>両方向が一致したフレームだけを測定値として採用</b>します。不一致・片方向のみ・低信頼フレームは補間せず「追跡不能」として除外します。追跡不能区間が残る場合は、その前後にアンカーを追加して再解析してください。</div>
         <div class="preview-wrap" id="vbt-review-wrap">
             <video id="vbt-review-video" playsinline controls></video>
             <canvas id="vbt-review-canvas" class="overlay-canvas"></canvas>
@@ -210,13 +210,13 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
         </div>
         <div class="button-row">
             <button class="action-btn btn-blue" id="vbt-review-correct">＋ 現在フレームに追跡アンカーを追加</button>
-            <button class="action-btn btn-green" id="vbt-review-retrack-all" disabled>全アンカー間を再追跡・全VBT再計算</button>
+            <button class="action-btn btn-green" id="vbt-review-retrack-all" disabled>高信頼再追跡・全VBT再計算</button>
         </div>
         <div class="button-row">
             <button class="action-btn btn-gray" id="vbt-review-delete-nearest" disabled>現在位置に最も近いアンカーを削除</button>
             <button class="action-btn btn-gray" id="vbt-review-reset">レビュー補正をリセット</button>
         </div>
-        <div class="small" id="vbt-review-correct-status">まず、測定対象が明確に見えるフレームを2点以上選び、各フレームで追跡アンカーを追加してください。</div>
+        <div class="small" id="vbt-review-correct-status">まず、測定対象が明確に見えるフレームを2点以上選び、各フレームで追跡アンカーを追加してください。追跡不能区間は無理に補間せず、追加アンカーで解決します。</div>
         <div class="small" id="vbt-review-anchor-summary">アンカー：0点 ／ 再解析待ち</div>
         <div class="small" id="vbt-review-anchor-list"></div>
         <hr>
@@ -2227,7 +2227,15 @@ document.getElementById("vbt-stop").addEventListener("click",()=>{
     if(vbtRecorder&&vbtRecorder.state!=="inactive")vbtRecorder.stop();
 });
 
-/* ---------- VBTレビュー：複数アンカー式・双方向再追跡・全VBT再計算 ---------- */
+/* ---------- VBTレビュー：追跡失敗を許容する高信頼解析 ----------
+   原則：
+   ・手動アンカーは絶対的な正解点として固定。解析中のテンプレート学習は禁止。
+   ・円形マスクで対象物以外（身体・背景）の混入を減らす。
+   ・隣接アンカー間は forward / backward を完全に独立追跡。
+   ・両方向の位置・対象同一性が一致したフレームだけ採用。
+   ・片方向のみ／不一致／低信頼は x/y=null の「追跡不能」とし、直線補間しない。
+   ・レビュー再解析後のVBT値はライブ軌跡へパッチせず、採用済みレビュー軌跡からゼロ再構築する。
+---------- */
 const vbtReviewVideo=document.getElementById("vbt-review-video");
 const vbtReviewCanvas=document.getElementById("vbt-review-canvas");
 const vbtReviewCtx=vbtReviewCanvas.getContext("2d");
@@ -2335,7 +2343,7 @@ function resetVbtReviewWorkspace(fromNewRecording=false){
         "vbt-review-duration":"0.000 s",
         "vbt-review-distance":"0.000 m",
         "vbt-review-mean":"0.000 m/s",
-        "vbt-review-quality":"未実行",
+        "vbt-review-quality":"未実行（追跡不能は補間しません）",
         "vbt-review-calibration":"ライブ校正を使用"
     };
     for(const [id,text] of Object.entries(fields)){
@@ -2343,7 +2351,7 @@ function resetVbtReviewWorkspace(fromNewRecording=false){
     }
     const add=document.getElementById("vbt-add-review-rep");if(add)add.disabled=true;
     const status=document.getElementById("vbt-review-correct-status");
-    if(status)status.innerText="まず、測定対象が明確に見えるフレームを2点以上選び、各フレームで追跡アンカーを追加してください。";
+    if(status)status.innerText="まず、測定対象が明確に見えるフレームを2点以上選び、各フレームで追跡アンカーを追加してください。追跡不能区間は補間せず、追加アンカーで解決します。";
     renderVbtReviewAnchors();
     drawVbtReviewOverlay();
 }
@@ -2366,9 +2374,9 @@ function nearestVbtSampleFrom(samples,timeSec,maxGapSec=Infinity){
 }
 
 function nearestVbtSample(timeSec){
-    if(vbtReviewAnalysisApplied&&vbtReviewCorrectedSamples.length){
-        const s=nearestVbtSampleFrom(vbtReviewCorrectedSamples,timeSec,2/vbtReviewFps());
-        if(s)return s;
+    if(vbtReviewAnalysisApplied){
+        const s=nearestVbtSampleFrom(vbtReviewCorrectedSamples,timeSec,1.15/vbtReviewFps());
+        return isVbtReviewValidSample(s)?s:null; /* 再解析後はライブ軌跡へ絶対にフォールバックしない */
     }
     return nearestVbtSampleFrom(vbtSamples,timeSec);
 }
@@ -2395,7 +2403,8 @@ function renderVbtReviewAnchors(){
         const fps=vbtReviewFps();
         list.innerHTML=vbtReviewAnchors.map((a,i)=>{
             const radius=a.feature&&a.feature.radius?` ／ 外周≈${(a.feature.radius*2).toFixed(0)}px (${Math.round((a.feature.radiusConfidence||0)*100)}%)`:"";
-            return `<div style="padding:3px 0">A${i+1}：${a.time.toFixed(3)} s / Frame ${Math.round(a.time*fps)}${radius}</div>`;
+            const mask=a.feature&&a.feature.circularCore?" ／ 円形固定特徴":"";
+            return `<div style="padding:3px 0">A${i+1}：${a.time.toFixed(3)} s / Frame ${Math.round(a.time*fps)}${radius}${mask}</div>`;
         }).join("");
     }
 }
@@ -2404,54 +2413,49 @@ function drawVbtReviewOverlay(){
     if(!vbtReviewVideo.videoWidth)return;
     const reviewSize=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);
     if(vbtReviewCanvas.width!==reviewSize.width||vbtReviewCanvas.height!==reviewSize.height){
-        vbtReviewCanvas.width=reviewSize.width;
-        vbtReviewCanvas.height=reviewSize.height;
+        vbtReviewCanvas.width=reviewSize.width;vbtReviewCanvas.height=reviewSize.height;
     }
     vbtReviewCtx.clearRect(0,0,vbtReviewCanvas.width,vbtReviewCanvas.height);
 
-    const sourceSamples=vbtReviewAnalysisApplied&&vbtReviewCorrectedSamples.length?vbtReviewCorrectedSamples:vbtSamples;
-    const s=nearestVbtSampleFrom(sourceSamples,vbtReviewVideo.currentTime,2/vbtReviewFps())||nearestVbtSampleFrom(vbtSamples,vbtReviewVideo.currentTime);
-    if(s){
-        const conf=s.confidence===undefined?1:s.confidence;
-        const color=conf>=.75?"#00ff66":conf>=.50?"#ff9f1a":"#ff4444";
-        vbtReviewCtx.strokeStyle=color;
-        vbtReviewCtx.lineWidth=4;
-        vbtReviewCtx.beginPath();
+    const sourceSamples=vbtReviewAnalysisApplied?vbtReviewCorrectedSamples:vbtSamples;
+    const current=nearestVbtSampleFrom(sourceSamples,vbtReviewVideo.currentTime,1.15/vbtReviewFps());
+    if(current&&isVbtReviewValidSample(current,vbtReviewAnalysisApplied ? .52 : 0)){
+        const conf=current.confidence===undefined?1:current.confidence;
+        const color=conf>=.75?'#00ff66':conf>=.52?'#ffcf33':'#ff4444';
+        vbtReviewCtx.strokeStyle=color;vbtReviewCtx.lineWidth=4;vbtReviewCtx.beginPath();
         const r=(vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:vbtPlateDiameterPx)>0?
             (vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:vbtPlateDiameterPx)/2:24;
-        vbtReviewCtx.arc(s.x,s.y,Math.max(10,r),0,Math.PI*2);
-        vbtReviewCtx.stroke();
-        vbtReviewCtx.font="bold 16px sans-serif";
-        vbtReviewCtx.fillStyle=color;
-        const label=vbtReviewAnalysisApplied?"補正":"追従";
-        vbtReviewCtx.fillText(`${label} ${Math.round(clamp(conf,0,1)*100)}%`,Math.max(4,s.x-r),Math.max(18,s.y-r-6));
+        vbtReviewCtx.arc(current.x,current.y,Math.max(10,r),0,Math.PI*2);vbtReviewCtx.stroke();
+        vbtReviewCtx.font='bold 16px sans-serif';vbtReviewCtx.fillStyle=color;
+        vbtReviewCtx.fillText(`${vbtReviewAnalysisApplied?'高信頼補正':'追従'} ${Math.round(clamp(conf,0,1)*100)}%`,Math.max(4,current.x-r),Math.max(18,current.y-r-6));
+    }else if(vbtReviewAnalysisApplied&&current){
+        vbtReviewCtx.save();
+        vbtReviewCtx.fillStyle='rgba(180,0,0,.82)';
+        vbtReviewCtx.fillRect(12,12,Math.min(vbtReviewCanvas.width-24,380),48);
+        vbtReviewCtx.fillStyle='#fff';vbtReviewCtx.font='bold 16px sans-serif';
+        vbtReviewCtx.fillText('追跡不能：この前後にアンカーを追加',24,42);
+        vbtReviewCtx.restore();
     }
 
-    /* 軌跡：全軌跡ではなく現在時刻まで。信頼度が低い区間は橙で可視化 */
-    const upto=sourceSamples.filter(p=>p.t<=vbtReviewVideo.currentTime*1000).slice(-240);
-    if(upto.length>1){
-        for(let i=1;i<upto.length;i++){
-            const a=upto[i-1],b=upto[i];
-            const conf=Math.min(a.confidence===undefined?1:a.confidence,b.confidence===undefined?1:b.confidence);
-            vbtReviewCtx.strokeStyle=conf>=.60?"rgba(0,255,102,.65)":"rgba(255,159,26,.75)";
-            vbtReviewCtx.lineWidth=2;
-            vbtReviewCtx.beginPath();vbtReviewCtx.moveTo(a.x,a.y);vbtReviewCtx.lineTo(b.x,b.y);vbtReviewCtx.stroke();
-        }
+    /* 欠損を跨いで線を結ばない。追跡不能は「空白」として可視化。 */
+    const upto=sourceSamples.filter(p=>p.t<=vbtReviewVideo.currentTime*1000).slice(-360);
+    for(let i=1;i<upto.length;i++){
+        const a=upto[i-1],b=upto[i];
+        if(!isVbtReviewValidSample(a,vbtReviewAnalysisApplied ? .52 : 0)||!isVbtReviewValidSample(b,vbtReviewAnalysisApplied ? .52 : 0))continue;
+        const maxGap=1000/vbtReviewFps()*1.65;
+        if(b.t-a.t>maxGap)continue;
+        const conf=Math.min(a.confidence===undefined?1:a.confidence,b.confidence===undefined?1:b.confidence);
+        vbtReviewCtx.strokeStyle=conf>=.70?'rgba(0,255,102,.72)':'rgba(255,207,51,.78)';
+        vbtReviewCtx.lineWidth=2;vbtReviewCtx.beginPath();vbtReviewCtx.moveTo(a.x,a.y);vbtReviewCtx.lineTo(b.x,b.y);vbtReviewCtx.stroke();
     }
 
-    /* 手動アンカーは番号付きで常時表示 */
     vbtReviewAnchors.forEach((a,i)=>{
-        const current=Math.abs(a.time-vbtReviewVideo.currentTime)<=.55/vbtReviewFps();
-        vbtReviewCtx.fillStyle=current?"#ffffff":"#00d4ff";
-        vbtReviewCtx.strokeStyle="#004b64";
-        vbtReviewCtx.lineWidth=3;
+        const currentAnchor=Math.abs(a.time-vbtReviewVideo.currentTime)<=.55/vbtReviewFps();
+        vbtReviewCtx.fillStyle=currentAnchor?'#ffffff':'#00d4ff';vbtReviewCtx.strokeStyle='#004b64';vbtReviewCtx.lineWidth=3;
         vbtReviewCtx.beginPath();vbtReviewCtx.arc(a.x,a.y,9,0,Math.PI*2);vbtReviewCtx.fill();vbtReviewCtx.stroke();
-        vbtReviewCtx.fillStyle="#001a22";
-        vbtReviewCtx.font="bold 11px sans-serif";
-        vbtReviewCtx.textAlign="center";vbtReviewCtx.textBaseline="middle";
-        vbtReviewCtx.fillText(String(i+1),a.x,a.y+.5);
+        vbtReviewCtx.fillStyle='#001a22';vbtReviewCtx.font='bold 11px sans-serif';vbtReviewCtx.textAlign='center';vbtReviewCtx.textBaseline='middle';vbtReviewCtx.fillText(String(i+1),a.x,a.y+.5);
     });
-    vbtReviewCtx.textAlign="start";vbtReviewCtx.textBaseline="alphabetic";
+    vbtReviewCtx.textAlign='start';vbtReviewCtx.textBaseline='alphabetic';
 }
 
 /* ---------- 手動アンカー作成 ---------- */
@@ -2524,6 +2528,59 @@ function vbtReviewEstimateRadius(frame,cx,cy,priorR){
     return {radius:best.radius,confidence:clamp(conf,0,1)};
 }
 
+
+/* 円形マスクZNCC。アンカー外の身体・ラック・背景をテンプレートへ取り込みにくくする。 */
+function createVbtReviewCircularDescriptor(frame,cx,cy,radius,step=3,innerRatio=0,outerRatio=1){
+    const r=Math.max(4,Math.round(radius));
+    const offsets=[],raw=[];
+    let sum=0,sq=0;
+    for(let dy=-r;dy<=r;dy+=step){
+        for(let dx=-r;dx<=r;dx+=step){
+            const nr=Math.hypot(dx,dy)/r;
+            if(nr<innerRatio||nr>outerRatio)continue;
+            const x=Math.round(cx+dx),y=Math.round(cy+dy);
+            if(x<0||x>=frame.width||y<0||y>=frame.height)return null;
+            const g=grayAt(frame.data,frame.width,x,y);
+            offsets.push([dx,dy]);raw.push(g);sum+=g;sq+=g*g;
+        }
+    }
+    if(raw.length<12)return null;
+    const mean=sum/raw.length;
+    const sample=raw.map(v=>v-mean);
+    const norm=Math.sqrt(sample.reduce((a,v)=>a+v*v,0));
+    const variance=Math.max(0,sq/raw.length-mean*mean);
+    return {offsets,sample,mean,std:Math.sqrt(variance),norm:Math.max(1e-6,norm),radius:r,count:raw.length,innerRatio,outerRatio};
+}
+
+function vbtReviewCircularConfidence(frame,cx,cy,descriptor){
+    if(!descriptor||!descriptor.offsets||!descriptor.offsets.length)return 0;
+    let sum=0,sq=0,n=0;
+    const vals=new Array(descriptor.offsets.length);
+    for(let i=0;i<descriptor.offsets.length;i++){
+        const o=descriptor.offsets[i],x=Math.round(cx+o[0]),y=Math.round(cy+o[1]);
+        if(x<0||x>=frame.width||y<0||y>=frame.height)return 0;
+        const g=grayAt(frame.data,frame.width,x,y);
+        vals[i]=g;sum+=g;sq+=g*g;n++;
+    }
+    const mean=sum/n,varSum=sq-sum*sum/n;
+    if(varSum<1||descriptor.norm<1e-6)return 0;
+    let dot=0;
+    for(let i=0;i<n;i++)dot+=descriptor.sample[i]*(vals[i]-mean);
+    const corr=clamp(dot/(descriptor.norm*Math.sqrt(varSum)),-1,1);
+    const corrConf=vbtCorrConfidence(corr);
+    const std=Math.sqrt(Math.max(0,varSum/n));
+    const stdRatio=Math.min(std/Math.max(3,descriptor.std),descriptor.std/Math.max(3,std));
+    return clamp(corrConf*.90+clamp(stdRatio,0,1)*.10,0,1);
+}
+
+function isVbtReviewValidSample(s,minConfidence=.52){
+    return !!s&&s.valid!==false&&Number.isFinite(s.x)&&Number.isFinite(s.y)&&Number.isFinite(s.t)&&(s.confidence===undefined||s.confidence>=minConfidence);
+}
+
+function makeVbtReviewUnresolvedSample(timeMs,reason='unresolved'){
+    return {t:timeMs,x:null,y:null,v:null,confidence:0,valid:false,source:'review-unresolved',reason};
+}
+
 function captureVbtReviewAnchorFeature(cx,cy){
     if(!ensureVbtReviewOffscreen())return null;
     vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
@@ -2535,6 +2592,8 @@ function captureVbtReviewAnchorFeature(cx,cy){
     const radius=radiusEstimate.radius||priorR||0;
     const outerHalf=clamp(Math.round(radius>0?radius*.62:28),18,48);
     let centerHalf=clamp(Math.round(radius>0?radius*.105:14),10,22);
+
+    /* 旧矩形descriptorはフォールバックとして保持するが、主判定は円形マスク。 */
     let center=createVbtDescriptorFromContext(vbtReviewOffCtx,w,h,cx,cy,centerHalf*2,3);
     if(center&&center.std<5.5&&centerHalf<25){
         centerHalf=Math.min(25,centerHalf+4);
@@ -2542,15 +2601,23 @@ function captureVbtReviewAnchorFeature(cx,cy){
     }
     const outer=createVbtDescriptorFromContext(vbtReviewOffCtx,w,h,cx,cy,outerHalf*2,5);
     if(!center||!outer)return null;
+
+    const stableR=radius>9?radius:(priorR>9?priorR:Math.max(20,outerHalf));
+    const coreRadius=clamp(Math.round(stableR*.22),10,27);
+    const plateMaskRadius=clamp(Math.round(stableR*.78),22,78);
+    const circularCore=createVbtReviewCircularDescriptor(frame,cx,cy,coreRadius,3,0,.96);
+    const circularPlate=createVbtReviewCircularDescriptor(frame,cx,cy,plateMaskRadius,5,.20,.94);
+
     const shapeHalf=Math.max(10,Math.min(outerHalf,radius>0?radius*.32:outerHalf));
     const stats=patchStatsImage(frame,cx,cy,shapeHalf);
     const radialProfile=radius>8?radialEdgeProfileImage(frame,cx,cy,radius):null;
     const radial=radius>8?radialEdgeScoreImage(frame,cx,cy,radius):0;
     const textureQuality=clamp((center.std-2.5)/15,.18,1);
     return {
-        center,outer,centerHalf,outerHalf,radius,
-        radiusConfidence:radiusEstimate.confidence||0,
-        stats,radialProfile,radial,textureQuality
+        center,outer,circularCore,circularPlate,centerHalf,outerHalf,radius,
+        coreRadius,plateMaskRadius,radiusConfidence:radiusEstimate.confidence||0,
+        stats,radialProfile,radial,textureQuality,
+        fixed:true /* レビュー中は一切更新しない固定アンカー特徴 */
     };
 }
 
@@ -2588,7 +2655,7 @@ vbtReviewCanvas.addEventListener("click",async e=>{
     }
     addVbtReviewAnchor(time,{x,y},feature);
     const idx=vbtReviewAnchors.findIndex(a=>Math.abs(a.time-time)<=.65/vbtReviewFps());
-    if(status)status.innerText=`アンカー A${idx+1} を追加しました。別の時刻にも追加してください。2点以上で双方向再追跡できます。`;
+    if(status)status.innerText=`アンカー A${idx+1} を追加しました。この特徴は固定され、再解析中に身体・背景へ学習更新されません。追跡不能が残る箇所には追加アンカーを置いてください。`;
     drawVbtReviewOverlay();
 });
 
@@ -2609,9 +2676,11 @@ function vbtReviewDescriptorConfidence(frame,cx,cy,descriptor){
 }
 
 function vbtReviewFeatureEvidence(frame,cx,cy,feature){
-    if(!feature)return {identity:0,center:0,outer:0,shape:0};
+    if(!feature)return {identity:0,core:0,plate:0,center:0,outer:0,shape:0,radial:0};
     const center=vbtReviewDescriptorConfidence(frame,cx,cy,feature.center);
     const outer=vbtReviewDescriptorConfidence(frame,cx,cy,feature.outer);
+    const core=feature.circularCore?vbtReviewCircularConfidence(frame,cx,cy,feature.circularCore):center;
+    const plate=feature.circularPlate?vbtReviewCircularConfidence(frame,cx,cy,feature.circularPlate):outer;
     const stats=patchStatsImage(frame,cx,cy,Math.max(9,Math.min(feature.outerHalf,feature.radius>0?feature.radius*.30:feature.outerHalf)));
     const refStd=Math.max(3,feature.stats.std);
     const stdRatio=Math.min(stats.std/refStd,refStd/Math.max(3,stats.std));
@@ -2621,35 +2690,39 @@ function vbtReviewFeatureEvidence(frame,cx,cy,feature){
         const candidate=radialEdgeProfileImage(frame,cx,cy,feature.radius);
         radial=radialProfileSimilarity(candidate,feature.radialProfile);
     }
-    const shape=clamp(radial*.56+clamp(stdRatio,0,1)*.30+meanConf*.14,0,1);
-    const centerWeight=.56+.10*feature.textureQuality;
-    const identity=clamp(center*centerWeight+outer*.22+shape*(.78-centerWeight),0,1);
-    return {identity,center,outer,shape};
+    const shape=clamp(radial*.68+clamp(stdRatio,0,1)*.22+meanConf*.10,0,1);
+    /* 中央＋円内プレート特徴が主。矩形外周は身体・背景混入対策のため主判定に使わない。 */
+    const identity=clamp(core*.50+plate*.30+shape*.16+outer*.04,0,1);
+    return {identity,core,plate,center,outer,shape,radial};
 }
 
 function vbtReviewBlendedEvidence(frame,cx,cy,featureA,featureB,ratio){
     const a=vbtReviewFeatureEvidence(frame,cx,cy,featureA);
     const b=vbtReviewFeatureEvidence(frame,cx,cy,featureB);
-    const wa=clamp(1-ratio,.18,.82),wb=1-wa;
+    /* どちらか一方のアンカー特徴へ完全に乗り換えない。両端の固定特徴を常に照合する。 */
+    const wa=clamp(1-ratio,.35,.65),wb=1-wa;
     return {
         identity:a.identity*wa+b.identity*wb,
+        core:a.core*wa+b.core*wb,
+        plate:a.plate*wa+b.plate*wb,
         center:a.center*wa+b.center*wb,
         outer:a.outer*wa+b.outer*wb,
         shape:a.shape*wa+b.shape*wb,
+        radial:a.radial*wa+b.radial*wb,
         a,b
     };
 }
 
 function vbtReviewQuickCenter(frame,cx,cy,featureA,featureB,ratio){
-    const a=vbtReviewDescriptorConfidence(frame,cx,cy,featureA.center);
-    const b=vbtReviewDescriptorConfidence(frame,cx,cy,featureB.center);
-    const wa=clamp(1-ratio,.18,.82);
-    return a*wa+b*(1-wa);
+    const ac=featureA.circularCore?vbtReviewCircularConfidence(frame,cx,cy,featureA.circularCore):vbtReviewDescriptorConfidence(frame,cx,cy,featureA.center);
+    const bc=featureB.circularCore?vbtReviewCircularConfidence(frame,cx,cy,featureB.circularCore):vbtReviewDescriptorConfidence(frame,cx,cy,featureB.center);
+    const wa=clamp(1-ratio,.35,.65);
+    return ac*wa+bc*(1-wa);
 }
 
 function searchVbtReviewCandidate(frame,predicted,guide,featureA,featureB,ratio,searchX,searchY,wide=false){
     const w=frame.width,h=frame.height;
-    const maxHalf=Math.max(featureA.outerHalf,featureB.outerHalf,featureA.centerHalf,featureB.centerHalf)+4;
+    const maxHalf=Math.max(featureA.outerHalf,featureB.outerHalf,featureA.centerHalf,featureB.centerHalf,featureA.plateMaskRadius||0,featureB.plateMaskRadius||0)+4;
     const x0=Math.max(maxHalf,Math.round(predicted.x-searchX));
     const x1=Math.min(w-maxHalf-1,Math.round(predicted.x+searchX));
     const y0=Math.max(maxHalf,Math.round(predicted.y-searchY));
@@ -2657,55 +2730,59 @@ function searchVbtReviewCandidate(frame,predicted,guide,featureA,featureB,ratio,
     if(x1<=x0||y1<=y0)return null;
 
     const area=(x1-x0)*(y1-y0);
-    const coarse=wide?clamp(Math.ceil(Math.sqrt(area/6500)),5,11):clamp(Math.ceil(Math.sqrt(area/8500)),4,8);
+    const coarse=wide?clamp(Math.ceil(Math.sqrt(area/5200)),5,12):clamp(Math.ceil(Math.sqrt(area/7600)),4,9);
     const top=[];
-    const gate=Math.max(28,Math.max(featureA.radius||0,featureB.radius||0)*.75);
+    const gate=Math.max(24,Math.max(featureA.radius||0,featureB.radius||0)*.62);
     function add(c){
         const near=top.findIndex(o=>Math.hypot(o.x-c.x,o.y-c.y)<7);
         if(near>=0){if(c.quick<=top[near].quick)return;top.splice(near,1);}
-        top.push(c);top.sort((a,b)=>b.quick-a.quick);if(top.length>9)top.length=9;
+        top.push(c);top.sort((a,b)=>b.quick-a.quick);if(top.length>10)top.length=10;
     }
     for(let y=y0;y<=y1;y+=coarse){
         for(let x=x0;x<=x1;x+=coarse){
-            const center=vbtReviewQuickCenter(frame,x,y,featureA,featureB,ratio);
-            if(center<.18)continue;
+            const core=vbtReviewQuickCenter(frame,x,y,featureA,featureB,ratio);
+            if(core<.22)continue;
             const dp=Math.hypot(x-predicted.x,y-predicted.y);
             const dg=Math.hypot(x-guide.x,y-guide.y);
-            const motion=Math.exp(-.5*Math.pow(dp/Math.max(24,gate),2));
-            const guidePrior=Math.exp(-.5*Math.pow(dg/Math.max(45,gate*1.55),2));
-            const quick=center*.76+motion*.14+guidePrior*.10;
-            add({x,y,quick,center});
+            const motion=Math.exp(-.5*Math.pow(dp/Math.max(22,gate),2));
+            const guidePrior=Math.exp(-.5*Math.pow(dg/Math.max(60,gate*2.0),2));
+            /* 画像同一性を圧倒的に優先。アンカー直線は弱い探索priorに留める。 */
+            const quick=core*.86+motion*.11+guidePrior*.03;
+            add({x,y,quick,core});
         }
     }
     if(!top.length)return null;
 
     const candidates=[];
-    for(const c of top.slice(0,6)){
+    for(const c of top.slice(0,7)){
         let bx=c.x,by=c.y,bq=c.quick;
         const rr=Math.max(2,Math.min(5,coarse));
         for(let dy=-rr;dy<=rr;dy++)for(let dx=-rr;dx<=rr;dx++){
             const x=c.x+dx,y=c.y+dy;
             if(x<maxHalf||y<maxHalf||x>=w-maxHalf||y>=h-maxHalf)continue;
-            const center=vbtReviewQuickCenter(frame,x,y,featureA,featureB,ratio);
+            const core=vbtReviewQuickCenter(frame,x,y,featureA,featureB,ratio);
             const dp=Math.hypot(x-predicted.x,y-predicted.y);
             const dg=Math.hypot(x-guide.x,y-guide.y);
-            const q=center*.76+Math.exp(-.5*Math.pow(dp/Math.max(24,gate),2))*.14+Math.exp(-.5*Math.pow(dg/Math.max(45,gate*1.55),2))*.10;
+            const q=core*.86+Math.exp(-.5*Math.pow(dp/Math.max(22,gate),2))*.11+Math.exp(-.5*Math.pow(dg/Math.max(60,gate*2.0),2))*.03;
             if(q>bq){bq=q;bx=x;by=y;}
         }
         const evidence=vbtReviewBlendedEvidence(frame,bx,by,featureA,featureB,ratio);
         const dp=Math.hypot(bx-predicted.x,by-predicted.y);
         const dg=Math.hypot(bx-guide.x,by-guide.y);
-        const motion=Math.exp(-.5*Math.pow(dp/Math.max(28,gate),2));
-        const guidePrior=Math.exp(-.5*Math.pow(dg/Math.max(55,gate*1.8),2));
-        let confidence=evidence.identity*.77+motion*.14+guidePrior*.09;
-        if(evidence.center<.30&&evidence.outer<.36)confidence*=.62;
-        if(evidence.shape<.28)confidence*=.78;
+        const motion=Math.exp(-.5*Math.pow(dp/Math.max(26,gate),2));
+        const guidePrior=Math.exp(-.5*Math.pow(dg/Math.max(70,gate*2.2),2));
+        let confidence=evidence.identity*.87+motion*.10+guidePrior*.03;
+        /* 身体への乗り移り対策：中央だけ似る候補、円内プレート/外周形状が両方弱い候補を強く落とす。 */
+        if(evidence.core<.34)confidence*=.36;
+        if(evidence.plate<.30&&evidence.shape<.40)confidence*=.38;
+        if(evidence.identity<.48)confidence*=.56;
         candidates.push({x:bx,y:by,confidence,evidence,dp,dg});
     }
     candidates.sort((a,b)=>b.confidence-a.confidence);
     const winner=candidates[0];
-    const rival=candidates.slice(1).find(c=>Math.hypot(c.x-winner.x,c.y-winner.y)>Math.max(12,gate*.35));
-    if(rival&&winner.confidence-rival.confidence<.045)winner.confidence*=.84;
+    if(!winner)return null;
+    const rival=candidates.slice(1).find(c=>Math.hypot(c.x-winner.x,c.y-winner.y)>Math.max(10,gate*.28));
+    if(rival&&winner.confidence-rival.confidence<.055)winner.confidence*=.78;
     return winner;
 }
 
@@ -2713,10 +2790,10 @@ async function trackVbtReviewAnchorPass(startAnchor,endAnchor,dir,frameNumbers,g
     const fps=vbtReviewFps();
     const ordered=dir>0?frameNumbers:frameNumbers.slice().reverse();
     const results=new Map();
-    let prev={x:startAnchor.x,y:startAnchor.y,t:startAnchor.time};
-    let prev2=null,failures=0;
     const from=dir>0?startAnchor:endAnchor;
     const to=dir>0?endAnchor:startAnchor;
+    let prev={x:from.x,y:from.y,t:from.time};
+    let prev2=null,failures=0;
 
     for(let n=0;n<ordered.length;n++){
         if(generation!==vbtReviewTrackGeneration)break;
@@ -2726,36 +2803,35 @@ async function trackVbtReviewAnchorPass(startAnchor,endAnchor,dir,frameNumbers,g
         const frame=vbtReviewOffCtx.getImageData(0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
         const globalRatio=clamp((time-startAnchor.time)/(endAnchor.time-startAnchor.time),0,1);
         const localRatio=dir>0?globalRatio:1-globalRatio;
-        const guide={
-            x:startAnchor.x+(endAnchor.x-startAnchor.x)*globalRatio,
-            y:startAnchor.y+(endAnchor.y-startAnchor.y)*globalRatio
-        };
+        const guide={x:startAnchor.x+(endAnchor.x-startAnchor.x)*globalRatio,y:startAnchor.y+(endAnchor.y-startAnchor.y)*globalRatio};
 
-        let vx=(to.x-from.x)/Math.max(.001,to.time-from.time),vy=(to.y-from.y)/Math.max(.001,to.time-from.time);
+        const totalDt=Math.max(.001,to.time-from.time);
+        let vx=(to.x-from.x)/totalDt,vy=(to.y-from.y)/totalDt;
         if(prev2&&Math.abs(prev.t-prev2.t)>.0005){
-            const dt=prev.t-prev2.t;
-            const pvx=(prev.x-prev2.x)/dt,pvy=(prev.y-prev2.y)/dt;
-            vx=pvx*.72+vx*.28;vy=pvy*.72+vy*.28;
+            const dtp=prev.t-prev2.t;
+            const pvx=(prev.x-prev2.x)/dtp,pvy=(prev.y-prev2.y)/dtp;
+            vx=pvx*.86+vx*.14;vy=pvy*.86+vy*.14;
         }
         const dt=time-prev.t;
         const raw={x:prev.x+vx*dt,y:prev.y+vy*dt};
-        const guideWeight=failures?clamp(.28+failures*.12,.28,.62):.22;
+        /* カール等の曲線運動を直線アンカーガイドへ引き戻さない。guideは弱いpriorだけ。 */
+        const guideWeight=failures?clamp(.05+failures*.018,.05,.14):.025;
         const predicted={x:raw.x*(1-guideWeight)+guide.x*guideWeight,y:raw.y*(1-guideWeight)+guide.y*guideWeight};
         const expectedMove=Math.hypot(vx*dt,vy*dt);
-        const sx=clamp(38+expectedMove*3.2+failures*18,38,150);
-        const sy=clamp(52+expectedMove*3.8+failures*24,52,210);
+        const elapsedSinceGood=Math.abs(time-prev.t);
+        const sx=clamp(34+expectedMove*3.5+failures*22+elapsedSinceGood*55,34,190);
+        const sy=clamp(46+expectedMove*4.2+failures*28+elapsedSinceGood*70,46,260);
 
         let best=searchVbtReviewCandidate(frame,predicted,guide,from.feature,to.feature,localRatio,sx,sy,false);
-        if(!best||best.confidence<.48){
-            const widePred={x:predicted.x*.55+guide.x*.45,y:predicted.y*.55+guide.y*.45};
-            const wide=searchVbtReviewCandidate(frame,widePred,guide,from.feature,to.feature,localRatio,Math.min(220,sx*1.75),Math.min(300,sy*1.65),true);
+        if(!best||best.confidence<.60){
+            const wide=searchVbtReviewCandidate(frame,predicted,guide,from.feature,to.feature,localRatio,Math.min(250,sx*1.55),Math.min(340,sy*1.50),true);
             if(wide&&(!best||wide.confidence>best.confidence))best=wide;
         }
 
-        if(!best||best.confidence<.36){
-            failures++;
-            continue;
-        }
+        const e=best&&best.evidence;
+        const identityOk=!!best&&best.confidence>=.58&&e&&e.identity>=.50&&e.core>=.34&&(e.plate>=.28||e.shape>=.40);
+        if(!identityOk){failures++;continue;}
+
         failures=0;
         results.set(frameNo,best);
         prev2=prev;prev={x:best.x,y:best.y,t:time};
@@ -2774,53 +2850,49 @@ async function retrackVbtReviewBetweenAnchors(a,b,generation,onProgress){
     const startFrame=Math.round(a.time*fps),endFrame=Math.round(b.time*fps);
     const frames=[];
     for(let f=startFrame+1;f<endFrame;f++)frames.push(f);
-    if(!frames.length)return [
-        {t:a.time*1000,x:a.x,y:a.y,v:0,confidence:1,source:"manual-anchor"},
-        {t:b.time*1000,x:b.x,y:b.y,v:0,confidence:1,source:"manual-anchor"}
-    ];
+    const anchorA={t:a.time*1000,x:a.x,y:a.y,v:0,confidence:1,valid:true,source:'manual-anchor'};
+    const anchorB={t:b.time*1000,x:b.x,y:b.y,v:0,confidence:1,valid:true,source:'manual-anchor'};
+    if(!frames.length)return [anchorA,anchorB];
 
     const forward=await trackVbtReviewAnchorPass(a,b,1,frames,generation);
     if(onProgress)onProgress(.45);
     const backward=await trackVbtReviewAnchorPass(a,b,-1,frames,generation);
     if(onProgress)onProgress(.78);
-    const out=[{t:a.time*1000,x:a.x,y:a.y,v:0,confidence:1,source:"manual-anchor"}];
+    const out=[anchorA];
     const radius=vbtMedian([a.feature.radius||0,b.feature.radius||0].filter(Boolean));
-    const agreeGate=Math.max(11,radius*.34);
-    const singleGate=Math.max(45,radius*1.65);
+    const agreeGate=Math.max(7,radius*.18);
 
     for(let i=0;i<frames.length;i++){
         if(generation!==vbtReviewTrackGeneration)break;
-        const frameNo=frames[i],time=frameNo/fps,ratio=clamp((time-a.time)/(b.time-a.time),0,1);
-        const guide={x:a.x+(b.x-a.x)*ratio,y:a.y+(b.y-a.y)*ratio};
+        const frameNo=frames[i],time=frameNo/fps;
         const f=forward.get(frameNo),r=backward.get(frameNo);
-        let x=guide.x,y=guide.y,confidence=.22,source="review-anchor-guide";
-        if(f&&r){
-            const disagreement=Math.hypot(f.x-r.x,f.y-r.y);
-            if(disagreement<=agreeGate){
-                const wf=Math.max(.05,f.confidence),wr=Math.max(.05,r.confidence),sum=wf+wr;
-                x=(f.x*wf+r.x*wr)/sum;y=(f.y*wf+r.y*wr)/sum;
-                confidence=clamp((f.confidence+r.confidence)/2+.12*(1-disagreement/agreeGate),0,1);
-                source="review-bidirectional";
-            }else{
-                /* 両方向が割れた時は、アンカー間ガイドだけで決めず、現在フレーム上の特徴一致を再評価 */
-                await seekVbtReviewForTracking(time);
-                vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
-                const frame=vbtReviewOffCtx.getImageData(0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
-                const ef=vbtReviewPointEvidenceAt(frame,f.x,f.y,a,b,ratio);
-                const er=vbtReviewPointEvidenceAt(frame,r.x,r.y,a,b,ratio);
-                const fd=Math.hypot(f.x-guide.x,f.y-guide.y),rd=Math.hypot(r.x-guide.x,r.y-guide.y);
-                const fs=f.confidence*.62+ef*.30+Math.exp(-fd/Math.max(35,singleGate))*.08;
-                const rs=r.confidence*.62+er*.30+Math.exp(-rd/Math.max(35,singleGate))*.08;
-                const c=fs>=rs?f:r;
-                x=c.x;y=c.y;confidence=clamp(Math.max(fs,rs)*.82,0,1);source="review-bidirectional-disagreement";
-            }
-        }else if(f||r){
-            const c=f||r,d=Math.hypot(c.x-guide.x,c.y-guide.y);
-            if(c.confidence>=.40&&d<=singleGate){x=c.x;y=c.y;confidence=c.confidence*.78;source="review-single-direction";}
+        if(!f||!r){
+            out.push(makeVbtReviewUnresolvedSample(time*1000,!f&&!r?'both-passes-lost':'single-direction-only'));
+            continue;
         }
-        out.push({t:time*1000,x,y,v:0,confidence,source});
+        const disagreement=Math.hypot(f.x-r.x,f.y-r.y);
+        const fId=f.evidence?f.evidence.identity:0,rId=r.evidence?r.evidence.identity:0;
+        const fCore=f.evidence?f.evidence.core:0,rCore=r.evidence?r.evidence.core:0;
+        if(f.confidence<.58||r.confidence<.58||fId<.50||rId<.50||fCore<.34||rCore<.34){
+            out.push(makeVbtReviewUnresolvedSample(time*1000,'low-identity-confidence'));
+            continue;
+        }
+        if(disagreement>agreeGate){
+            /* 重要：以前の「どちらか良い方を採用」を禁止。両方向が割れたら必ず欠損。 */
+            out.push(makeVbtReviewUnresolvedSample(time*1000,'bidirectional-disagreement'));
+            continue;
+        }
+        const wf=Math.max(.05,f.confidence),wr=Math.max(.05,r.confidence),sum=wf+wr;
+        const x=(f.x*wf+r.x*wr)/sum,y=(f.y*wf+r.y*wr)/sum;
+        const agreement=clamp(1-disagreement/agreeGate,0,1);
+        const confidence=clamp(Math.min(f.confidence,r.confidence)*.72+((f.confidence+r.confidence)/2)*.18+agreement*.10,0,1);
+        if(confidence<.58){
+            out.push(makeVbtReviewUnresolvedSample(time*1000,'consensus-too-weak'));
+            continue;
+        }
+        out.push({t:time*1000,x,y,v:0,confidence,valid:true,source:'review-bidirectional'});
     }
-    out.push({t:b.time*1000,x:b.x,y:b.y,v:0,confidence:1,source:"manual-anchor"});
+    out.push(anchorB);
     if(onProgress)onProgress(1);
     return out;
 }
@@ -2864,112 +2936,124 @@ function updateVbtReviewCalibrationFromAnchors(){
 
 /* 局所線形回帰で速度を出す。1フレーム差分より位置ノイズの影響を抑える。 */
 function recomputeVbtReviewVelocities(samples){
-    const mpp=vbtReviewMetersPerPixel();
-    const fps=vbtReviewFps();
-    const halfWindow=Math.max(2,Math.round(fps*.065));
-    for(let i=0;i<samples.length;i++){
-        const lo=Math.max(0,i-halfWindow),hi=Math.min(samples.length-1,i+halfWindow);
-        let n=0,sumT=0,sumY=0;
-        for(let j=lo;j<=hi;j++){const t=samples[j].t/1000;n++;sumT+=t;sumY+=samples[j].y;}
-        if(n<3){samples[i].v=0;continue;}
-        const mt=sumT/n,my=sumY/n;
-        let num=0,den=0;
-        for(let j=lo;j<=hi;j++){
-            const dt=samples[j].t/1000-mt;
-            num+=dt*(samples[j].y-my);den+=dt*dt;
+    const mpp=vbtReviewMetersPerPixel(),fps=vbtReviewFps();
+    const maxGap=1000/fps*1.65;
+    for(const s of samples)s.v=null;
+    let start=0;
+    while(start<samples.length){
+        while(start<samples.length&&!isVbtReviewValidSample(samples[start]))start++;
+        if(start>=samples.length)break;
+        let end=start;
+        while(end+1<samples.length&&isVbtReviewValidSample(samples[end+1])&&samples[end+1].t-samples[end].t<=maxGap)end++;
+        const len=end-start+1;
+        if(len>=3){
+            const halfWindow=Math.max(2,Math.round(fps*.065));
+            const raw=[];
+            for(let i=start;i<=end;i++){
+                const lo=Math.max(start,i-halfWindow),hi=Math.min(end,i+halfWindow);
+                let n=0,sumT=0,sumY=0;
+                for(let j=lo;j<=hi;j++){const t=samples[j].t/1000;n++;sumT+=t;sumY+=samples[j].y;}
+                if(n<3){raw.push(null);continue;}
+                const mt=sumT/n,my=sumY/n;let num=0,den=0;
+                for(let j=lo;j<=hi;j++){const dt=samples[j].t/1000-mt;num+=dt*(samples[j].y-my);den+=dt*dt;}
+                raw.push(den>1e-8?-num/den*mpp:0);
+            }
+            for(let k=0;k<raw.length;k++){
+                const vals=[];for(let d=-1;d<=1;d++){const v=raw[k+d];if(Number.isFinite(v))vals.push(v);}
+                samples[start+k].v=vals.length?vbtMedian(vals):null;
+            }
         }
-        samples[i].v=den>1e-8?-num/den*mpp:0;
+        start=end+1;
     }
-    /* 3点メディアンで単発スパイクだけを抑える */
-    const raw=samples.map(s=>s.v);
-    for(let i=1;i<samples.length-1;i++)samples[i].v=vbtMedian([raw[i-1],raw[i],raw[i+1]]);
 }
 
 function detectVbtReviewReps(samples){
     if(samples.length<4)return [];
-    const fps=vbtReviewFps();
-    const startNeed=Math.max(2,Math.round(fps*.055));
-    const endNeed=Math.max(2,Math.round(fps*.075));
-    const startThreshold=.055,endThreshold=.028;
-    const mpp=vbtReviewMetersPerPixel();
-    const reps=[];
-    let state="idle",startCandidate=-1,startCount=0,endCount=0,startIndex=-1,topIndex=-1;
+    const fps=vbtReviewFps(),startNeed=Math.max(2,Math.round(fps*.055)),endNeed=Math.max(2,Math.round(fps*.075));
+    const startThreshold=.055,endThreshold=.028,mpp=vbtReviewMetersPerPixel();
+    const reps=[];let state='idle',startCandidate=-1,startCount=0,endCount=0,startIndex=-1,topIndex=-1;
 
+    function reset(){state='idle';startCandidate=-1;startCount=0;endCount=0;startIndex=-1;topIndex=-1;}
     for(let i=0;i<samples.length;i++){
-        const s=samples[i],v=s.v||0;
-        if(state==="idle"){
+        const s=samples[i];
+        if(!isVbtReviewValidSample(s)||!Number.isFinite(s.v)){
+            /* 欠損を跨いで1レップを作らない。 */
+            reset();continue;
+        }
+        if(i>0&&samples[i].t-samples[i-1].t>1000/fps*1.65){reset();}
+        const v=s.v;
+        if(state==='idle'){
             if(v>startThreshold){
-                if(startCount===0)startCandidate=i;
-                startCount++;
-                if(startCount>=startNeed){
-                    startIndex=Math.max(0,startCandidate-1);topIndex=i;state="up";endCount=0;
-                }
+                if(startCount===0)startCandidate=i;startCount++;
+                if(startCount>=startNeed){startIndex=Math.max(0,startCandidate-1);if(!isVbtReviewValidSample(samples[startIndex]))startIndex=startCandidate;topIndex=i;state='up';endCount=0;}
             }else{startCount=0;startCandidate=-1;}
         }else{
+            if(!isVbtReviewValidSample(samples[topIndex])){reset();continue;}
             if(samples[i].y<samples[topIndex].y)topIndex=i;
             if(v<endThreshold)endCount++;else endCount=0;
             if(endCount>=endNeed||i===samples.length-1){
-                const endIndex=Math.max(startIndex+1,topIndex);
-                const start=samples[startIndex],end=samples[endIndex];
-                const duration=(end.t-start.t)/1000;
-                const distance=(start.y-end.y)*mpp;
+                const endIndex=Math.max(startIndex+1,topIndex),start=samples[startIndex],end=samples[endIndex];
+                if(!isVbtReviewValidSample(start)||!isVbtReviewValidSample(end)){reset();continue;}
                 const segment=samples.slice(startIndex,endIndex+1);
-                const positive=segment.map(p=>p.v||0).filter(x=>x>0&&Number.isFinite(x));
+                if(segment.some(p=>!isVbtReviewValidSample(p))){reset();continue;}
+                const duration=(end.t-start.t)/1000,distance=(start.y-end.y)*mpp;
+                const positive=segment.map(p=>p.v).filter(x=>Number.isFinite(x)&&x>0);
                 const peak=positive.length?vbtQuantile(positive,.95):distance/Math.max(.001,duration);
                 const meanConf=segment.reduce((a,p)=>a+(p.confidence===undefined?1:p.confidence),0)/segment.length;
                 if(duration>=.10&&duration<=4.0&&distance>=.015&&distance<=2.0&&distance/duration<=4.5){
-                    reps.push({
-                        mean:distance/duration,
-                        peak:Math.max(distance/duration,peak),
-                        distance,time:duration,
-                        startT:start.t/1000,endT:end.t/1000,
-                        startFrame:Math.round(start.t/1000*fps),endFrame:Math.round(end.t/1000*fps),
-                        source:"review-auto",quality:meanConf
-                    });
+                    reps.push({mean:distance/duration,peak:Math.max(distance/duration,peak),distance,time:duration,startT:start.t/1000,endT:end.t/1000,startFrame:Math.round(start.t/1000*fps),endFrame:Math.round(end.t/1000*fps),source:'review-auto-high-confidence',quality:meanConf});
                 }
-                state="idle";startCount=0;startCandidate=-1;endCount=0;startIndex=-1;topIndex=-1;
+                reset();
             }
         }
     }
     return reps;
 }
 
+
+function summarizeVbtReviewUnresolvedRanges(samples){
+    const ranges=[];
+    let start=null,last=null;
+    for(const s of samples){
+        const bad=!isVbtReviewValidSample(s);
+        if(bad&&start===null){start=s.t;last=s.t;}
+        else if(bad){last=s.t;}
+        else if(start!==null){ranges.push({start,end:last});start=null;last=null;}
+    }
+    if(start!==null)ranges.push({start,end:last});
+    return ranges;
+}
+
 function calculateVbtReviewTrajectoryQuality(samples,reviewDiameterPx){
-    if(!samples.length)return {quality:0,bidirectional:0,low:1,reviewDiameterPx};
-    const bid=samples.filter(s=>s.source==="review-bidirectional"||s.source==="manual-anchor").length/samples.length;
-    const low=samples.filter(s=>(s.confidence||0)<.45).length/samples.length;
-    const mean=samples.reduce((a,s)=>a+clamp(s.confidence||0,0,1),0)/samples.length;
-    const quality=clamp(mean*.58+bid*.32+(1-low)*.10,0,1);
-    return {quality,bidirectional:bid,low,reviewDiameterPx};
+    if(!samples.length)return {quality:0,bidirectional:0,low:1,unresolved:1,validRatio:0,reviewDiameterPx,ranges:[]};
+    const valid=samples.filter(s=>isVbtReviewValidSample(s));
+    const validRatio=valid.length/samples.length;
+    const bid=valid.filter(s=>s.source==='review-bidirectional'||s.source==='manual-anchor').length/Math.max(1,valid.length);
+    const mean=valid.length?valid.reduce((a,s)=>a+clamp(s.confidence||0,0,1),0)/valid.length:0;
+    const unresolved=1-validRatio;
+    /* 欠損率を最重要視。高信頼点だけ多くても未追跡が多ければ品質を上げない。 */
+    const quality=clamp(validRatio*.56+mean*.34+bid*.10,0,1);
+    return {quality,bidirectional:bid,low:unresolved,unresolved,validRatio,reviewDiameterPx,ranges:summarizeVbtReviewUnresolvedRanges(samples)};
 }
 
 async function rerunVbtReviewAll(){
     if(vbtReviewBusy||vbtReviewAnchors.length<2)return;
-    vbtReviewBusy=true;
-    vbtReviewVideo.pause();
-    setVbtReviewCorrectionMode(false);
-    ensureVbtReviewOffscreen();
-    vbtReviewTrackGeneration++;
-    const generation=vbtReviewTrackGeneration;
-    const restoreTime=vbtReviewVideo.currentTime;
-    const status=document.getElementById("vbt-review-correct-status");
-    const btn=document.getElementById("vbt-review-retrack-all");
+    vbtReviewBusy=true;vbtReviewVideo.pause();setVbtReviewCorrectionMode(false);ensureVbtReviewOffscreen();
+    vbtReviewTrackGeneration++;const generation=vbtReviewTrackGeneration,restoreTime=vbtReviewVideo.currentTime;
+    const status=document.getElementById('vbt-review-correct-status'),btn=document.getElementById('vbt-review-retrack-all');
     if(btn)btn.disabled=true;
-    document.getElementById("vbt-review-correct").disabled=true;
-    document.getElementById("vbt-review-delete-nearest").disabled=true;
-    document.getElementById("vbt-review-reset").disabled=true;
+    document.getElementById('vbt-review-correct').disabled=true;document.getElementById('vbt-review-delete-nearest').disabled=true;document.getElementById('vbt-review-reset').disabled=true;
 
     try{
         vbtReviewAnchors.sort((a,b)=>a.time-b.time);
-        const all=[];
-        const segments=vbtReviewAnchors.length-1;
+        /* 過去のレビュー結果を破棄。ライブ軌跡への部分修正ではなくゼロから再構築する。 */
+        vbtReviewCorrectedSamples=[];vbtReviewAnalysisApplied=false;vbtReviewLastQuality=null;vbtReviewStart=null;vbtReviewEnd=null;
+        const all=[],segments=vbtReviewAnchors.length-1;
         for(let i=0;i<segments;i++){
             const a=vbtReviewAnchors[i],b=vbtReviewAnchors[i+1];
-            if(status)status.innerText=`再追跡中：A${i+1} → A${i+2}（${i+1}/${segments}区間）…`;
-            const seg=await retrackVbtReviewBetweenAnchors(a,b,generation,p=>{
-                if(status)status.innerText=`再追跡中：A${i+1} → A${i+2}（${Math.round((i+p)/segments*100)}%）…`;
-            });
-            if(generation!==vbtReviewTrackGeneration)throw new Error("cancelled");
+            if(status)status.innerText=`高信頼再追跡中：A${i+1} → A${i+2}（${i+1}/${segments}区間）…`;
+            const seg=await retrackVbtReviewBetweenAnchors(a,b,generation,p=>{if(status)status.innerText=`高信頼再追跡中：A${i+1} → A${i+2}（${Math.round((i+p)/segments*100)}%）…`;});
+            if(generation!==vbtReviewTrackGeneration)throw new Error('cancelled');
             all.push(...seg);
         }
         vbtReviewCorrectedSamples=dedupeVbtReviewSamples(all);
@@ -2979,28 +3063,30 @@ async function rerunVbtReviewAll(){
         vbtReviewLastQuality=calculateVbtReviewTrajectoryQuality(vbtReviewCorrectedSamples,reviewDiameter);
         vbtReviewAnalysisApplied=true;
 
-        /* 「全VBT値再計算」：ライブ値ではなく、補正軌跡から再構築した値を正式表示へ反映 */
+        /* 正式値は高信頼レビュー軌跡だけから再構築。追跡不能点はnullのまま保持し、測定に使わない。 */
         vbtSamples=vbtReviewCorrectedSamples.map(s=>({...s}));
-        vbtReps=reps;
-        renderVbt();
-        const q=Math.round(vbtReviewLastQuality.quality*100);
-        const low=Math.round(vbtReviewLastQuality.low*100);
-        document.getElementById("vbt-review-quality").innerText=`軌跡品質 ${q}% ／ 低信頼区間 ${low}% ／ 自動再検出 ${reps.length}レップ`;
+        vbtReps=reps;renderVbt();
+        const q=Math.round(vbtReviewLastQuality.quality*100),miss=Math.round(vbtReviewLastQuality.unresolved*100);
+        document.getElementById('vbt-review-quality').innerText=`軌跡品質 ${q}% ／ 追跡不能 ${miss}% ／ 高信頼自動判定 ${reps.length}レップ`;
+        const ranges=vbtReviewLastQuality.ranges||[];
+        const rangeText=ranges.slice(0,3).map(r=>`${(r.start/1000).toFixed(2)}–${(r.end/1000).toFixed(2)}秒`).join('、');
         if(status){
-            if(reps.length)status.innerText=`再解析完了：${vbtReviewAnchors.length}アンカー、${segments}区間を双方向追跡し、補正軌跡から${reps.length}レップの全VBT値を再計算しました。橙色の軌跡が残る箇所は、その前後にアンカーを追加して再実行してください。`;
-            else status.innerText="双方向再追跡は完了しましたが、自動レップ判定条件を満たす上昇区間を検出できませんでした。軌跡を確認し、必要ならアンカーを追加したうえで再実行するか、上昇開始・終了を手動指定してください。";
+            if(ranges.length){
+                status.innerText=`再解析完了。ただし追跡不能 ${miss}%（${ranges.length}区間）があります${rangeText?`：${rangeText}`:''}。この区間の前後で正しい対象を追加アンカー指定し、再実行してください。追跡不能区間はVBT計算へ補間投入していません。`;
+            }else if(reps.length){
+                status.innerText=`高信頼再解析完了：${vbtReviewAnchors.length}アンカー、${segments}区間で双方向一致を確認し、追跡不能なしで${reps.length}レップのVBT値をゼロから再計算しました。`;
+            }else{
+                status.innerText='高信頼軌跡は再構築できましたが、自動レップ条件を満たす上昇区間を検出できませんでした。必要なら上昇開始・終了を手動指定してください。';
+            }
         }
         renderVbtReviewAnchors();
     }catch(e){
-        console.warn("VBT full review retracking failed",e);
-        if(status)status.innerText="リプレイ再解析の途中で処理できないフレームがありました。アンカー位置を確認して再実行してください。";
+        console.warn('VBT high reliability review retracking failed',e);
+        if(status)status.innerText='高信頼リプレイ再解析を完了できませんでした。アンカー位置を確認し、対象が明確なフレームへアンカーを追加して再実行してください。';
     }finally{
-        await seekVbtReviewForTracking(restoreTime);
-        vbtReviewBusy=false;
-        document.getElementById("vbt-review-correct").disabled=false;
-        document.getElementById("vbt-review-reset").disabled=false;
-        renderVbtReviewAnchors();
-        updateVbtReviewTime();drawVbtReviewOverlay();calculateVbtReviewRep();
+        await seekVbtReviewForTracking(restoreTime);vbtReviewBusy=false;
+        document.getElementById('vbt-review-correct').disabled=false;document.getElementById('vbt-review-reset').disabled=false;
+        renderVbtReviewAnchors();updateVbtReviewTime();drawVbtReviewOverlay();calculateVbtReviewRep();
     }
 }
 document.getElementById("vbt-review-retrack-all").addEventListener("click",rerunVbtReviewAll);
