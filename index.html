@@ -124,9 +124,10 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
     <button class="action-btn btn-green" id="sd-start-btn">スタート合図を鳴らす</button>
 </div>
 
-<!-- 既存：カメラ解析 -->
+<!-- スタート解析：自動解析＋リプレイ手動検証 -->
 <div id="tab-camera-analysis" class="tab-content">
-    <div class="notice">三脚を使用し、選手をできるだけ横から撮影してください。カメラは利用可能な最大フレームレートを自動要求します。</div>
+    <div class="notice"><b>スタート解析：</b>三脚を使用し、選手をできるだけ真横から撮影してください。計測中の自動解析に加え、撮影後のリプレイで<b>動き出しフレーム</b>と<b>飛び出し角度 A</b>を手動検証できます。角度 A は、指定フレームで地面に対する肩中央―腰中央の体幹軸を基準とし、黄色い2点ラインを身体に合わせて補正します。角度の比較では同じ測定タイミングを使ってください。</div>
+    <div class="info" id="start-camera-info">カメラ：確認中 ／ 実映像FPS：--</div>
     <div id="video-container">
         <video id="input-video" playsinline muted></video>
         <canvas id="output-canvas" class="overlay-canvas"></canvas>
@@ -136,8 +137,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
         <button class="action-btn btn-green" id="cam-start-btn">計測を開始</button>
     </div>
     <div class="results-grid">
-        <div class="data-card"><div class="data-label">リアクションタイム</div><div class="data-value" id="reaction-time-display">0.000 <span class="unit">s</span></div></div>
-        <div class="data-card"><div class="data-label">飛び出し角度</div><div class="data-value" id="start-angle-display">0.0 <span class="unit">°</span></div></div>
+        <div class="data-card"><div class="data-label">リアクションタイム</div><div class="data-value" id="reaction-time-display">0.000 <span class="unit">s</span></div><div class="small" id="start-reaction-source">採用：自動解析</div></div>
+        <div class="data-card"><div class="data-label">飛び出し角度 A</div><div class="data-value" id="start-angle-display">0.0 <span class="unit">°</span></div><div class="small" id="start-angle-source">採用：自動解析</div></div>
         <div class="data-card"><div class="data-label">1歩目の距離</div><div class="data-value" id="step-distance-display">0.00 <span class="unit">m</span></div></div>
         <div class="data-card"><div class="data-label">1歩目の接地時間</div><div class="data-value" id="contact-time-display">0.000 <span class="unit">s</span></div></div>
     </div>
@@ -152,6 +153,65 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <div class="checkbox-row"><input type="checkbox" id="cam-set-random" checked onchange="toggleRandom('cam-set-random','cam-set-slider','cam-set-val')"><label for="cam-set-random">ランダムにする (1.5秒〜2.5秒)</label></div>
             <input type="range" id="cam-set-slider" min="1" max="20" step=".5" value="2" disabled oninput="updateValueDisplay('cam-set-val',this.value)">
         </div>
+    </div>
+
+    <div class="settings-card" id="start-review-area" style="display:none;">
+        <h3>スタート解析リプレイ</h3>
+        <div class="info" id="start-review-status">撮影映像を読み込み中です。</div>
+        <div class="notice"><b>検証手順：</b>①号砲後の本当の動き出しフレームを1コマ単位で指定 → ②角度を比較したいフレームを指定 → ③黄色線の2点を身体の体幹軸に合わせます。<br><b>角度測定タイミングの推奨：</b>比較データを蓄積する場合は「前脚がスターティングブロックから離れた最初のフレーム」など、同じルールに固定してください。</div>
+        <div class="preview-wrap" id="start-review-video-wrap" style="position:relative;touch-action:none;">
+            <video id="start-review-video" playsinline muted preload="metadata"></video>
+            <canvas id="start-review-canvas" class="overlay-canvas" style="pointer-events:auto;touch-action:none;"></canvas>
+        </div>
+        <input type="range" id="start-review-seek" min="0" max="1" step="0.001" value="0">
+        <div class="setting-header"><span id="start-review-time-label">0.000 s</span><span class="setting-value" id="start-review-frame-label">Frame --</span></div>
+        <div class="small" id="start-review-fps-label" style="margin-bottom:10px;">記録FPS：-- ／ 号砲：--</div>
+        <div class="button-row" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:10px;">
+            <button class="action-btn btn-gray" id="start-review-prev-frame">◀ 1フレーム</button>
+            <button class="action-btn btn-blue" id="start-review-play">▶ 再生</button>
+            <button class="action-btn btn-gray" id="start-review-next-frame">1フレーム ▶</button>
+        </div>
+
+        <h3 style="margin-top:18px;">リアクションタイム手動補正</h3>
+        <div class="button-row">
+            <button class="action-btn btn-orange" id="start-mark-movement">このフレームを動き出しに設定</button>
+            <button class="action-btn btn-gray" id="start-reset-movement">自動値に戻す</button>
+        </div>
+        <table class="metric-table" style="margin:10px 0 18px;">
+            <tr><td>自動検出</td><td id="start-review-auto-reaction">--</td></tr>
+            <tr><td>手動補正</td><td id="start-review-manual-reaction">未指定</td></tr>
+            <tr><td>自動との差</td><td id="start-review-reaction-diff">--</td></tr>
+            <tr><td><b>採用値</b></td><td id="start-review-final-reaction">--</td></tr>
+        </table>
+
+        <h3>飛び出し角度 A 手動測定</h3>
+        <div class="button-row">
+            <button class="action-btn btn-orange" id="start-mark-angle-frame">このフレームを角度測定フレームに設定</button>
+            <button class="action-btn btn-gray" id="start-reset-angle">手動補正を解除</button>
+        </div>
+        <div class="info" id="start-angle-frame-info">角度測定フレーム：未指定。指定後、動画上の黄色い●起点／●終点をドラッグして体幹軸に合わせてください。</div>
+        <div class="setting-item">
+            <div class="setting-header"><span>飛び出し角度 A</span><span class="setting-value" id="start-angle-slider-value">--</span></div>
+            <input type="range" id="start-angle-slider" min="0" max="90" step="0.1" value="45" disabled>
+            <div class="button-row" style="grid-template-columns:1fr 1fr 1fr;">
+                <button class="action-btn btn-gray" id="start-angle-minus" disabled>−0.1°</button>
+                <button class="action-btn btn-blue" id="start-angle-auto-line" disabled>自動線に戻す</button>
+                <button class="action-btn btn-gray" id="start-angle-plus" disabled>＋0.1°</button>
+            </div>
+        </div>
+        <table class="metric-table" style="margin:10px 0 18px;">
+            <tr><td>初期自動角度</td><td id="start-review-auto-angle-original">--</td></tr>
+            <tr><td>自動角度（比較フレーム）</td><td id="start-review-auto-angle">--</td></tr>
+            <tr><td>手動補正</td><td id="start-review-manual-angle">未指定</td></tr>
+            <tr><td>自動との差</td><td id="start-review-angle-diff">--</td></tr>
+            <tr><td><b>採用値</b></td><td id="start-review-final-angle">--</td></tr>
+        </table>
+
+        <div class="button-row">
+            <button class="action-btn btn-green" id="start-save-validation">今回の検証データを保存</button>
+            <button class="action-btn btn-gray" id="start-reset-review">手動補正をすべて解除</button>
+        </div>
+        <div class="small" id="start-validation-save-status" style="margin-top:8px;">自動値と手動値は別々に保持し、採用値だけで自動値を上書きしません。</div>
     </div>
 </div>
 
@@ -480,22 +540,22 @@ document.getElementById("sd-start-btn").addEventListener("click",()=>{
 });
 
 /* =========================
-   既存：スタートカメラ解析
-   改善点：
-   ・身長と複数の身体セグメント長から動画ごとの px/m を推定
-   ・号砲前のSet姿勢を基準として動作開始を速度＋変位で検出
-   ・1歩目は Heel + Foot Index の足部中心を使用
-   ・1歩目距離は進行方向の水平距離だけを実距離換算
-   ・接地／離地は足部の地面近傍状態から判定
+   スタートカメラ解析
+   ・既存の自動検出ロジックは維持
+   ・計測中の映像をMediaRecorderで保存し、撮影後にリプレイ検証
+   ・requestVideoFrameCallbackの実フレーム時刻を保存し、1フレーム送りに利用
+   ・動き出しを動画フレームから手動補正し、自動値/手動値/採用値を分離
+   ・飛び出し角度Aは同一フレーム上の肩中央－腰中央軸を自動算出し、2点黄色線で手動補正
+   ・フレーム時刻とMediaPipe landmarksを計測中に保持し、検証用サンプルを保存可能
 ========================= */
 const videoElement=document.getElementById("input-video");
 const canvasElement=document.getElementById("output-canvas");
 const canvasCtx=canvasElement.getContext("2d");
 
 let startTime=null,sprintDetected=false,firstStepLanded=false,firstStepLifted=false,contactStartTime=0,startAnklePos=null;
-let legacyCameraStarted=false, legacyCamera=null;
+let legacyCameraStarted=false, legacyCamera=null, startLegacyCameraPromise=null;
 
-/* スタート解析用の追加状態 */
+/* 既存自動解析用状態 */
 let startCalibrationActive=false;
 let startScaleSamples=[];
 let startBaselineHipSamples=[];
@@ -511,25 +571,49 @@ let startFootStates={
     right:{contact:true,hasAirborne:false,groundY:null,lastY:null,lastT:null}
 };
 
+/* リプレイ・検証用状態 */
+let startRecorder=null,startRecorderChunks=[],startRecordingActive=false,startRecordStartPerf=0,startRecordUrl=null,startRecordStopTimer=null;
+let startFrameClock=[],startFrameClockBaseMediaTime=null,startFrameCounter=0,startVideoFrameLoopStarted=false,startCameraFrameTimes=[],startMeasuredCameraFps=0;
+let startPoseFrames=[];
+let startGunCaptureTime=null;
+let startAutoReaction=null,startManualReaction=null,startAutoMovementCaptureTime=null,startAutoMovementFrameIndex=null,startManualMovementCaptureTime=null,startManualMovementFrameIndex=null;
+let startAutoAngleOriginal=null,startAutoAngleOriginalCaptureTime=null,startAutoAngleOriginalFrameIndex=null;
+let startAngleFrameCaptureTime=null,startAngleFrameIndex=null,startAngleReviewAuto=null,startManualAngle=null,startAngleLine=null,startAngleLineAuto=null,startAngleDraggingHandle=null;
+let startReviewTimeScale=1,startReviewReady=false,startLastStopReason="";
+
+const startReviewVideo=document.getElementById("start-review-video");
+const startReviewCanvas=document.getElementById("start-review-canvas");
+const startReviewCtx=startReviewCanvas.getContext("2d");
+const startReviewSeek=document.getElementById("start-review-seek");
+
 const pose=new Pose({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
 pose.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.7,minTrackingConfidence:.7});
 pose.onResults(onResults);
 
 async function startLegacyCamera() {
-    if(legacyCameraStarted) return;
-    try {
+    if(legacyCameraStarted)return;
+    if(startLegacyCameraPromise)return startLegacyCameraPromise;
+    startLegacyCameraPromise=(async()=>{
         await getCameraStream(videoElement,currentFacingMode);
-        legacyCameraStarted=true;
         legacyCamera=new Camera(videoElement,{onFrame:async()=>{await pose.send({image:videoElement});},width:1280,height:720,facingMode:currentFacingMode});
-        /* Camera utilityは既存構成を維持。ストリームは上で確保済みなので、解析だけ開始 */
-        legacyCamera.start();
-    } catch(e) { alert("カメラの起動に失敗しました。HTTPSまたはlocalhostで実行してください。"); }
+        /* Camera utility が最終ストリームを確定するまで待ち、録画映像と解析映像を一致させる */
+        await legacyCamera.start();
+        legacyCameraStarted=true;
+        startVideoFrameTelemetryLoop();
+    })();
+    try{
+        await startLegacyCameraPromise;
+    }catch(e){
+        console.error(e);
+        alert("カメラの起動に失敗しました。HTTPSまたはlocalhostで実行してください。");
+    }finally{
+        startLegacyCameraPromise=null;
+    }
 }
 
 function calculateAngle(shoulder,hip) {
-    const radians=Math.atan2(hip.y-shoulder.y,hip.x-shoulder.x);
-    const angle=Math.abs(radians*180/Math.PI);
-    return Math.min(Math.max(angle,0),90);
+    const dx=Math.abs(hip.x-shoulder.x),dy=Math.abs(hip.y-shoulder.y);
+    return Math.atan2(dy,Math.max(1e-9,dx))*180/Math.PI;
 }
 
 function startMedian(values){
@@ -549,13 +633,6 @@ function startDistPx(a,b){
     return Math.hypot(dx,dy);
 }
 
-/*
-  身長校正：
-  Dempster系の人体計測比率を用い、
-  大腿（約24.5%身長）と下腿（約24.6%身長）を左右から取得。
-  1本の部位だけに依存せず中央値を使うことで、
-  姿勢推定の一時的なブレを抑える。
-*/
 function estimateStartPixelsPerMeter(l,heightM){
     if(!heightM||heightM<=0||!canvasElement.width||!canvasElement.height)return 0;
     const segments=[
@@ -590,19 +667,14 @@ function resetStartFootStates(leftFoot,rightFoot){
     };
 }
 
-/*
-  足部接地判定。
-  地面位置は撮影中に観測された最下点をゆっくり更新し、
-  接地→離地にはヒステリシスを持たせる。
-*/
 function updateStartFootState(side,foot,now,pxPerMeter){
     if(!foot||!pxPerMeter)return null;
     const st=startFootStates[side];
     if(st.groundY===null)st.groundY=foot.y;
     if(foot.y>st.groundY)st.groundY=st.groundY*.85+foot.y*.15;
 
-    const contactBand=Math.max(5,pxPerMeter*.025); // 約2.5cm
-    const liftBand=Math.max(8,pxPerMeter*.050);    // 約5cm
+    const contactBand=Math.max(5,pxPerMeter*.025);
+    const liftBand=Math.max(8,pxPerMeter*.050);
 
     let event=null;
     if(st.contact){
@@ -624,8 +696,174 @@ function updateStartFootState(side,foot,now,pxPerMeter){
     return event;
 }
 
+function startFpsFromTimes(times){
+    if(times.length<5)return 0;
+    const diffs=[];
+    for(let i=1;i<times.length;i++){
+        const d=times[i]-times[i-1];
+        if(d>5&&d<100)diffs.push(d);
+    }
+    const med=startMedian(diffs);
+    return med>0?1000/med:0;
+}
+
+function updateStartCameraInfo(){
+    const track=videoElement.srcObject?.getVideoTracks?.()[0];
+    const settings=track?.getSettings?.()||{};
+    let facing=settings.facingMode||currentFacingMode||"";
+    const cameraName=facing==="user"?"イン":facing==="environment"?"アウト":"確認中";
+    const fps=startMeasuredCameraFps||settings.frameRate||0;
+    document.getElementById("start-camera-info").innerText=`カメラ：${cameraName} ／ 実映像FPS：${fps?fps.toFixed(1):"--"}${fps&&fps<45?"　⚠ 高速動作では1フレームの時間幅が大きくなります。":""}`;
+}
+
+function startVideoFrameTelemetryLoop(){
+    if(startVideoFrameLoopStarted)return;
+    startVideoFrameLoopStarted=true;
+    if(typeof videoElement.requestVideoFrameCallback!=="function"){
+        updateStartCameraInfo();
+        return;
+    }
+    const loop=(now,metadata)=>{
+        startCameraFrameTimes.push(now);
+        while(startCameraFrameTimes.length>90)startCameraFrameTimes.shift();
+        startMeasuredCameraFps=startFpsFromTimes(startCameraFrameTimes);
+
+        if(startRecordingActive){
+            if(startFrameClockBaseMediaTime===null)startFrameClockBaseMediaTime=metadata.mediaTime;
+            const t=Math.max(0,metadata.mediaTime-startFrameClockBaseMediaTime);
+            startFrameClock.push({index:startFrameCounter++,t,perf:now,mediaTime:metadata.mediaTime});
+            if(startFrameClock.length>5000)startFrameClock.shift();
+        }
+        if(!startVideoFrameTelemetryLoop.lastUi||now-startVideoFrameTelemetryLoop.lastUi>500){
+            startVideoFrameTelemetryLoop.lastUi=now;
+            updateStartCameraInfo();
+        }
+        videoElement.requestVideoFrameCallback(loop);
+    };
+    videoElement.requestVideoFrameCallback(loop);
+}
+
+function startCaptureTimeFromPerf(perf){
+    if(startFrameClock.length){
+        let best=startFrameClock[startFrameClock.length-1];
+        for(let i=startFrameClock.length-1;i>=0;i--){
+            const f=startFrameClock[i];
+            if(f.perf<=perf){best=f;break;}
+        }
+        const dt=(perf-best.perf)/1000;
+        const maxLead=startMeasuredCameraFps>0?1.5/startMeasuredCameraFps:.05;
+        return Math.max(0,best.t+Math.max(-.05,Math.min(maxLead,dt)));
+    }
+    return startRecordStartPerf?Math.max(0,(perf-startRecordStartPerf)/1000):0;
+}
+
+function startNearestFrameByCaptureTime(t){
+    if(!startFrameClock.length)return null;
+    let lo=0,hi=startFrameClock.length-1;
+    while(lo<hi){
+        const mid=Math.floor((lo+hi)/2);
+        if(startFrameClock[mid].t<t)lo=mid+1;else hi=mid;
+    }
+    const a=startFrameClock[lo];
+    const b=lo>0?startFrameClock[lo-1]:a;
+    return Math.abs(a.t-t)<Math.abs(b.t-t)?a:b;
+}
+
+function cloneStartLandmarks(l){
+    return l.map(p=>({x:p.x,y:p.y,z:p.z,visibility:p.visibility}));
+}
+
+function recordStartPoseFrame(l,perf){
+    if(!startRecordingActive)return;
+    const t=startCaptureTimeFromPerf(perf);
+    const clock=startNearestFrameByCaptureTime(t);
+    startPoseFrames.push({t,frameIndex:clock?clock.index:null,landmarks:cloneStartLandmarks(l)});
+    if(startPoseFrames.length>2500)startPoseFrames.shift();
+}
+
+function startNearestPoseFrame(t){
+    if(!startPoseFrames.length)return null;
+    let best=startPoseFrames[0],bestD=Math.abs(best.t-t);
+    for(let i=1;i<startPoseFrames.length;i++){
+        const d=Math.abs(startPoseFrames[i].t-t);
+        if(d<bestD){best=startPoseFrames[i];bestD=d;}
+        if(startPoseFrames[i].t>t&&d>bestD)break;
+    }
+    return bestD<.18?best:null;
+}
+
+function startRecorderMime(){
+    if(!window.MediaRecorder)return "";
+    const candidates=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"];
+    return candidates.find(m=>MediaRecorder.isTypeSupported?.(m))||"";
+}
+
+function beginStartRecording(){
+    const stream=videoElement.srcObject;
+    if(!stream||!window.MediaRecorder)return false;
+    try{
+        if(startRecordUrl){URL.revokeObjectURL(startRecordUrl);startRecordUrl=null;}
+        startRecorderChunks=[];
+        startFrameClock=[];
+        startPoseFrames=[];
+        startFrameCounter=0;
+        startFrameClockBaseMediaTime=null;
+        startGunCaptureTime=null;
+        startReviewReady=false;
+        document.getElementById("start-review-area").style.display="none";
+
+        const mime=startRecorderMime();
+        startRecorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+        startRecorder.ondataavailable=e=>{if(e.data&&e.data.size)startRecorderChunks.push(e.data);};
+        startRecorder.onstop=finishStartRecording;
+        startRecordStartPerf=performance.now();
+        startRecordingActive=true;
+        startRecorder.start(100);
+        return true;
+    }catch(e){
+        console.error("Start recorder error",e);
+        startRecordingActive=false;
+        startRecorder=null;
+        return false;
+    }
+}
+
+function stopStartRecording(reason="complete"){
+    if(startRecordStopTimer){clearTimeout(startRecordStopTimer);startRecordStopTimer=null;}
+    startLastStopReason=reason;
+    startRecordingActive=false;
+    if(startRecorder&&startRecorder.state!=="inactive"){
+        try{startRecorder.stop();return;}catch(e){console.error(e);}
+    }
+    const b=document.getElementById("cam-start-btn");
+    b.disabled=false;b.innerText="計測を開始";
+}
+
+function scheduleStartRecordingStop(delay=700,reason="complete"){
+    if(startRecordStopTimer)clearTimeout(startRecordStopTimer);
+    startRecordStopTimer=setTimeout(()=>stopStartRecording(reason),delay);
+}
+
+function finishStartRecording(){
+    const b=document.getElementById("cam-start-btn");
+    b.disabled=false;b.innerText="計測を開始";
+    if(!startRecorderChunks.length)return;
+    const type=startRecorder?.mimeType||"video/webm";
+    const blob=new Blob(startRecorderChunks,{type});
+    startRecordUrl=URL.createObjectURL(blob);
+    startReviewVideo.src=startRecordUrl;
+    document.getElementById("start-review-area").style.display="block";
+    document.getElementById("start-review-status").innerText=startLastStopReason==="timeout"
+        ?"撮影時間上限で終了しました。自動検出が未完了でも、リプレイから動き出しと角度を手動検証できます。"
+        :"撮影終了。自動値を残したまま、リプレイからフレーム単位で手動検証できます。";
+    renderStartReviewValues();
+}
+
 function onResults(results) {
     if(!results.poseLandmarks)return;
+
+    const resultPerf=performance.now();
+    recordStartPoseFrame(results.poseLandmarks,resultPerf);
 
     canvasCtx.save();
     canvasElement.width=videoElement.videoWidth;
@@ -642,7 +880,6 @@ function onResults(results) {
     const heightM=(parseFloat(localStorage.getItem("sprintUserHeight")||localStorage.getItem("userHeight")||"170")/100);
     const scaleNow=estimateStartPixelsPerMeter(l,heightM);
 
-    /* On your marks～Set～号砲直前まで基準値を蓄積 */
     if(startCalibrationActive&&!startTime){
         if(scaleNow>0){
             startScaleSamples.push(scaleNow);
@@ -658,9 +895,8 @@ function onResults(results) {
     }
 
     if(startTime) {
-        const now=performance.now();
+        const now=resultPerf;
 
-        /* 動画ごとの身長スケールを維持。Set時の中央値を優先し、現在値は補助に使う */
         if(scaleNow>0){
             startScaleSamples.push(scaleNow);
             if(startScaleSamples.length>150)startScaleSamples.shift();
@@ -668,20 +904,13 @@ function onResults(results) {
         startPxPerMeter=startMedian(startScaleSamples);
 
         if(!sprintDetected) {
-            const shoulder={
-                x:(ls.x+rs.x)/2,
-                y:(ls.y+rs.y)/2
-            };
-            const hip={
-                x:(lh.x+rh.x)/2,
-                y:(lh.y+rh.y)/2
-            };
+            const shoulder={x:(ls.x+rs.x)/2,y:(ls.y+rs.y)/2};
+            const hip={x:(lh.x+rh.x)/2,y:(lh.y+rh.y)/2};
 
             if(startBaselineHipX!==null&&startPxPerMeter>0){
                 const elapsed=(now-startTime)/1000;
                 const displacementM=Math.abs(hipX-startBaselineHipX)/startPxPerMeter;
 
-                /* 直近の腰位置から約50～120msの水平速度を算出 */
                 startBaselineHipSamples.push(hipX);
                 if(startBaselineHipSamples.length>8)startBaselineHipSamples.shift();
 
@@ -692,10 +921,6 @@ function onResults(results) {
                     horizontalSpeed=Math.abs(hipX-oldest)/startPxPerMeter/approximateDt;
                 }
 
-                /*
-                  号砲直後のノイズを除外し、
-                  変位または水平速度が連続して閾値を超えた時点を動作開始とする。
-                */
                 if(elapsed>.04&&(displacementM>.020||horizontalSpeed>.30)){
                     startMovementCounter++;
                 }else{
@@ -704,11 +929,16 @@ function onResults(results) {
 
                 if(startMovementCounter>=2){
                     sprintDetected=true;
-                    const rt=((now-startTime)/1000).toFixed(3);
-                    document.getElementById("reaction-time-display").innerHTML=rt+' <span class="unit">s</span>';
+                    startAutoReaction=(now-startTime)/1000;
+                    startAutoMovementCaptureTime=startCaptureTimeFromPerf(now);
+                    startAutoMovementFrameIndex=startNearestFrameByCaptureTime(startAutoMovementCaptureTime)?.index??null;
+                    document.getElementById("reaction-time-display").innerHTML=startAutoReaction.toFixed(3)+' <span class="unit">s</span>';
 
-                    const a=calculateAngle(shoulder,hip);
-                    document.getElementById("start-angle-display").innerHTML=a.toFixed(1)+' <span class="unit">°</span>';
+                    startAutoAngleOriginal=calculateAngle(shoulder,hip);
+                    startAutoAngleOriginalCaptureTime=startAutoMovementCaptureTime;
+                    startAutoAngleOriginalFrameIndex=startAutoMovementFrameIndex;
+                    document.getElementById("start-angle-display").innerHTML=startAutoAngleOriginal.toFixed(1)+' <span class="unit">°</span>';
+                    updateStartMainResultSources();
 
                     const delta=hipX-startBaselineHipX;
                     startMovementDirection=delta>=0?1:-1;
@@ -728,6 +958,7 @@ function onResults(results) {
 
                     document.getElementById("video-container").classList.add("detected-frame");
                     setTimeout(()=>document.getElementById("video-container").classList.remove("detected-frame"),400);
+                    renderStartReviewValues();
                 }
             }
         } else if(!firstStepLifted&&startPxPerMeter>0) {
@@ -738,7 +969,6 @@ function onResults(results) {
                 let landingSide=null,landingFoot=null;
                 if(leftEvent==="landing"){landingSide="left";landingFoot=leftFoot;}
                 if(rightEvent==="landing"&&(!landingSide||rightFoot)){
-                    /* 同一フレームなら進行方向により前方の足を優先 */
                     if(!landingSide||
                        (startMovementDirection>0&&rightFoot.x>landingFoot.x)||
                        (startMovementDirection<0&&rightFoot.x<landingFoot.x)){
@@ -760,9 +990,8 @@ function onResults(results) {
                 if(firstEvent==="liftoff"){
                     firstStepLifted=true;
                     document.getElementById("contact-time-display").innerHTML=((now-contactStartTime)/1000).toFixed(3)+' <span class="unit">s</span>';
-                    const b=document.getElementById("cam-start-btn");
-                    b.disabled=false;
-                    b.innerText="計測を開始";
+                    document.getElementById("cam-start-btn").innerText="撮影終了処理中...";
+                    scheduleStartRecordingStop(700,"complete");
                 }
             }
         }
@@ -771,7 +1000,7 @@ function onResults(results) {
     canvasCtx.restore();
 }
 
-document.getElementById("cam-start-btn").addEventListener("click",()=>{
+function resetStartTrialState(){
     startTime=null;
     sprintDetected=false;
     firstStepLanded=false;
@@ -791,9 +1020,23 @@ document.getElementById("cam-start-btn").addEventListener("click",()=>{
     startFirstStepFoot=null;
     resetStartFootStates(null,null);
 
+    startAutoReaction=null;startManualReaction=null;startAutoMovementCaptureTime=null;startAutoMovementFrameIndex=null;startManualMovementCaptureTime=null;startManualMovementFrameIndex=null;
+    startAutoAngleOriginal=null;startAutoAngleOriginalCaptureTime=null;startAutoAngleOriginalFrameIndex=null;
+    startAngleFrameCaptureTime=null;startAngleFrameIndex=null;startAngleReviewAuto=null;startManualAngle=null;startAngleLine=null;startAngleLineAuto=null;startAngleDraggingHandle=null;
+    startReviewTimeScale=1;startReviewReady=false;
+
     ["reaction-time-display","start-angle-display","step-distance-display","contact-time-display"].forEach((id,i)=>{
         document.getElementById(id).innerHTML=["0.000 <span class='unit'>s</span>","0.0 <span class='unit'>°</span>","0.00 <span class='unit'>m</span>","0.000 <span class='unit'>s</span>"][i];
     });
+    updateStartMainResultSources();
+    renderStartReviewValues();
+}
+
+document.getElementById("cam-start-btn").addEventListener("click",async()=>{
+    if(startRecordingActive)return;
+    if(!legacyCameraStarted)await startLegacyCamera();
+    resetStartTrialState();
+    const recordingOk=beginStartRecording();
 
     const btn=document.getElementById("cam-start-btn");
     btn.disabled=true;
@@ -811,7 +1054,6 @@ document.getElementById("cam-start-btn").addEventListener("click",()=>{
             :parseFloat(document.getElementById("cam-set-slider").value)*1000;
 
         setTimeout(()=>{
-            /* 号砲直前のSet姿勢を基準値として固定 */
             startPxPerMeter=startMedian(startScaleSamples);
             startBaselineHipX=startMedian(startBaselineHipSamples);
 
@@ -829,10 +1071,397 @@ document.getElementById("cam-start-btn").addEventListener("click",()=>{
 
             playGunshot();
             startTime=performance.now();
+            startGunCaptureTime=startCaptureTimeFromPerf(startTime);
             btn.innerText="Go! (検知中)";
+            if(recordingOk){
+                if(startRecordStopTimer)clearTimeout(startRecordStopTimer);
+                startRecordStopTimer=setTimeout(()=>stopStartRecording("timeout"),6000);
+            }
+            renderStartReviewValues();
         },d);
     },marks);
 });
+
+/* ---------- スタート解析リプレイ ---------- */
+function startCaptureToPreviewTime(t){return Math.max(0,t*startReviewTimeScale);}
+function startPreviewToCaptureTime(t){return Math.max(0,t/(startReviewTimeScale||1));}
+
+function startRecordedFps(){
+    if(startFrameClock.length>=5){
+        const diffs=[];
+        for(let i=1;i<startFrameClock.length;i++){
+            const d=(startFrameClock[i].t-startFrameClock[i-1].t)*1000;
+            if(d>5&&d<100)diffs.push(d);
+        }
+        const med=startMedian(diffs);
+        if(med>0)return 1000/med;
+    }
+    return startMeasuredCameraFps||30;
+}
+
+function updateStartReviewClock(){
+    if(!startReviewReady)return;
+    const previewTime=startReviewVideo.currentTime||0;
+    const captureTime=startPreviewToCaptureTime(previewTime);
+    const frame=startNearestFrameByCaptureTime(captureTime);
+    startReviewSeek.value=Math.min(parseFloat(startReviewSeek.max)||0,previewTime);
+    const relGun=startGunCaptureTime===null?null:captureTime-startGunCaptureTime;
+    document.getElementById("start-review-time-label").innerText=`動画 ${previewTime.toFixed(3)} s${relGun===null?"":` ／ 号砲から ${relGun>=0?"+":""}${relGun.toFixed(3)} s`}`;
+    document.getElementById("start-review-frame-label").innerText=frame?`Frame ${frame.index}`:"Frame --";
+    drawStartReviewOverlay();
+}
+
+function seekStartReviewCaptureTime(captureTime){
+    if(!startReviewReady)return;
+    startReviewVideo.pause();
+    document.getElementById("start-review-play").innerText="▶ 再生";
+    startReviewVideo.currentTime=Math.max(0,Math.min(startReviewVideo.duration||999,startCaptureToPreviewTime(captureTime)));
+}
+
+function stepStartReviewFrame(delta){
+    if(!startReviewReady)return;
+    startReviewVideo.pause();
+    document.getElementById("start-review-play").innerText="▶ 再生";
+    const t=startPreviewToCaptureTime(startReviewVideo.currentTime||0);
+    const current=startNearestFrameByCaptureTime(t);
+    if(current&&startFrameClock.length){
+        let idx=startFrameClock.findIndex(f=>f.index===current.index);
+        if(idx<0)idx=0;
+        idx=Math.max(0,Math.min(startFrameClock.length-1,idx+delta));
+        seekStartReviewCaptureTime(startFrameClock[idx].t);
+    }else{
+        const fps=startRecordedFps();
+        startReviewVideo.currentTime=Math.max(0,Math.min(startReviewVideo.duration||999,(startReviewVideo.currentTime||0)+delta/fps));
+    }
+}
+
+startReviewVideo.addEventListener("loadedmetadata",()=>{
+    const lastT=startFrameClock.length?startFrameClock[startFrameClock.length-1].t:0;
+    const ratio=lastT>0&&Number.isFinite(startReviewVideo.duration)?startReviewVideo.duration/lastT:1;
+    startReviewTimeScale=(ratio>.85&&ratio<1.15)?ratio:1;
+    startReviewSeek.max=Number.isFinite(startReviewVideo.duration)?startReviewVideo.duration:1;
+    startReviewSeek.value=0;
+    startReviewReady=true;
+    const fps=startRecordedFps();
+    document.getElementById("start-review-fps-label").innerText=`記録FPS：約${fps.toFixed(1)} ／ 1フレーム約 ${(1000/fps).toFixed(1)} ms ／ 号砲：${startGunCaptureTime===null?"--":startCaptureToPreviewTime(startGunCaptureTime).toFixed(3)+" s"}`;
+    const target=startAutoMovementCaptureTime!==null?Math.max(0,startAutoMovementCaptureTime-.15):(startGunCaptureTime||0);
+    seekStartReviewCaptureTime(target);
+    renderStartReviewValues();
+});
+startReviewVideo.addEventListener("timeupdate",updateStartReviewClock);
+startReviewVideo.addEventListener("seeked",updateStartReviewClock);
+startReviewVideo.addEventListener("play",()=>document.getElementById("start-review-play").innerText="⏸ 停止");
+startReviewVideo.addEventListener("pause",()=>document.getElementById("start-review-play").innerText="▶ 再生");
+startReviewSeek.addEventListener("input",()=>{
+    if(!startReviewReady)return;
+    startReviewVideo.pause();
+    startReviewVideo.currentTime=parseFloat(startReviewSeek.value)||0;
+});
+document.getElementById("start-review-prev-frame").addEventListener("click",()=>stepStartReviewFrame(-1));
+document.getElementById("start-review-next-frame").addEventListener("click",()=>stepStartReviewFrame(1));
+document.getElementById("start-review-play").addEventListener("click",()=>{
+    if(!startReviewReady)return;
+    if(startReviewVideo.paused)startReviewVideo.play().catch(()=>{});else startReviewVideo.pause();
+});
+
+function updateStartMainResultSources(){
+    const finalReaction=startManualReaction!==null?startManualReaction:startAutoReaction;
+    if(finalReaction!==null){
+        document.getElementById("reaction-time-display").innerHTML=finalReaction.toFixed(3)+' <span class="unit">s</span>';
+    }
+    document.getElementById("start-reaction-source").innerText=startManualReaction!==null?"採用：手動補正":"採用：自動解析";
+
+    const finalAngle=startManualAngle!==null?startManualAngle:(startAngleFrameCaptureTime!==null&&startAngleReviewAuto!==null?startAngleReviewAuto:startAutoAngleOriginal);
+    if(finalAngle!==null){
+        document.getElementById("start-angle-display").innerHTML=finalAngle.toFixed(1)+' <span class="unit">°</span>';
+    }
+    document.getElementById("start-angle-source").innerText=startManualAngle!==null?"採用：手動補正":startAngleFrameCaptureTime!==null&&startAngleReviewAuto!==null?"採用：自動（指定フレーム）":"採用：自動解析";
+}
+
+function fmtStartSec(v){return v===null||!Number.isFinite(v)?"--":v.toFixed(3)+" s";}
+function fmtStartDeg(v){return v===null||!Number.isFinite(v)?"--":v.toFixed(1)+"°";}
+function fmtStartDiff(v,unit){return v===null||!Number.isFinite(v)?"--":`${v>=0?"+":""}${v.toFixed(unit==="ms"?0:1)} ${unit}`;}
+
+function renderStartReviewValues(){
+    const autoR=startAutoReaction;
+    const manualR=startManualReaction;
+    const finalR=manualR!==null?manualR:autoR;
+    document.getElementById("start-review-auto-reaction").innerText=fmtStartSec(autoR);
+    document.getElementById("start-review-manual-reaction").innerText=manualR===null?"未指定":fmtStartSec(manualR);
+    document.getElementById("start-review-reaction-diff").innerText=autoR!==null&&manualR!==null?fmtStartDiff((manualR-autoR)*1000,"ms"):"--";
+    document.getElementById("start-review-final-reaction").innerText=fmtStartSec(finalR);
+
+    const autoCompare=startAngleFrameCaptureTime!==null?startAngleReviewAuto:startAutoAngleOriginal;
+    const finalA=startManualAngle!==null?startManualAngle:autoCompare;
+    document.getElementById("start-review-auto-angle-original").innerText=fmtStartDeg(startAutoAngleOriginal);
+    document.getElementById("start-review-auto-angle").innerText=fmtStartDeg(autoCompare);
+    document.getElementById("start-review-manual-angle").innerText=startManualAngle===null?"未指定":fmtStartDeg(startManualAngle);
+    document.getElementById("start-review-angle-diff").innerText=autoCompare!==null&&startManualAngle!==null?fmtStartDiff(startManualAngle-autoCompare,"°"):"--";
+    document.getElementById("start-review-final-angle").innerText=fmtStartDeg(finalA);
+
+    if(startAngleFrameCaptureTime===null){
+        document.getElementById("start-angle-frame-info").innerText="角度測定フレーム：未指定。指定後、動画上の黄色い●起点／●終点をドラッグして体幹軸に合わせてください。";
+    }else{
+        document.getElementById("start-angle-frame-info").innerText=`角度測定フレーム：Frame ${startAngleFrameIndex??"--"} / ${startCaptureToPreviewTime(startAngleFrameCaptureTime).toFixed(3)} s。黄色線はこのフレームに固定して測定します。`;
+    }
+    updateStartMainResultSources();
+}
+
+document.getElementById("start-mark-movement").addEventListener("click",()=>{
+    if(!startReviewReady||startGunCaptureTime===null)return;
+    const captureT=startPreviewToCaptureTime(startReviewVideo.currentTime||0);
+    const reaction=captureT-startGunCaptureTime;
+    if(reaction<0){alert("号砲より前のフレームです。号砲後の最初の動き出しフレームを指定してください。");return;}
+    startManualMovementCaptureTime=captureT;
+    startManualMovementFrameIndex=startNearestFrameByCaptureTime(captureT)?.index??null;
+    startManualReaction=reaction;
+    renderStartReviewValues();
+});
+
+document.getElementById("start-reset-movement").addEventListener("click",()=>{
+    startManualReaction=null;startManualMovementCaptureTime=null;startManualMovementFrameIndex=null;
+    renderStartReviewValues();
+});
+
+function startAngleFromLine(line){
+    if(!line)return null;
+    return Math.atan2(Math.abs(line.y2-line.y1),Math.max(1e-9,Math.abs(line.x2-line.x1)))*180/Math.PI;
+}
+
+function startLineFromPose(poseFrame){
+    if(!poseFrame||!poseFrame.landmarks)return null;
+    const l=poseFrame.landmarks,ls=l[11],rs=l[12],lh=l[23],rh=l[24];
+    if(!ls||!rs||!lh||!rh)return null;
+    const w=startReviewVideo.videoWidth||canvasElement.width||1280;
+    const h=startReviewVideo.videoHeight||canvasElement.height||720;
+    return {
+        x1:(lh.x+rh.x)/2*w,
+        y1:(lh.y+rh.y)/2*h,
+        x2:(ls.x+rs.x)/2*w,
+        y2:(ls.y+rs.y)/2*h
+    };
+}
+
+function cloneStartLine(line){return line?{x1:line.x1,y1:line.y1,x2:line.x2,y2:line.y2}:null;}
+
+function setStartAngleLineToAuto(markManual=false){
+    if(!startAngleLineAuto)return;
+    startAngleLine=cloneStartLine(startAngleLineAuto);
+    const a=startAngleFromLine(startAngleLine);
+    document.getElementById("start-angle-slider").value=(a??45).toFixed(1);
+    document.getElementById("start-angle-slider-value").innerText=a===null?"--":a.toFixed(1)+"°";
+    startManualAngle=markManual?a:null;
+    renderStartReviewValues();
+    drawStartReviewOverlay();
+}
+
+function setStartAngleByDegrees(deg,markManual=true){
+    if(!startAngleLine)return;
+    deg=Math.max(0,Math.min(90,parseFloat(deg)||0));
+    const dx=startAngleLine.x2-startAngleLine.x1;
+    const dy=startAngleLine.y2-startAngleLine.y1;
+    const len=Math.max(30,Math.hypot(dx,dy));
+    const dirX=dx>=0?1:-1;
+    const dirY=dy<=0?-1:1;
+    const rad=deg*Math.PI/180;
+    startAngleLine.x2=startAngleLine.x1+dirX*len*Math.cos(rad);
+    startAngleLine.y2=startAngleLine.y1+dirY*len*Math.sin(rad);
+    document.getElementById("start-angle-slider").value=deg.toFixed(1);
+    document.getElementById("start-angle-slider-value").innerText=deg.toFixed(1)+"°";
+    if(markManual)startManualAngle=deg;
+    renderStartReviewValues();
+    drawStartReviewOverlay();
+}
+
+function enableStartAngleControls(enabled){
+    ["start-angle-slider","start-angle-minus","start-angle-auto-line","start-angle-plus"].forEach(id=>document.getElementById(id).disabled=!enabled);
+}
+
+document.getElementById("start-mark-angle-frame").addEventListener("click",()=>{
+    if(!startReviewReady)return;
+    startReviewVideo.pause();
+    const captureT=startPreviewToCaptureTime(startReviewVideo.currentTime||0);
+    startAngleFrameCaptureTime=captureT;
+    startAngleFrameIndex=startNearestFrameByCaptureTime(captureT)?.index??null;
+    const poseFrame=startNearestPoseFrame(captureT);
+    startAngleLineAuto=startLineFromPose(poseFrame);
+    if(poseFrame&&startAngleLineAuto){
+        startAngleReviewAuto=startAngleFromLine(startAngleLineAuto);
+        startAngleLine=cloneStartLine(startAngleLineAuto);
+    }else{
+        startAngleReviewAuto=null;
+        const w=startReviewVideo.videoWidth||1280,h=startReviewVideo.videoHeight||720;
+        const dir=startMovementDirection>=0?1:-1;
+        startAngleLine={x1:w*.48,y1:h*.72,x2:w*.48+dir*w*.18,y2:h*.42};
+        startAngleLineAuto=cloneStartLine(startAngleLine);
+    }
+    startManualAngle=null;
+    enableStartAngleControls(true);
+    const a=startAngleFromLine(startAngleLine);
+    document.getElementById("start-angle-slider").value=(a??45).toFixed(1);
+    document.getElementById("start-angle-slider-value").innerText=a===null?"--":a.toFixed(1)+"°";
+    renderStartReviewValues();
+    drawStartReviewOverlay();
+});
+
+document.getElementById("start-reset-angle").addEventListener("click",()=>{
+    startManualAngle=null;
+    if(startAngleLineAuto)startAngleLine=cloneStartLine(startAngleLineAuto);
+    const a=startAngleFromLine(startAngleLine);
+    if(a!==null){
+        document.getElementById("start-angle-slider").value=a.toFixed(1);
+        document.getElementById("start-angle-slider-value").innerText=a.toFixed(1)+"°";
+    }
+    renderStartReviewValues();
+    drawStartReviewOverlay();
+});
+
+document.getElementById("start-angle-auto-line").addEventListener("click",()=>setStartAngleLineToAuto(false));
+document.getElementById("start-angle-slider").addEventListener("input",e=>setStartAngleByDegrees(e.target.value,true));
+document.getElementById("start-angle-minus").addEventListener("click",()=>{
+    const a=startAngleFromLine(startAngleLine);if(a!==null)setStartAngleByDegrees(a-.1,true);
+});
+document.getElementById("start-angle-plus").addEventListener("click",()=>{
+    const a=startAngleFromLine(startAngleLine);if(a!==null)setStartAngleByDegrees(a+.1,true);
+});
+
+function drawStartReviewOverlay(){
+    if(!startReviewReady)return;
+    const w=startReviewVideo.videoWidth||1,h=startReviewVideo.videoHeight||1;
+    if(startReviewCanvas.width!==w)startReviewCanvas.width=w;
+    if(startReviewCanvas.height!==h)startReviewCanvas.height=h;
+    startReviewCtx.clearRect(0,0,w,h);
+    if(startAngleFrameCaptureTime===null||!startAngleLine)return;
+    const current=startPreviewToCaptureTime(startReviewVideo.currentTime||0);
+    const frameTolerance=1.25/startRecordedFps();
+    if(Math.abs(current-startAngleFrameCaptureTime)>frameTolerance)return;
+
+    const l=startAngleLine;
+    startReviewCtx.save();
+    startReviewCtx.strokeStyle="#ffd400";
+    startReviewCtx.fillStyle="#ffd400";
+    startReviewCtx.lineWidth=Math.max(4,w/280);
+    startReviewCtx.shadowColor="rgba(0,0,0,.75)";
+    startReviewCtx.shadowBlur=4;
+    startReviewCtx.beginPath();startReviewCtx.moveTo(l.x1,l.y1);startReviewCtx.lineTo(l.x2,l.y2);startReviewCtx.stroke();
+    const r=Math.max(9,w/95);
+    for(const [x,y] of [[l.x1,l.y1],[l.x2,l.y2]]){
+        startReviewCtx.beginPath();startReviewCtx.arc(x,y,r,0,Math.PI*2);startReviewCtx.fill();
+        startReviewCtx.strokeStyle="#111";startReviewCtx.lineWidth=Math.max(2,w/600);startReviewCtx.stroke();
+    }
+    const a=startAngleFromLine(l);
+    if(a!==null){
+        startReviewCtx.font=`bold ${Math.max(22,w/36)}px sans-serif`;
+        startReviewCtx.fillStyle="#ffd400";
+        startReviewCtx.fillText(`A ${a.toFixed(1)}°`,Math.min(w-160,(l.x1+l.x2)/2+12),Math.max(35,(l.y1+l.y2)/2-12));
+    }
+    startReviewCtx.restore();
+}
+
+function startReviewPointerToCanvas(e){
+    const rect=startReviewCanvas.getBoundingClientRect();
+    return {x:(e.clientX-rect.left)/rect.width*startReviewCanvas.width,y:(e.clientY-rect.top)/rect.height*startReviewCanvas.height,scale:startReviewCanvas.width/rect.width};
+}
+
+startReviewCanvas.addEventListener("pointerdown",e=>{
+    if(!startAngleLine||startAngleFrameCaptureTime===null)return;
+    const current=startPreviewToCaptureTime(startReviewVideo.currentTime||0);
+    if(Math.abs(current-startAngleFrameCaptureTime)>1.25/startRecordedFps())return;
+    const p=startReviewPointerToCanvas(e),l=startAngleLine;
+    const threshold=34*p.scale;
+    const d1=Math.hypot(p.x-l.x1,p.y-l.y1),d2=Math.hypot(p.x-l.x2,p.y-l.y2);
+    if(Math.min(d1,d2)>threshold)return;
+    startAngleDraggingHandle=d1<=d2?1:2;
+    startReviewCanvas.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+});
+startReviewCanvas.addEventListener("pointermove",e=>{
+    if(!startAngleDraggingHandle||!startAngleLine)return;
+    const p=startReviewPointerToCanvas(e);
+    if(startAngleDraggingHandle===1){startAngleLine.x1=p.x;startAngleLine.y1=p.y;}
+    else{startAngleLine.x2=p.x;startAngleLine.y2=p.y;}
+    const a=startAngleFromLine(startAngleLine);
+    if(a!==null){
+        startManualAngle=a;
+        document.getElementById("start-angle-slider").value=a.toFixed(1);
+        document.getElementById("start-angle-slider-value").innerText=a.toFixed(1)+"°";
+    }
+    renderStartReviewValues();drawStartReviewOverlay();e.preventDefault();
+});
+function endStartAngleDrag(e){
+    if(!startAngleDraggingHandle)return;
+    startAngleDraggingHandle=null;
+    try{startReviewCanvas.releasePointerCapture?.(e.pointerId);}catch(_){ }
+}
+startReviewCanvas.addEventListener("pointerup",endStartAngleDrag);
+startReviewCanvas.addEventListener("pointercancel",endStartAngleDrag);
+
+function resetAllStartReviewCorrections(){
+    startManualReaction=null;startManualMovementCaptureTime=null;startManualMovementFrameIndex=null;
+    startManualAngle=null;startAngleFrameCaptureTime=null;startAngleFrameIndex=null;startAngleReviewAuto=null;startAngleLine=null;startAngleLineAuto=null;
+    enableStartAngleControls(false);
+    document.getElementById("start-angle-slider-value").innerText="--";
+    renderStartReviewValues();drawStartReviewOverlay();
+}
+document.getElementById("start-reset-review").addEventListener("click",resetAllStartReviewCorrections);
+
+function startValidationPoseWindow(){
+    const centers=[startAutoMovementCaptureTime,startManualMovementCaptureTime,startAngleFrameCaptureTime].filter(v=>v!==null&&Number.isFinite(v));
+    if(!centers.length)return [];
+    const keyIdx=[11,12,23,24,25,26,27,28,29,30,31,32];
+    const selected=startPoseFrames.filter(f=>centers.some(c=>Math.abs(f.t-c)<=.20)).slice(0,80);
+    return selected.map(f=>({
+        t:+f.t.toFixed(4),frameIndex:f.frameIndex,
+        landmarks:keyIdx.map(i=>{
+            const p=f.landmarks[i];
+            return [i,+p.x.toFixed(5),+p.y.toFixed(5),+p.z.toFixed(5),+(p.visibility??0).toFixed(3)];
+        })
+    }));
+}
+
+function saveStartValidationRecord(){
+    const autoCompare=startAngleFrameCaptureTime!==null?startAngleReviewAuto:startAutoAngleOriginal;
+    const finalReaction=startManualReaction!==null?startManualReaction:startAutoReaction;
+    const finalAngle=startManualAngle!==null?startManualAngle:autoCompare;
+    const record={
+        version:"start-review-v1",
+        savedAt:new Date().toISOString(),
+        recordedFps:+startRecordedFps().toFixed(2),
+        gunTime:startGunCaptureTime===null?null:+startGunCaptureTime.toFixed(4),
+        autoReaction:startAutoReaction===null?null:+startAutoReaction.toFixed(4),
+        manualReaction:startManualReaction===null?null:+startManualReaction.toFixed(4),
+        finalReaction:finalReaction===null?null:+finalReaction.toFixed(4),
+        reactionErrorMs:startAutoReaction!==null&&startManualReaction!==null?+((startManualReaction-startAutoReaction)*1000).toFixed(1):null,
+        autoMovementFrame:startAutoMovementFrameIndex,
+        manualMovementFrame:startManualMovementFrameIndex,
+        autoAngleOriginal:startAutoAngleOriginal===null?null:+startAutoAngleOriginal.toFixed(2),
+        autoAngleAtReviewFrame:startAngleReviewAuto===null?null:+startAngleReviewAuto.toFixed(2),
+        manualAngle:startManualAngle===null?null:+startManualAngle.toFixed(2),
+        finalAngle:finalAngle===null?null:+finalAngle.toFixed(2),
+        angleErrorDeg:autoCompare!==null&&startManualAngle!==null?+(startManualAngle-autoCompare).toFixed(2):null,
+        autoAngleFrame:startAutoAngleOriginalFrameIndex,
+        reviewAngleFrame:startAngleFrameIndex,
+        angleLine:startAngleLine&&startReviewVideo.videoWidth&&startReviewVideo.videoHeight?{
+            x1:+(startAngleLine.x1/startReviewVideo.videoWidth).toFixed(5),y1:+(startAngleLine.y1/startReviewVideo.videoHeight).toFixed(5),
+            x2:+(startAngleLine.x2/startReviewVideo.videoWidth).toFixed(5),y2:+(startAngleLine.y2/startReviewVideo.videoHeight).toFixed(5)
+        }:null,
+        autoDetectionRules:{minAfterGunMs:40,hipDisplacementM:.020,horizontalSpeedMps:.30,consecutiveFrames:2},
+        validationPoseWindow:startValidationPoseWindow()
+    };
+    try{
+        const key="startAnalysisValidationHistory";
+        let history=[];
+        try{history=JSON.parse(localStorage.getItem(key)||"[]");if(!Array.isArray(history))history=[];}catch(_){history=[];}
+        history.push(record);
+        if(history.length>200)history=history.slice(-200);
+        localStorage.setItem(key,JSON.stringify(history));
+        document.getElementById("start-validation-save-status").innerText=`保存しました。検証データ ${history.length}件（この端末のローカル保存）。自動値は手動値で上書きしていません。`;
+    }catch(e){
+        console.error(e);
+        document.getElementById("start-validation-save-status").innerText="保存に失敗しました。端末のストレージ容量またはブラウザ設定を確認してください。";
+    }
+}
+document.getElementById("start-save-validation").addEventListener("click",saveStartValidationRecord);
 
 /* =========================
    VBT
