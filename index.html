@@ -322,7 +322,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
         <div id="start-offline-workspace" style="display:none;">
             <div class="preview-wrap offline-sticky-preview offline-sticky-enabled offline-zoom-viewport" id="start-offline-video-wrap" style="position:relative;touch-action:none;margin-top:12px;">
                 <div class="offline-zoom-stage" id="start-offline-zoom-stage">
-                    <video id="start-offline-video" playsinline muted preload="metadata"></video>
+                    <video id="start-offline-video" playsinline muted preload="auto"></video>
                     <canvas id="start-offline-canvas" class="overlay-canvas" style="pointer-events:auto;touch-action:none;"></canvas>
                 </div>
                 <div class="offline-zoom-crosshair" id="start-offline-crosshair" aria-hidden="true"></div>
@@ -1040,7 +1040,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
         <div id="sprint-offline-workspace" style="display:none;">
             <div class="preview-wrap offline-sticky-preview offline-sticky-enabled offline-zoom-viewport" id="sprint-offline-video-wrap" style="position:relative;touch-action:none;margin-top:12px;">
                 <div class="offline-zoom-stage" id="sprint-offline-zoom-stage">
-                    <video id="sprint-offline-video" playsinline muted preload="metadata"></video>
+                    <video id="sprint-offline-video" playsinline muted preload="auto"></video>
                     <canvas id="sprint-offline-canvas" class="overlay-canvas" style="pointer-events:auto;touch-action:none;"></canvas>
                 </div>
                 <div class="offline-zoom-crosshair" id="sprint-offline-crosshair" aria-hidden="true"></div>
@@ -3292,16 +3292,49 @@ function startOfflineResetAnalysisState(){
     sceneResetPoints("offline",true);offlineZoomReset("start");const startEvalQ=document.getElementById("start-offline-evaluation-quality");if(startEvalQ)startEvalQ.innerText="解析待機中";document.getElementById("start-offline-progress").style.width="0%";document.getElementById("start-offline-analysis-status").innerText="解析待機中";document.getElementById("start-offline-step-results").innerText="未解析";document.getElementById("start-offline-clearance-posture").innerText="未解析";document.getElementById("start-offline-compare-table").innerText="比較データなし";startOfflineRenderTrackingUi();startOfflineRenderResults();startOfflineRenderQuickContactUi();startOfflineUpdateMarkerButtons();drawStartOfflineOverlay();
 }
 
+function offlineVideoErrorText(video){
+    const e=video?.error;if(!e)return "";const map={1:"動画読み込みが中断されました",2:"動画データの読み込みに失敗しました",3:"動画のデコードに失敗しました",4:"このブラウザが動画形式またはコーデックに対応していません"};return `${map[e.code]||`動画エラー（code ${e.code}）`}${e.message?`：${e.message}`:""}`;
+}
+function offlineWaitVideoEvent(video,names,timeoutMs=8000,readyTest=null){
+    if(readyTest&&readyTest())return Promise.resolve("ready");
+    return new Promise((resolve,reject)=>{let settled=false;const finish=(ok,value)=>{if(settled)return;settled=true;clearTimeout(timer);for(const n of names)video.removeEventListener(n,onOk);video.removeEventListener("error",onError);ok?resolve(value):reject(value);},onOk=e=>finish(true,e.type),onError=()=>finish(false,new Error(offlineVideoErrorText(video)||"動画を読み込めません")),timer=setTimeout(()=>finish(false,new Error("動画フレームの準備がタイムアウトしました")),timeoutMs);for(const n of names)video.addEventListener(n,onOk,{once:false});video.addEventListener("error",onError,{once:true});});
+}
+function offlineWaitPresentedFrame(video,timeoutMs=1800){
+    return new Promise(resolve=>{let done=false,timer=null,cbId=null;const finish=ok=>{if(done)return;done=true;if(timer)clearTimeout(timer);if(cbId!==null&&typeof video.cancelVideoFrameCallback==="function")try{video.cancelVideoFrameCallback(cbId);}catch(_){ }resolve(ok);};timer=setTimeout(()=>finish(false),timeoutMs);if(typeof video.requestVideoFrameCallback==="function"){try{cbId=video.requestVideoFrameCallback(()=>finish(true));}catch(_){requestAnimationFrame(()=>requestAnimationFrame(()=>finish(true)));}}else requestAnimationFrame(()=>requestAnimationFrame(()=>finish(true)));});
+}
+async function offlinePrepareImportedVideo(video,objectUrl,file,infoEl){
+    video.pause();video.muted=true;video.playsInline=true;video.preload="auto";video.removeAttribute("poster");video.src=objectUrl;video.load();
+    try{
+        if(video.readyState<1)await offlineWaitVideoEvent(video,["loadedmetadata"],12000,()=>video.readyState>=1);
+        if(video.error)throw new Error(offlineVideoErrorText(video));
+        if(!video.videoWidth||!video.videoHeight||!Number.isFinite(video.duration))throw new Error("動画の映像情報を取得できませんでした");
+        const d=Math.max(0,video.duration||0),warm=d>.03?Math.min(.012,d*.05):d>0?Math.min(d*.5,.006):0;
+        if(warm>0&&Math.abs((video.currentTime||0)-warm)>.0001){
+            const seekPromise=offlineWaitVideoEvent(video,["seeked","loadeddata","canplay"],5000,()=>video.readyState>=2&&Math.abs((video.currentTime||0)-warm)<.02).catch(()=>null);try{video.currentTime=warm;}catch(_){ }await seekPromise;
+        }
+        if(video.readyState<2)await offlineWaitVideoEvent(video,["loadeddata","canplay"],6000,()=>video.readyState>=2).catch(()=>null);
+        if(video.readyState<2&&!video.error){
+            try{const pp=video.play();if(pp&&typeof pp.then==="function")await Promise.race([pp.catch(()=>null),new Promise(r=>setTimeout(r,1200))]);await offlineWaitVideoEvent(video,["playing","timeupdate","loadeddata","canplay"],1800,()=>video.readyState>=2).catch(()=>null);}catch(_){ }finally{video.pause();}
+        }
+        if(video.error)throw new Error(offlineVideoErrorText(video));
+        if(video.readyState<2)throw new Error("映像フレームをデコードできませんでした。MP4でもHEVC/H.265などブラウザ非対応コーデックの場合があります。");
+        await offlineWaitPresentedFrame(video,1800);video.pause();
+        return true;
+    }catch(err){
+        video.pause();const detail=err?.message||"動画を読み込めません";if(infoEl){infoEl.innerHTML=`<b style="color:#c53030;">⚠ 動画の表示準備に失敗しました</b><br>${detail}<br><span class="small">ファイル：${file?.name||"--"} ／ MIME：${file?.type||"不明"}</span>`;}throw err;
+    }
+}
+
 async function startOfflineLoadSelectedFile(){
-    if(!startOfflineFiles.length)return;const idx=parseInt(startOfflineFileSelect.value,10);if(!Number.isFinite(idx))return;startOfflineFileIndex=idx;const file=startOfflineFiles[idx];
-    startOfflineSuspendLiveCamera();if(startOfflineUrl)URL.revokeObjectURL(startOfflineUrl);startOfflineUrl=URL.createObjectURL(file);startOfflineVideo.src=startOfflineUrl;document.getElementById("start-offline-workspace").style.display="block";document.getElementById("start-offline-file-info").innerText=`読み込み中：${file.name}`;startOfflineResetAnalysisState();
-    await new Promise((resolve,reject)=>{const ok=()=>{startOfflineVideo.removeEventListener("loadedmetadata",ok);startOfflineVideo.removeEventListener("error",bad);resolve();},bad=()=>{startOfflineVideo.removeEventListener("loadedmetadata",ok);startOfflineVideo.removeEventListener("error",bad);reject(new Error("動画を読み込めません"));};startOfflineVideo.addEventListener("loadedmetadata",ok,{once:true});startOfflineVideo.addEventListener("error",bad,{once:true});});
+    if(!startOfflineFiles.length)return;const idx=parseInt(startOfflineFileSelect.value,10);if(!Number.isFinite(idx))return;startOfflineFileIndex=idx;const file=startOfflineFiles[idx],infoEl=document.getElementById("start-offline-file-info");
+    startOfflineSuspendLiveCamera();if(startOfflineUrl)URL.revokeObjectURL(startOfflineUrl);startOfflineUrl=URL.createObjectURL(file);document.getElementById("start-offline-workspace").style.display="block";infoEl.innerText=`読み込み中：${file.name} ／ 映像フレームを準備しています…`;startOfflineResetAnalysisState();
+    await offlinePrepareImportedVideo(startOfflineVideo,startOfflineUrl,file,infoEl);
     startOfflineCanvas.width=startOfflineVideo.videoWidth||1280;startOfflineCanvas.height=startOfflineVideo.videoHeight||720;startOfflineRangeStart=0;startOfflineRangeEnd=startOfflineVideo.duration||0;startOfflineRangeStartSelected=false;startOfflineRangeEndSelected=false;startOfflineSeek.max=startOfflineVideo.duration||1;
     const parsed=await startOfflineExtractIsoFrameTimes(file);const fpsSel=document.getElementById("start-offline-source-fps");
     if(parsed?.times?.length){startOfflineFrameTimes=parsed.times.filter(t=>t<=(startOfflineVideo.duration||Infinity)+.05);startOfflineParsedFps=parsed.fps;startOfflineFrameTimesSource=parsed.source;fpsSel.value="auto";document.getElementById("start-offline-source-fps-label").innerText=`自動 ${parsed.fps.toFixed(2)} fps`;}
     else{startOfflineParsedFps=0;startOfflineBuildFallbackFrameTimes(30);document.getElementById("start-offline-source-fps-label").innerText="自動取得不可 → 30fps仮定";}
-    document.getElementById("start-offline-file-info").innerText=`${file.name} ／ ${(file.size/1024/1024).toFixed(1)}MB ／ ${startOfflineVideo.videoWidth}×${startOfflineVideo.videoHeight} ／ ${startOfflineVideo.duration.toFixed(3)}s${parsed?` ／ ${parsed.source}`:" ／ FPSは手動確認推奨"}`;
-    startOfflineUpdateRangeInfo();startOfflineUpdateRangeButtons();startOfflineUpdateQualityWarning();startOfflineSyncBodyUi();await startOfflineSeekToFrame(0);startOfflineUpdateFrameUi();
+    infoEl.innerText=`${file.name} ／ ${(file.size/1024/1024).toFixed(1)}MB ／ ${startOfflineVideo.videoWidth}×${startOfflineVideo.videoHeight} ／ ${startOfflineVideo.duration.toFixed(3)}s${parsed?` ／ ${parsed.source}`:" ／ FPSは手動確認推奨"}`;
+    startOfflineUpdateRangeInfo();startOfflineUpdateRangeButtons();startOfflineUpdateQualityWarning();startOfflineSyncBodyUi();await startOfflineSeekToFrame(0);await offlineWaitPresentedFrame(startOfflineVideo,1200);startOfflineUpdateFrameUi();
 }
 
 function startOfflineUpdateRangeInfo(){
@@ -6930,12 +6963,12 @@ function sprintOfflineSuspendLiveCamera(){
     if(sprintRunning)return false;const stream=sprintVideo.srcObject||sprintStream;if(stream?.getTracks)stream.getTracks().forEach(t=>t.stop());sprintVideo.srcObject=null;sprintStream=null;cameraStreams[sprintVideo.id]=null;return true;
 }
 async function sprintOfflineLoadSelectedFile(){
-    if(!sprintOfflineFiles.length)return;if(sprintRunning){alert("リアルタイムSPRINTPEAK解析中です。解析を終了してから動画を開いてください。");return;}const idx=parseInt(sprintOfflineFileSelect.value,10);if(!Number.isFinite(idx))return;sprintOfflineFileIndex=idx;const file=sprintOfflineFiles[idx];
-    sprintOfflineSuspendLiveCamera();if(sprintOfflineUrl)URL.revokeObjectURL(sprintOfflineUrl);sprintOfflineUrl=URL.createObjectURL(file);sprintOfflineVideo.src=sprintOfflineUrl;document.getElementById("sprint-offline-workspace").style.display="block";document.getElementById("sprint-offline-file-info").innerText=`読み込み中：${file.name}`;sceneResetPoints("sprintoffline",true);sprintOfflineResetResults();
-    await new Promise((resolve,reject)=>{const ok=()=>{sprintOfflineVideo.removeEventListener("loadedmetadata",ok);sprintOfflineVideo.removeEventListener("error",bad);resolve();},bad=()=>{sprintOfflineVideo.removeEventListener("loadedmetadata",ok);sprintOfflineVideo.removeEventListener("error",bad);reject(new Error("動画を読み込めません"));};sprintOfflineVideo.addEventListener("loadedmetadata",ok,{once:true});sprintOfflineVideo.addEventListener("error",bad,{once:true});});
+    if(!sprintOfflineFiles.length)return;if(sprintRunning){alert("リアルタイムSPRINTPEAK解析中です。解析を終了してから動画を開いてください。");return;}const idx=parseInt(sprintOfflineFileSelect.value,10);if(!Number.isFinite(idx))return;sprintOfflineFileIndex=idx;const file=sprintOfflineFiles[idx],infoEl=document.getElementById("sprint-offline-file-info");
+    sprintOfflineSuspendLiveCamera();if(sprintOfflineUrl)URL.revokeObjectURL(sprintOfflineUrl);sprintOfflineUrl=URL.createObjectURL(file);document.getElementById("sprint-offline-workspace").style.display="block";infoEl.innerText=`読み込み中：${file.name} ／ 映像フレームを準備しています…`;sceneResetPoints("sprintoffline",true);sprintOfflineResetResults();
+    await offlinePrepareImportedVideo(sprintOfflineVideo,sprintOfflineUrl,file,infoEl);
     sprintOfflineCanvas.width=sprintOfflineVideo.videoWidth||1280;sprintOfflineCanvas.height=sprintOfflineVideo.videoHeight||720;sprintOfflineRangeStart=0;sprintOfflineRangeEnd=sprintOfflineVideo.duration||0;sprintOfflineRangeStartSelected=false;sprintOfflineRangeEndSelected=false;sprintOfflineSeek.max=sprintOfflineVideo.duration||1;
     const parsed=await startOfflineExtractIsoFrameTimes(file),fpsSel=document.getElementById("sprint-offline-source-fps");if(parsed?.times?.length){sprintOfflineFrameTimes=parsed.times.filter(t=>t<=(sprintOfflineVideo.duration||Infinity)+.05);sprintOfflineParsedFps=parsed.fps;sprintOfflineFrameTimesSource=parsed.source;fpsSel.value="auto";document.getElementById("sprint-offline-source-fps-label").innerText=`自動 ${parsed.fps.toFixed(2)} fps`;}else{sprintOfflineParsedFps=0;sprintOfflineBuildFallbackFrameTimes(30);document.getElementById("sprint-offline-source-fps-label").innerText="自動取得不可 → 30fps仮定";}
-    document.getElementById("sprint-offline-file-info").innerText=`${file.name} ／ ${(file.size/1024/1024).toFixed(1)}MB ／ ${sprintOfflineVideo.videoWidth}×${sprintOfflineVideo.videoHeight} ／ ${sprintOfflineVideo.duration.toFixed(3)}s${parsed?` ／ ${parsed.source}`:" ／ FPSは手動確認推奨"}`;sprintOfflineUpdateRangeInfo();sprintOfflineUpdateQualityWarning();sceneRenderStatus("sprintoffline",null);await sprintOfflineSeekToFrame(0);sprintOfflineUpdateFrameUi();
+    infoEl.innerText=`${file.name} ／ ${(file.size/1024/1024).toFixed(1)}MB ／ ${sprintOfflineVideo.videoWidth}×${sprintOfflineVideo.videoHeight} ／ ${sprintOfflineVideo.duration.toFixed(3)}s${parsed?` ／ ${parsed.source}`:" ／ FPSは手動確認推奨"}`;sprintOfflineUpdateRangeInfo();sprintOfflineUpdateQualityWarning();sceneRenderStatus("sprintoffline",null);await sprintOfflineSeekToFrame(0);await offlineWaitPresentedFrame(sprintOfflineVideo,1200);sprintOfflineUpdateFrameUi();
 }
 function sprintOfflineBuildPositions(){
     sprintOfflinePositions=[];sprintOfflineSpeedFrames=[];const axis=sceneGroundAxis("sprintoffline");
