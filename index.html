@@ -8043,13 +8043,19 @@ function startGroundRenderUi(message="",isError=false){
 function startGroundEnhanceSequenceTable(){
     if(startGroundEnhancingTable)return;const tableRoot=document.getElementById("start-offline-sequence-table");if(!tableRoot)return;const table=tableRoot.querySelector("table");if(!table)return;startGroundEnhancingTable=true;
     try{
-        const head=table.querySelector("tr th:last-child");if(head)head.textContent="確認 / 修正";
-        const rows=[...table.querySelectorAll("tr")].slice(1);for(const tr of rows){const view=tr.querySelector("[data-mandatory-start-contact]");if(!view)continue;const i=parseInt(view.dataset.mandatoryStartContact,10),td=tr.lastElementChild;tr.classList.toggle("start-sequence-editing",i===startSequenceEditIndex);if(!td||td.querySelector("[data-start-seq-edit]"))continue;const wrap=document.createElement("span");wrap.className="start-sequence-row-actions";wrap.innerHTML=`<button type="button" class="start-sequence-mini edit" data-start-seq-edit="${i}">修正</button><button type="button" class="start-sequence-mini delete" data-start-seq-delete="${i}">削除</button>`;td.appendChild(wrap);if(i===startSequenceEditIndex)tr.classList.add("start-sequence-editing");}
+        /* 2026-09-04 freeze fix: DOMは値が変わる時だけ更新する。 */
+        const head=table.querySelector("tr th:last-child");if(head&&head.textContent!=="確認 / 修正")head.textContent="確認 / 修正";
+        const rows=[...table.querySelectorAll("tr")].slice(1);for(const tr of rows){const view=tr.querySelector("[data-mandatory-start-contact]");if(!view)continue;const i=parseInt(view.dataset.mandatoryStartContact,10),td=tr.lastElementChild;const editing=i===startSequenceEditIndex;if(tr.classList.contains("start-sequence-editing")!==editing)tr.classList.toggle("start-sequence-editing",editing);if(!td||td.querySelector("[data-start-seq-edit]"))continue;const wrap=document.createElement("span");wrap.className="start-sequence-row-actions";wrap.innerHTML=`<button type="button" class="start-sequence-mini edit" data-start-seq-edit="${i}">修正</button><button type="button" class="start-sequence-mini delete" data-start-seq-delete="${i}">削除</button>`;td.appendChild(wrap);}
     }finally{startGroundEnhancingTable=false;}
 }
 
-/* Table is rebuilt by the mandatory-confirmation layer, so re-attach row actions after each rebuild. */
-const startGroundTable=document.getElementById("start-offline-sequence-table");if(startGroundTable)new MutationObserver(()=>{if(!startGroundEnhancingTable)queueMicrotask(()=>{startGroundEnhanceSequenceTable();startGroundRenderUi();});}).observe(startGroundTable,{childList:true,subtree:true});
+/*
+  2026-09-04 freeze fix:
+  接地系列テーブル自身を監視する MutationObserver は廃止。
+  mandatoryRenderStartSequence() を含む既存の startOfflineRenderResults() 完了後に
+  startGroundEnhanceSequenceTable() を明示実行するため、自己再帰DOM更新は不要。
+*/
+const startGroundTable=document.getElementById("start-offline-sequence-table");
 startGroundTable?.addEventListener("click",e=>{const edit=e.target.closest("[data-start-seq-edit]"),del=e.target.closest("[data-start-seq-delete]");if(edit){e.preventDefault();e.stopPropagation();startGroundStartEdit(parseInt(edit.dataset.startSeqEdit,10));}else if(del){e.preventDefault();e.stopPropagation();const i=parseInt(del.dataset.startSeqDelete,10),c=startOfflineContacts?.[i];if(c&&confirm(`C${i+1}（${startGroundSideText(c.side)} / F${startGroundFrameForContact(c)??"--"}）を接地系列から削除しますか？`))startGroundDeleteContact(i);}});
 
 /* Manual GROUND tap capture takes priority over angle-line dragging / landmark taps. */
