@@ -1,55 +1,51 @@
-const CACHE_NAME = 'sprint-timer-v2';
-const ASSETS = ['index.html', 'manifest.json'];
-
-/*
-  Sprint Timer Pro Service Worker
-  更新対策のみ：
-  ・インストール時に最新ファイルを取得
-  ・新しいService Workerを待機させず即時有効化
-  ・古いキャッシュを削除
-  ・index.html / ナビゲーションは Network First
-  ・オフライン時のみキャッシュへフォールバック
-  ・manifest.json は Network First
-  ・HTML側からの SKIP_WAITING メッセージにも対応
+/* Sprint Timer Pro Service Worker
+   2026-09-04 update
+   - index.html / manifest.json / navigation: Network First
+   - Service Worker update cache bypass is handled by index.html (updateViaCache:'none')
+   - new worker activates immediately (skipWaiting + clients.claim)
+   - only Sprint Timer Pro legacy caches are removed; other GitHub Pages apps are untouched
 */
 
+const CACHE_NAME = 'sprint-timer-pro-v3-20260904';
+const LEGACY_CACHE_NAMES = new Set([
+  'sprint-timer-v2'
+]);
+
+const scopeUrl = new URL(self.registration.scope);
+const CORE_ASSETS = [
+  new URL('./', scopeUrl).toString(),
+  new URL('./index.html', scopeUrl).toString(),
+  new URL('./manifest.json', scopeUrl).toString()
+];
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(
-        ASSETS.map((url) => new Request(url, { cache: 'reload' }))
-      ))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    for (const url of CORE_ASSETS) {
+      try {
+        const response = await fetch(new Request(url, { cache: 'reload' }));
+        if (response && response.ok) {
+          await cache.put(url, response.clone());
+        }
+      } catch (_) {
+        // One unavailable asset must not prevent the new Service Worker from installing.
+      }
+    }
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key))
-        )
-      )
-      .then(() => self.clients.claim())
-      .then(() =>
-        self.clients.matchAll({
-          type: 'window',
-          includeUncontrolled: true
-        })
-      )
-      .then((clients) =>
-        Promise.all(
-          clients.map((client) => {
-            if ('navigate' in client) {
-              return client.navigate(client.url);
-            }
-          })
-        )
-      )
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => {
+      const isThisAppsOldCache =
+        LEGACY_CACHE_NAMES.has(key) ||
+        (key.startsWith('sprint-timer-pro-') && key !== CACHE_NAME);
+      return isThisAppsOldCache ? caches.delete(key) : Promise.resolve(false);
+    }));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('message', (event) => {
@@ -58,103 +54,57 @@ self.addEventListener('message', (event) => {
   }
 });
 
+async function networkFirst(request, fallbackToIndex = false) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request, { cache: 'no-store' });
+    if (response && response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (_) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    if (fallbackToIndex) {
+      const indexUrl = new URL('./index.html', scopeUrl).toString();
+      const rootUrl = new URL('./', scopeUrl).toString();
+      const fallback = await cache.match(indexUrl) || await cache.match(rootUrl);
+      if (fallback) return fallback;
+    }
+    return Response.error();
+  }
+}
+
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const request = event.request;
+  if (request.method !== 'GET') return;
 
-  const requestUrl = new URL(event.request.url);
+  const requestUrl = new URL(request.url);
 
-  /*
-    MediaPipeなど外部CDNの通信は
-    Service Worker側ではキャッシュ制御しない
-  */
-  if (requestUrl.origin !== self.location.origin) {
-    return;
-  }
+  // MediaPipe/CDN and other cross-origin resources are left to the browser.
+  if (requestUrl.origin !== self.location.origin) return;
 
-  const isNavigation = event.request.mode === 'navigate';
+  const isNavigation = request.mode === 'navigate';
+  const isIndex = requestUrl.pathname.endsWith('/') || requestUrl.pathname.endsWith('/index.html');
+  const isManifest = requestUrl.pathname.endsWith('/manifest.json');
 
-  const isIndex =
-    requestUrl.pathname.endsWith('/') ||
-    requestUrl.pathname.endsWith('/index.html');
-
-  const isManifest =
-    requestUrl.pathname.endsWith('/manifest.json');
-
-  /*
-    index.html / ページ遷移 / manifest.json
-    → Network First
-
-    ネット接続時：
-    常にGitHub上の最新版を取得
-
-    オフライン時：
-    保存済みキャッシュを使用
-  */
   if (isNavigation || isIndex || isManifest) {
-    event.respondWith(
-      fetch(event.request, {
-        cache: 'no-store'
-      })
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, copy);
-              });
-          }
-
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request);
-
-          if (cached) {
-            return cached;
-          }
-
-          /*
-            URLが / の場合でも
-            index.htmlをオフライン用として返せるようにする
-          */
-          if (isNavigation || isIndex) {
-            const fallback =
-              await caches.match('index.html') ||
-              await caches.match('./index.html') ||
-              await caches.match('/');
-
-            if (fallback) {
-              return fallback;
-            }
-          }
-
-          return Response.error();
-        })
-    );
-
+    event.respondWith(networkFirst(request, isNavigation || isIndex));
     return;
   }
 
-  /*
-    その他の同一オリジンGET通信もNetwork First。
-    ネットワーク取得成功時はキャッシュ更新、
-    失敗時のみキャッシュを使用。
-  */
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response && response.ok) {
-          const copy = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, copy);
-            });
-        }
-
-        return response;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  // Same-origin static files: network first, cached copy only as an offline fallback.
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    try {
+      const response = await fetch(request);
+      if (response && response.ok) {
+        await cache.put(request, response.clone());
+      }
+      return response;
+    } catch (_) {
+      return (await cache.match(request)) || Response.error();
+    }
+  })());
 });
