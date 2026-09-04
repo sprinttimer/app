@@ -7647,5 +7647,291 @@ setTimeout(()=>{scienceStartCheck();scienceSprintCheck(typeof sprintOfflineLastR
 })();
 </script>
 
+<script>
+/* ============================================================
+   2026-09-04 Start Offline Ground / Contact Sequence Guard V4
+   Requested update:
+   1) GROUND 2-point manual designation
+   2) low auto-GROUND confidence warning
+   3) contact-only fast recalculation after GROUND change
+   4) stop AUTO contact detection after athlete/Pose loss
+   5) require contact -> liftoff -> airborne -> re-contact state transition
+   6) contact-sequence add / frame-correct / delete controls
+
+   Scope:
+   - Start offline video analysis only.
+   - Existing MediaPipe inference, VBT, MyJump, SPRINTPEAK and saved formats are unchanged.
+   - Manual events remain authoritative and may override automatic guards.
+============================================================ */
+(()=>{
+"use strict";
+
+let startGroundAutoModel=null;
+let startGroundManualPoints=[];
+let startGroundPendingPoints=[];
+let startGroundMode="auto";
+let startGroundAutoValidEnd=Infinity;
+let startGroundGuardStats={offscreenRejected:0,stateRejected:0,duplicateRejected:0,autoEndReason:"",validEnd:Infinity};
+let startSequenceEditIndex=null;
+let startGroundEnhancingTable=false;
+
+const START_GROUND_LOW_CONF=.40;
+const START_GROUND_REVIEW_CONF=.60;
+
+function startGroundEsc(s){return String(s??"").replace(/[&<>\"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));}
+function startGroundMedian(a){const x=(a||[]).filter(Number.isFinite).sort((p,q)=>p-q);if(!x.length)return NaN;const m=Math.floor(x.length/2);return x.length%2?x[m]:(x[m-1]+x[m])/2;}
+function startGroundContactTime(c){return Number.isFinite(c?.t)?c.t:(Number.isFinite(c?.index)?startOfflineFrameTime(c.index):NaN);}
+function startGroundIsManual(c){return !!(c?.manualAnchor||c?.manual||String(c?.source||"").includes("manual"));}
+function startGroundFrameForContact(c){return Number.isFinite(c?.index)?c.index:Number.isFinite(c?.frame)?c.frame:null;}
+function startGroundSideText(side){return side==="left"?"左足":side==="right"?"右足":"自動";}
+
+function startGroundCanvasBounds(axis){
+    const w=startOfflineCanvas.width||1,h=startOfflineCanvas.height||1,corners=[{x:0,y:0},{x:w,y:0},{x:0,y:h},{x:w,y:h}],ss=corners.map(p=>p.x*axis.x+p.y*axis.y);
+    return {sMin:Math.min(...ss),sMax:Math.max(...ss)};
+}
+function startGroundBuildManualModel(points){
+    if(!points||points.length<2)return null;
+    const g=startOfflineGroundAxis(),u=startOfflineUpUnit(),p1=points[0],p2=points[1],s1=p1.x*g.x+p1.y*g.y,s2=p2.x*g.x+p2.y*g.y,u1=p1.x*u.x+p1.y*u.y,u2=p2.x*u.x+p2.y*u.y,ds=s2-s1;
+    if(!Number.isFinite(ds)||Math.abs(ds)<Math.max(16,(startOfflineCanvas.width||1)*.035))return null;
+    let b=(u2-u1)/ds;b=bodyClamp(b,-.35,.35);const a=((u1-b*s1)+(u2-b*s2))/2,bounds=startGroundCanvasBounds(g);
+    return {valid:true,a,b,confidence:.95,points:2,anchors:2,rmse:0,sMin:bounds.sMin,sMax:bounds.sMax,manual:true,manualPoints:points.map(p=>({x:p.x,y:p.y})),at:s=>a+b*s};
+}
+function startGroundCloneAutoModel(model){
+    if(!model?.valid||model.manual)return null;
+    const a=model.a,b=model.b;return {...model,manual:false,at:s=>a+b*s};
+}
+
+function startGroundPresence(frame){
+    const l=frame?.landmarks;if(!l)return {good:false,score:0,coverage:0};
+    const ids=[11,12,23,24,25,26,27,28,29,30,31,32],core=[11,12,23,24],lower=[23,24,25,26,27,28,29,30,31,32];
+    const vis=ids.map(i=>Number(l[i]?.visibility)||0),coverage=vis.filter(v=>v>=.22).length/ids.length,coreQ=core.filter(i=>(l[i]?.visibility??0)>=.20).length/core.length,lowerQ=lower.filter(i=>(l[i]?.visibility??0)>=.18).length/lower.length;
+    const torso=core.map(i=>l[i]).filter(p=>(p?.visibility??0)>=.16),inView=torso.length?torso.filter(p=>p.x>=-.08&&p.x<=1.08&&p.y>=-.12&&p.y<=1.12).length/torso.length:0;
+    const score=bodyClamp((frame.poseQuality||0)*.42+coverage*.24+coreQ*.18+lowerQ*.10+inView*.06,0,1);
+    return {good:score>=.31&&coreQ>=.50&&lowerQ>=.30&&inView>=.50,score,coverage};
+}
+function startGroundComputeAutoEnd(anchorT){
+    const rangeEnd=Math.min(startOfflineRangeEnd??startOfflineVideo.duration??Infinity,startOfflineVideo.duration||Infinity),frames=(startOfflinePoseFrames||[]).filter(f=>f.t>=Math.max(startOfflineRangeStart||0,(Number.isFinite(anchorT)?anchorT-.08:0))&&f.t<=rangeEnd).sort((a,b)=>a.t-b.t);
+    if(frames.length<2)return {end:rangeEnd,reason:"Poseフレーム不足のため解析範囲末尾を使用"};
+    const diffs=[];for(let i=1;i<frames.length;i++){const d=frames[i].t-frames[i-1].t;if(d>0&&d<.20)diffs.push(d);}const step=Number.isFinite(startGroundMedian(diffs))?startGroundMedian(diffs):1/Math.max(1,startOfflineEffectiveFps()),gapLimit=Math.max(.18,step*3.6);
+    let started=false,lastGood=null,badSince=null,prevT=null;
+    for(const f of frames){
+        if(prevT!==null&&started&&f.t-prevT>gapLimit&&lastGood!==null&&lastGood>(anchorT||0)+.08)return {end:Math.min(rangeEnd,lastGood+Math.min(.06,step*1.5)),reason:`Pose空白 ${(f.t-prevT).toFixed(2)}s を検出`};
+        prevT=f.t;const pr=startGroundPresence(f);
+        if(pr.good){started=true;lastGood=f.t;badSince=null;continue;}
+        if(started){if(badSince===null)badSince=f.t;if(f.t-badSince>=gapLimit&&lastGood!==null)return {end:Math.min(rangeEnd,lastGood+Math.min(.05,step)),reason:"人物/Pose信頼度が連続して低下"};}
+    }
+    if(started&&lastGood!==null&&rangeEnd-lastGood>gapLimit)return {end:Math.min(rangeEnd,lastGood+Math.min(.05,step)),reason:"解析範囲末尾で人物/Poseを喪失"};
+    return {end:rangeEnd,reason:"解析範囲末尾まで人物を追跡"};
+}
+function startGroundNearestSignalIndex(arr,t,maxGap=.09){
+    let best=-1,bd=maxGap;for(let i=0;i<(arr||[]).length;i++){const d=Math.abs(arr[i].t-t);if(d<bd){best=i;bd=d;}}return best;
+}
+function startGroundHasAir(side,from,to){
+    const arr=startOfflineFootSignals?.[side]||[];if(!(to>from))return false;
+    return arr.some(q=>q.t>=from&&q.t<=to&&q.confidence>=.18&&Number.isFinite(q.contactHeightM)&&q.contactHeightM>.041);
+}
+function startGroundEnsureLiftoff(c){
+    if(Number.isFinite(c?.liftoff))return c.liftoff;const arr=startOfflineFootSignals?.[c?.side]||[],i=startGroundNearestSignalIndex(arr,startGroundContactTime(c),.10);if(i<0)return null;const e=offlineContactEndStatus(arr,i,.70,.035);if(Number.isFinite(e?.liftoff?.t)){c.liftoff=e.liftoff.t;if(!Number.isFinite(c.duration)){c.duration=Math.max(0,c.liftoff-startGroundContactTime(c));if(c.duration>=.70){c.duration=null;c.durationInvalid=true;c.durationInvalidReason="0.7秒以上のため計測不能（離地追跡失敗の可能性）";}}return c.liftoff;}return null;
+}
+function startGroundEnforceState(events,anchorT){
+    const sorted=(events||[]).map(c=>({...c})).sort((a,b)=>startGroundContactTime(a)-startGroundContactTime(b)),out=[],lastBySide={left:null,right:null},fps=Math.max(1,startOfflineEffectiveFps()),globalMinGap=Math.max(.055,1.5/fps),minAirGap=Math.max(.012,.7/fps);
+    startGroundGuardStats.offscreenRejected=0;startGroundGuardStats.stateRejected=0;startGroundGuardStats.duplicateRejected=0;
+    for(const c of sorted){
+        const t=startGroundContactTime(c);if(!Number.isFinite(t))continue;const manual=startGroundIsManual(c),side=c.side;
+        if(!manual&&Number.isFinite(startGroundAutoValidEnd)&&t>startGroundAutoValidEnd+.001){startGroundGuardStats.offscreenRejected++;continue;}
+        const last=out[out.length-1];if(!manual&&last&&t-startGroundContactTime(last)<globalMinGap){startGroundGuardStats.duplicateRejected++;continue;}
+        if(!manual&&(side==="left"||side==="right")){
+            const prev=lastBySide[side];
+            if(prev){
+                const pt=startGroundContactTime(prev),lift=startGroundEnsureLiftoff(prev);
+                if(!Number.isFinite(lift)||lift>=t-minAirGap||!startGroundHasAir(side,Math.max(pt,lift-.02),t-.01)){startGroundGuardStats.stateRejected++;continue;}
+            }else if(!String(c.source||"").includes("first-contact")){
+                const lo=Math.max(Number.isFinite(anchorT)?anchorT-.03:(startOfflineRangeStart||0),t-.28);
+                if(!startGroundHasAir(side,lo,t-.015)){startGroundGuardStats.stateRejected++;continue;}
+            }
+        }
+        startGroundEnsureLiftoff(c);out.push(c);if(side==="left"||side==="right")lastBySide[side]=c;
+    }
+    return out;
+}
+
+/* Automatic contact output is guarded after the existing detector/recovery logic.
+   Manual anchors are intentionally exempt from auto-end/state rejection. */
+const startGroundDetectBase=startOfflineDetectContacts;
+startOfflineDetectContacts=function(anchorIndex=null){
+    let anchorT=startOfflineRangeStart||0;if(anchorIndex!==null){const f=startOfflineFrameRecord(anchorIndex);if(f)anchorT=f.t;else{const t=startOfflineFrameTime(anchorIndex);if(Number.isFinite(t))anchorT=t;}}
+    const autoEnd=startGroundComputeAutoEnd(anchorT);startGroundAutoValidEnd=autoEnd.end;startGroundGuardStats.validEnd=autoEnd.end;startGroundGuardStats.autoEndReason=autoEnd.reason;
+    const raw=startGroundDetectBase(anchorIndex);return startGroundEnforceState(raw,anchorT).slice(0,12);
+};
+
+function startGroundRebuildFootSignals(){
+    if(!startOfflinePoseFrames?.length||!startOfflineGroundModel?.valid)return false;
+    startOfflineFootSignals=offlineBuildFootSignals(startOfflinePoseFrames,startOfflineCanvas.width,startOfflineCanvas.height,startOfflineFootDetail,startOfflineBodyStateAtFrame,startOfflineSceneScaleAtPoint,startOfflineGroundModel,startOfflineGroundAxis(),startOfflineUpUnit());return true;
+}
+function startGroundFastRecomputeContacts(reason=""){
+    if(!startOfflinePoseFrames?.length||!startOfflineGroundModel?.valid){startGroundRenderUi();return;}
+    startGroundRebuildFootSignals();
+    const setIndex=startOfflineManualSetIndex??startOfflineAutoSetIndex,clearance=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex,contactAnchor=clearance!==null?clearance:setIndex,autoContacts=startOfflineDetectContacts(contactAnchor);startOfflineContacts=startOfflineMergeManualContacts(autoContacts);
+    startOfflineRenderResults();startOfflineRenderQuickContactUi();drawStartOfflineOverlay();startGroundRenderUi();startGroundEnhanceSequenceTable();startOfflineLastDerivedAt=performance.now();
+    if(reason){const s=document.getElementById("start-offline-analysis-status");if(s)s.innerText=`${reason}。Poseを再解析せず、既存の足部座標から接地系列だけを高速再計算しました（採用 ${startOfflineContacts.length}接地）。`;}
+}
+
+/* Keep the user's manual GROUND when other existing derived values are recalculated. */
+const startGroundRecomputeBase=startOfflineRecomputeDerived;
+startOfflineRecomputeDerived=function(preserveManual=true){
+    const r=startGroundRecomputeBase(preserveManual);
+    if(startOfflineGroundModel?.valid&&!startOfflineGroundModel.manual)startGroundAutoModel=startGroundCloneAutoModel(startOfflineGroundModel);
+    if(startGroundMode==="manual"&&startGroundManualPoints.length===2&&startOfflinePoseFrames?.length){const m=startGroundBuildManualModel(startGroundManualPoints);if(m){startOfflineGroundModel=m;startGroundFastRecomputeContacts();}}
+    startGroundRenderUi();return r;
+};
+
+function startGroundSetManualFromPending(){
+    const m=startGroundBuildManualModel(startGroundPendingPoints);if(!m){startGroundPendingPoints=[];startOfflineInteraction=null;startGroundRenderUi("2点が近すぎるためGROUNDを作れません。離れた2点を指定してください。",true);drawStartOfflineOverlay();return;}
+    startGroundManualPoints=startGroundPendingPoints.map(p=>({x:p.x,y:p.y}));startGroundPendingPoints=[];startGroundMode="manual";startOfflineGroundModel=m;startOfflineInteraction=null;startGroundFastRecomputeContacts("手動GROUNDを2点指定しました");
+}
+function startGroundBeginManual(){
+    if(startOfflineAnalyzing){alert("解析中はGROUNDを変更できません。解析完了後に指定してください。");return;}if(!startOfflineVideo.src){alert("先に動画を読み込んでください。");return;}
+    startOfflineVideo.pause();startGroundPendingPoints=[];startOfflineInteraction="ground";startGroundRenderUi("GROUND指定中：実際の走路面上の1点目をタップしてください。");drawStartOfflineOverlay();
+}
+function startGroundRestoreAuto(){
+    if(startOfflineAnalyzing)return;startGroundMode="auto";startGroundManualPoints=[];startGroundPendingPoints=[];if(startOfflineInteraction==="ground")startOfflineInteraction=null;
+    if(startGroundAutoModel?.valid)startOfflineGroundModel=startGroundCloneAutoModel(startGroundAutoModel);else if(startOfflinePoseFrames?.length)startOfflineGroundModel=offlineBuildFixedGroundModel(startOfflineFootDetail,startOfflineGroundAxis(),startOfflineUpUnit());
+    if(startOfflineGroundModel?.valid)startGroundFastRecomputeContacts("自動GROUNDへ戻しました");else{startGroundRenderUi();drawStartOfflineOverlay();}
+}
+
+function startGroundAddAnchor(frame,sidePref,action="sequence-add"){
+    const t=startOfflineFrameTime(frame);if(!Number.isFinite(t))return null;let a=startOfflineContactAnchors.find(x=>x.index===frame);
+    if(a){a.t=t;a.sidePref=sidePref||a.sidePref||"auto";a.resolvedSide=null;a.used=false;startOfflineLogContactAnchor?.(a,action+"-update");}
+    else{a={index:frame,t,sidePref:sidePref||"auto",resolvedSide:null,sideConfidence:0,used:false,addedAt:Date.now()};startOfflineContactAnchors.push(a);startOfflineLogContactAnchor?.(a,action);}
+    startOfflineContactAnchors.sort((x,y)=>x.t-y.t);return a;
+}
+function startGroundDeleteContact(i){
+    const c=startOfflineContacts?.[i];if(!c)return;const t=startGroundContactTime(c),frame=startGroundFrameForContact(c),side=c.side;
+    if(c.manualAnchor||String(c.source||"").includes("manual-anchor")){
+        const removed=[];startOfflineContactAnchors=startOfflineContactAnchors.filter(a=>{const hit=(Number.isFinite(frame)&&a.index===frame)||(Number.isFinite(t)&&Math.abs(a.t-t)<.045);if(hit)removed.push(a);return !hit;});for(const a of removed)startOfflineLogContactAnchor?.(a,"sequence-delete");
+    }else if(String(c.source||"")==="manual")startOfflineManualLandings=startOfflineManualLandings.filter(m=>!(m.side===side&&Math.abs(m.t-t)<.06));
+    else if(Number.isFinite(t))startOfflineDeletedAutoContacts.push({side,t});
+    if(Number.isFinite(t))startOfflineManualLiftoffs=startOfflineManualLiftoffs.filter(m=>!(m.side===side&&m.t>=t-.02&&m.t<=t+.55));startSequenceEditIndex=null;startGroundFastRecomputeContacts(`C${i+1} を接地系列から削除しました`);
+}
+function startGroundStartEdit(i){
+    const c=startOfflineContacts?.[i];if(!c)return;startSequenceEditIndex=i;const frame=startGroundFrameForContact(c);if(Number.isFinite(frame)){startOfflineVideo.pause();startOfflineSeekToFrame(frame);document.getElementById("start-offline-video-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});}startGroundRenderUi(`C${i+1}（${startGroundSideText(c.side)}）を修正中：コマ送りで正しい接地フレームへ移動し「現在フレームに変更」を押してください。`);startGroundEnhanceSequenceTable();
+}
+function startGroundApplyEdit(){
+    if(!Number.isInteger(startSequenceEditIndex)){startGroundRenderUi("先に接地系列表の「修正」を押してください。",true);return;}const c=startOfflineContacts?.[startSequenceEditIndex];if(!c){startSequenceEditIndex=null;startGroundRenderUi();return;}
+    const oldT=startGroundContactTime(c),oldFrame=startGroundFrameForContact(c),frame=startOfflineCurrentFrameIndex(),side=(document.getElementById("start-offline-sequence-side")?.value||"auto")==="auto"?(c.side||"auto"):document.getElementById("start-offline-sequence-side").value;
+    if(c.manualAnchor||String(c.source||"").includes("manual-anchor")){
+        let a=startOfflineContactAnchors.find(x=>(Number.isFinite(oldFrame)&&x.index===oldFrame)||(Number.isFinite(oldT)&&Math.abs(x.t-oldT)<.045));if(a){a.index=frame;a.t=startOfflineFrameTime(frame);a.sidePref=side;a.resolvedSide=null;a.used=false;startOfflineLogContactAnchor?.(a,"sequence-frame-edit");}else startGroundAddAnchor(frame,side,"sequence-frame-edit");
+    }else{
+        if(String(c.source||"")==="manual")startOfflineManualLandings=startOfflineManualLandings.filter(m=>!(m.side===c.side&&Math.abs(m.t-oldT)<.06));else if(Number.isFinite(oldT))startOfflineDeletedAutoContacts.push({side:c.side,t:oldT});startGroundAddAnchor(frame,side,"sequence-frame-edit");
+    }
+    startSequenceEditIndex=null;startGroundFastRecomputeContacts(`接地フレームを F${frame} へ修正しました`);
+}
+function startGroundAddCurrent(){
+    const frame=startOfflineCurrentFrameIndex(),side=document.getElementById("start-offline-sequence-side")?.value||"auto";startGroundAddAnchor(frame,side,"sequence-add");startGroundFastRecomputeContacts(`Frame ${frame} を接地として追加しました`);
+}
+
+function startGroundInjectUi(){
+    const panel=document.getElementById("start-offline-sequence-panel");if(!panel||document.getElementById("start-offline-ground-control"))return;
+    const box=document.createElement("div");box.id="start-offline-ground-control";box.className="start-ground-control";box.innerHTML=`
+      <div class="setting-header" style="margin-bottom:6px;"><span><b>GROUND基準線</b></span><span class="setting-value" id="start-offline-ground-mode-label">自動</span></div>
+      <div class="small" id="start-offline-ground-status">解析後、自動GROUNDの信頼度を表示します。</div>
+      <div class="start-ground-warning" id="start-offline-ground-warning" style="display:none;"></div>
+      <div class="button-row" style="grid-template-columns:1fr 1fr;margin-top:8px;">
+        <button type="button" class="action-btn btn-orange" id="start-offline-ground-set">GROUNDを2点指定</button>
+        <button type="button" class="action-btn btn-gray" id="start-offline-ground-auto">自動GROUNDに戻す</button>
+      </div>
+      <div class="small" style="margin-top:6px;">手動指定は、映像上の実際の走路面に沿って離れた2点をタップします。GROUND変更後はPoseを再解析せず、接地判定だけを再計算します。</div>`;
+    const status=panel.querySelector("#start-offline-sequence-status");panel.insertBefore(box,status||panel.children[2]||null);
+    const edit=document.createElement("div");edit.id="start-offline-sequence-editor";edit.className="start-sequence-editor";edit.innerHTML=`
+      <div><b>接地系列を直接修正</b></div>
+      <div class="small" id="start-offline-sequence-edit-status">表の「修正」「削除」、または現在フレームの追加を使用できます。</div>
+      <div class="start-sequence-editor-grid">
+        <select id="start-offline-sequence-side" aria-label="追加・修正する脚"><option value="auto">脚：自動</option><option value="left">脚：左</option><option value="right">脚：右</option></select>
+        <button type="button" class="action-btn btn-orange" id="start-offline-sequence-add-current">＋ 現在フレームを接地として追加</button>
+        <button type="button" class="action-btn btn-blue" id="start-offline-sequence-apply-edit" disabled>現在フレームに変更</button>
+        <button type="button" class="action-btn btn-gray" id="start-offline-sequence-cancel-edit" disabled>修正キャンセル</button>
+      </div>`;
+    const confirm=document.getElementById("start-offline-sequence-confirm");panel.insertBefore(edit,confirm||null);
+    document.getElementById("start-offline-ground-set")?.addEventListener("click",startGroundBeginManual);
+    document.getElementById("start-offline-ground-auto")?.addEventListener("click",startGroundRestoreAuto);
+    document.getElementById("start-offline-sequence-add-current")?.addEventListener("click",startGroundAddCurrent);
+    document.getElementById("start-offline-sequence-apply-edit")?.addEventListener("click",startGroundApplyEdit);
+    document.getElementById("start-offline-sequence-cancel-edit")?.addEventListener("click",()=>{startSequenceEditIndex=null;startGroundRenderUi("接地フレーム修正をキャンセルしました。");startGroundEnhanceSequenceTable();});
+}
+function startGroundRenderUi(message="",isError=false){
+    startGroundInjectUi();const label=document.getElementById("start-offline-ground-mode-label"),status=document.getElementById("start-offline-ground-status"),warning=document.getElementById("start-offline-ground-warning"),setBtn=document.getElementById("start-offline-ground-set"),autoBtn=document.getElementById("start-offline-ground-auto"),editStatus=document.getElementById("start-offline-sequence-edit-status"),apply=document.getElementById("start-offline-sequence-apply-edit"),cancel=document.getElementById("start-offline-sequence-cancel-edit");
+    const autoConf=startGroundAutoModel?.valid?startGroundAutoModel.confidence:null,current=startOfflineGroundModel,manual=startGroundMode==="manual"&&current?.manual;
+    if(label)label.textContent=manual?"手動2点":"自動";
+    if(setBtn)setBtn.textContent=startOfflineInteraction==="ground"?`GROUND指定中 (${startGroundPendingPoints.length}/2)`:"GROUNDを2点指定";
+    if(autoBtn)autoBtn.disabled=!manual&&!startGroundManualPoints.length;
+    if(status){
+        if(message)status.innerHTML=`<span style="color:${isError?"#b42318":"#1f6f43"}">${startGroundEsc(message)}</span>`;
+        else if(manual)status.innerHTML=`<b>手動GROUNDを採用中。</b>${Number.isFinite(autoConf)?` 自動推定信頼度は ${Math.round(autoConf*100)}%。`:""} 自動接地有効区間：〜${Number.isFinite(startGroundAutoValidEnd)?startGroundAutoValidEnd.toFixed(3):"--"}s。`;
+        else if(current?.valid)status.innerHTML=`自動GROUND信頼度 <b>${Math.round((current.confidence||0)*100)}%</b> ／ 自動接地有効区間：〜${Number.isFinite(startGroundAutoValidEnd)?startGroundAutoValidEnd.toFixed(3):"--"}s${startGroundGuardStats.autoEndReason?`（${startGroundEsc(startGroundGuardStats.autoEndReason)}）`:""}`;
+        else status.textContent="GROUND：未解析";
+    }
+    if(warning){
+        const conf=manual?autoConf:(current?.valid?current.confidence:null);if(!manual&&(!current?.valid||!Number.isFinite(conf))){warning.style.display="block";warning.className="start-ground-warning danger";warning.innerHTML="⚠ GROUNDを安定して推定できません。接地系列を確定する前に手動2点指定を推奨します。";}
+        else if(!manual&&conf<START_GROUND_LOW_CONF){warning.style.display="block";warning.className="start-ground-warning danger";warning.innerHTML=`⚠ 自動GROUND信頼度 ${Math.round(conf*100)}%。低信頼のため、接地の良否より先にGROUND位置を確認してください。手動2点指定を推奨します。`;}
+        else if(!manual&&conf<START_GROUND_REVIEW_CONF){warning.style.display="block";warning.className="start-ground-warning review";warning.innerHTML=`自動GROUND信頼度 ${Math.round(conf*100)}%。接地系列を確定する前に点線が実際の走路面と一致しているか確認してください。`;}
+        else if(manual&&Number.isFinite(autoConf)&&autoConf<START_GROUND_LOW_CONF){warning.style.display="block";warning.className="start-ground-warning ok";warning.innerHTML=`✓ 低信頼だった自動GROUND（${Math.round(autoConf*100)}%）を使わず、手動2点GROUNDを採用しています。`;}
+        else{warning.style.display="none";warning.innerHTML="";}
+    }
+    if(editStatus){if(Number.isInteger(startSequenceEditIndex)){const c=startOfflineContacts?.[startSequenceEditIndex];editStatus.innerHTML=c?`<b>C${startSequenceEditIndex+1} ${startGroundSideText(c.side)}</b> を修正中。動画を正しい接地フレームへ移動してください。`:"修正対象が更新されたため、もう一度選択してください。";}else if(!message)editStatus.textContent=`自動ガード：画面外/Pose喪失後 ${startGroundGuardStats.offscreenRejected}件除外 ／ 状態遷移違反 ${startGroundGuardStats.stateRejected}件除外 ／ 近接重複 ${startGroundGuardStats.duplicateRejected}件除外。`;}
+    if(apply)apply.disabled=!Number.isInteger(startSequenceEditIndex);if(cancel)cancel.disabled=!Number.isInteger(startSequenceEditIndex);
+}
+
+function startGroundEnhanceSequenceTable(){
+    if(startGroundEnhancingTable)return;const tableRoot=document.getElementById("start-offline-sequence-table");if(!tableRoot)return;const table=tableRoot.querySelector("table");if(!table)return;startGroundEnhancingTable=true;
+    try{
+        const head=table.querySelector("tr th:last-child");if(head)head.textContent="確認 / 修正";
+        const rows=[...table.querySelectorAll("tr")].slice(1);for(const tr of rows){const view=tr.querySelector("[data-mandatory-start-contact]");if(!view)continue;const i=parseInt(view.dataset.mandatoryStartContact,10),td=tr.lastElementChild;tr.classList.toggle("start-sequence-editing",i===startSequenceEditIndex);if(!td||td.querySelector("[data-start-seq-edit]"))continue;const wrap=document.createElement("span");wrap.className="start-sequence-row-actions";wrap.innerHTML=`<button type="button" class="start-sequence-mini edit" data-start-seq-edit="${i}">修正</button><button type="button" class="start-sequence-mini delete" data-start-seq-delete="${i}">削除</button>`;td.appendChild(wrap);if(i===startSequenceEditIndex)tr.classList.add("start-sequence-editing");}
+    }finally{startGroundEnhancingTable=false;}
+}
+
+/* Table is rebuilt by the mandatory-confirmation layer, so re-attach row actions after each rebuild. */
+const startGroundTable=document.getElementById("start-offline-sequence-table");if(startGroundTable)new MutationObserver(()=>{if(!startGroundEnhancingTable)queueMicrotask(()=>{startGroundEnhanceSequenceTable();startGroundRenderUi();});}).observe(startGroundTable,{childList:true,subtree:true});
+startGroundTable?.addEventListener("click",e=>{const edit=e.target.closest("[data-start-seq-edit]"),del=e.target.closest("[data-start-seq-delete]");if(edit){e.preventDefault();e.stopPropagation();startGroundStartEdit(parseInt(edit.dataset.startSeqEdit,10));}else if(del){e.preventDefault();e.stopPropagation();const i=parseInt(del.dataset.startSeqDelete,10),c=startOfflineContacts?.[i];if(c&&confirm(`C${i+1}（${startGroundSideText(c.side)} / F${startGroundFrameForContact(c)??"--"}）を接地系列から削除しますか？`))startGroundDeleteContact(i);}});
+
+/* Manual GROUND tap capture takes priority over angle-line dragging / landmark taps. */
+startOfflineCanvas?.addEventListener("pointerdown",e=>{if(startOfflineInteraction!=="ground"||offlineZoomShouldIgnoreTap("start",e))return;e.preventDefault();e.stopImmediatePropagation();},true);
+startOfflineCanvas?.addEventListener("pointerup",e=>{
+    if(startOfflineInteraction!=="ground"||offlineZoomShouldIgnoreTap("start",e))return;e.preventDefault();e.stopImmediatePropagation();const p=startOfflinePointerPoint(e);if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return;startGroundPendingPoints.push({x:p.x,y:p.y});
+    if(startGroundPendingPoints.length===1){startGroundRenderUi("GROUND 1点目を指定しました。走路面上の離れた2点目をタップしてください。");drawStartOfflineOverlay();}
+    else startGroundSetManualFromPending();
+},true);
+
+/* Manual ground line uses a deterministic label rather than a pseudo statistical 95%. */
+const startGroundDrawModelBase=offlineDrawGroundModel;
+offlineDrawGroundModel=function(ctx,model,groundAxis,upUnit,label="GROUND"){
+    if(!model?.manual)return startGroundDrawModelBase(ctx,model,groundAxis,upUnit,label);if(!ctx||!model.valid)return;const s1=Number.isFinite(model.sMin)?model.sMin:0,s2=Number.isFinite(model.sMax)?model.sMax:s1+300,u1=model.at(s1),u2=model.at(s2),p1={x:s1*groundAxis.x+u1*upUnit.x,y:s1*groundAxis.y+u1*upUnit.y},p2={x:s2*groundAxis.x+u2*upUnit.x,y:s2*groundAxis.y+u2*upUnit.y};ctx.save();ctx.strokeStyle="#38bdf8";ctx.fillStyle="#38bdf8";ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();ctx.setLineDash([]);ctx.font="bold 12px sans-serif";ctx.fillText(`${label} 手動`,p1.x+6,p1.y-6);ctx.restore();
+};
+const startGroundDrawBase=drawStartOfflineOverlay;
+drawStartOfflineOverlay=function(){startGroundDrawBase();const pts=startGroundPendingPoints.length?startGroundPendingPoints:startGroundManualPoints;if(!pts?.length)return;const ctx=startOfflineCtx,w=startOfflineCanvas.width;ctx.save();for(let i=0;i<pts.length;i++){const p=pts[i];ctx.fillStyle=i===0?"#ff9f0a":"#34c759";ctx.strokeStyle="#111";ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,Math.max(7,w/150),0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.font=`bold ${Math.max(13,w/75)}px sans-serif`;ctx.fillText(`G${i+1}`,p.x+10,p.y-8);}if(startGroundPendingPoints.length===1){ctx.setLineDash([5,5]);ctx.strokeStyle="#ff9f0a";ctx.beginPath();ctx.moveTo(startGroundPendingPoints[0].x,startGroundPendingPoints[0].y);ctx.lineTo(startGroundPendingPoints[0].x+Math.max(80,w*.12),startGroundPendingPoints[0].y);ctx.stroke();}ctx.restore();};
+
+/* Post-render additions: management buttons, warning state and manual-ground wording. */
+const startGroundRenderBase=startOfflineRenderResults;
+startOfflineRenderResults=function(){const r=startGroundRenderBase();startGroundEnhanceSequenceTable();startGroundRenderUi();if(startGroundMode==="manual"){const q=document.getElementById("start-offline-evaluation-quality");if(q)q.innerHTML=q.innerHTML.replace(/固定地面モデル信頼度 約\d+%。/g,"GROUND：手動2点指定を採用。");}return r;};
+
+/* New video clears the manual ground and edit state. */
+const startGroundResetBase=startOfflineResetAnalysisState;
+startOfflineResetAnalysisState=function(){startGroundAutoModel=null;startGroundManualPoints=[];startGroundPendingPoints=[];startGroundMode="auto";startGroundAutoValidEnd=Infinity;startSequenceEditIndex=null;startGroundGuardStats={offscreenRejected:0,stateRejected:0,duplicateRejected:0,autoEndReason:"",validEnd:Infinity};const r=startGroundResetBase();startGroundRenderUi();return r;};
+
+/* If mandatory confirmation redraws the table without a result rerender, restore controls. */
+document.getElementById("start-offline-sequence-confirm")?.addEventListener("click",()=>queueMicrotask(()=>{startGroundEnhanceSequenceTable();startGroundRenderUi();}));
+
+/* Lightweight CSS; no layout changes outside Start offline contact panel. */
+const st=document.createElement("style");st.textContent=`
+.start-ground-control,.start-sequence-editor{margin:9px 0;padding:10px;border:1px solid #d8e3ef;border-radius:10px;background:#f8fbff;text-align:left}
+.start-ground-warning{margin-top:7px;padding:8px 9px;border-radius:8px;font-size:.88rem;line-height:1.45}.start-ground-warning.danger{background:#fff1f0;border:1px solid #ffccc7;color:#a61d24}.start-ground-warning.review{background:#fff7e6;border:1px solid #ffd591;color:#874d00}.start-ground-warning.ok{background:#f0fff4;border:1px solid #b7ebc6;color:#176b3a}
+.start-sequence-editor-grid{display:grid;grid-template-columns:minmax(92px,.75fr) 1.65fr 1.25fr 1fr;gap:6px;margin-top:8px}.start-sequence-editor select{min-width:0;padding:8px;border:1px solid #cbd5e0;border-radius:8px;background:#fff}.start-sequence-row-actions{display:inline-flex;gap:4px;margin-left:5px;vertical-align:middle}.start-sequence-mini{border:0;border-radius:6px;padding:4px 6px;font-weight:700;font-size:11px;cursor:pointer}.start-sequence-mini.edit{background:#e6f4ff;color:#0958d9}.start-sequence-mini.delete{background:#fff1f0;color:#b42318}.start-sequence-editing{outline:2px solid #1677ff;outline-offset:-2px}
+@media(max-width:700px){.start-sequence-editor-grid{grid-template-columns:1fr 1fr}.start-sequence-row-actions{display:flex;margin:4px 0 0}.start-sequence-mini{flex:1}}
+`;document.head.appendChild(st);
+
+setTimeout(()=>{startGroundInjectUi();startGroundEnhanceSequenceTable();startGroundRenderUi();},0);
+})();
+</script>
+
+
 </body>
 </html>
