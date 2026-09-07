@@ -9045,5 +9045,225 @@ function v31InstallReadingMode(prefix){
 for(const prefix of ['start','sprint']){v31InstallMainTap(prefix);v31InstallEvaluationReview(prefix);v31InstallReadingMode(prefix);}
 
 })();
-</script>\n</body>
+</script>\n
+<style id="validation-ux-v32-style">
+/* =====================================================================
+   v32 Validation UX (2026-09-07)
+   - Results reading: hide the large main preview at Japanese evaluation.
+   - Clear provenance/reliability summary for SPRINTPEAK contacts.
+   - Human-readable reasons when contact duration is unavailable.
+   ===================================================================== */
+#start-offline-workspace.results-reading-mode #start-offline-video-wrap,
+#sprint-offline-workspace.results-reading-mode #sprint-offline-video-wrap,
+#start-offline-workspace.v32-results-reading #start-offline-video-wrap,
+#sprint-offline-workspace.v32-results-reading #sprint-offline-video-wrap{
+  display:none!important;
+}
+.v32-data-quality-card{
+  margin:9px 0 10px;padding:10px 11px;border:1px solid #cbd5e0;border-radius:10px;background:#f8fafc;
+  font-size:13px;line-height:1.55;
+}
+.v32-data-quality-card.attention{border-color:#f0b36a;background:#fff8ed;}
+.v32-data-quality-card.good{border-color:#9bd3a8;background:#f4fbf5;}
+.v32-quality-title{font-weight:800;margin-bottom:6px;}
+.v32-quality-chips{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 6px;}
+.v32-quality-chips span{display:inline-block;padding:4px 8px;border:1px solid #cbd5e0;border-radius:999px;background:#fff;font-size:12px;font-weight:700;}
+.v32-quality-note{font-size:12px;color:#566274;}
+.v32-duration-reason{font-size:11px;font-weight:700;color:#9c4221;white-space:normal!important;line-height:1.25;}
+.v32-side-adjusted{font-size:10px;font-weight:700;color:#17652d;display:block;margin-top:2px;}
+.v32-side-warning{font-size:10px;font-weight:700;color:#b42318;display:block;margin-top:2px;}
+.offline-zoom-stage,.offline-zoom-stage video,.offline-zoom-stage canvas{cursor:pointer;}
+@media(max-width:640px){
+  .v32-data-quality-card{padding:9px;font-size:12px}.v32-quality-chips span{font-size:11px;padding:4px 6px}
+}
+</style>
+
+
+<script id="validation-ux-v32-script">
+(()=>{'use strict';
+/* =====================================================================
+   v32 Validation-driven improvements (2026-09-07)
+
+   1) Main video tap-to-play/pause is handled at wrapper CAPTURE phase.
+      Legacy/stale zoom-consume state is intentionally ignored. Only an
+      actual edit gesture, manual pan/zoom, or a multi-touch gesture blocks it.
+   2) Large preview is hidden once the Japanese evaluation section reaches
+      the reading area. Inline review video remains available there.
+   3) SPRINTPEAK foot-side stabilization is conservative: only same-side
+      contacts at a normal single-step interval are reconsidered, and only
+      when the opposite foot has sufficient image evidence. Explicit manual
+      leg selections are never overwritten.
+   4) Results show automatic/manual provenance and missing-duration reasons.
+   ===================================================================== */
+
+const v32Finite=Number.isFinite;
+function v32MainBusy(prefix){
+  try{
+    if(typeof ATS!=='undefined'&&ATS[prefix]?.selecting)return true;
+    if(typeof ATS!=='undefined'&&ATS[prefix]?.manualView)return true;
+    if(prefix==='start'){
+      if(typeof startOfflineInteraction!=='undefined'&&startOfflineInteraction)return true;
+      if(typeof startOfflineTrackingActive!=='undefined'&&startOfflineTrackingActive)return true;
+      if(typeof startOfflineAngleDragging!=='undefined'&&startOfflineAngleDragging)return true;
+      if(typeof sceneCalibration!=='undefined'&&sceneCalibration?.offline?.activeTarget)return true;
+    }else{
+      if(typeof sprintOfflineTrackingActive!=='undefined'&&sprintOfflineTrackingActive)return true;
+      if(typeof sceneCalibration!=='undefined'&&sceneCalibration?.sprintoffline?.activeTarget)return true;
+    }
+  }catch(_){return true;}
+  return false;
+}
+function v32ExcludedTarget(t){return !!t?.closest?.('button,select,input,label,a,.start-contact-mini-toolbar,.manual-view-tools,.athlete-track-card,.offline-evidence-panel');}
+function v32Feedback(prefix,playing){
+  const wrap=document.getElementById(prefix==='start'?'start-offline-video-wrap':'sprint-offline-video-wrap');if(!wrap)return;
+  let el=wrap.querySelector('.offline-main-tap-feedback');if(!el){el=document.createElement('div');el.className='offline-main-tap-feedback';el.setAttribute('aria-hidden','true');wrap.appendChild(el);}
+  el.textContent=playing?'Ⅱ':'▶';el.classList.remove('show');void el.offsetWidth;el.classList.add('show');clearTimeout(el._v32Hide);el._v32Hide=setTimeout(()=>el.classList.remove('show'),430);
+}
+function v32InstallTap(prefix){
+  const wrap=document.getElementById(prefix==='start'?'start-offline-video-wrap':'sprint-offline-video-wrap');
+  const video=document.getElementById(prefix==='start'?'start-offline-video':'sprint-offline-video');
+  if(!wrap||!video||wrap.dataset.tapPlaybackV32)return;wrap.dataset.tapPlaybackV32='1';
+  const downs=new Map();let multiTouch=false;
+  wrap.addEventListener('pointerdown',e=>{
+    if(v32ExcludedTarget(e.target)||v32MainBusy(prefix))return;
+    downs.set(e.pointerId,{x:e.clientX,y:e.clientY,t:performance.now(),type:e.pointerType});
+    if(downs.size>1)multiTouch=true;
+  },{capture:true});
+  wrap.addEventListener('pointermove',e=>{
+    const d=downs.get(e.pointerId);if(!d)return;
+    if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>14)d.moved=true;
+  },{capture:true,passive:true});
+  const cancel=e=>{downs.delete(e.pointerId);if(!downs.size)multiTouch=false;};
+  wrap.addEventListener('pointercancel',cancel,{capture:true});
+  wrap.addEventListener('pointerup',e=>{
+    const d=downs.get(e.pointerId);downs.delete(e.pointerId);
+    const wasMulti=multiTouch;if(!downs.size)multiTouch=false;
+    if(!d||wasMulti||d.moved||v32ExcludedTarget(e.target)||v32MainBusy(prefix))return;
+    const dist=Math.hypot(e.clientX-d.x,e.clientY-d.y),dt=performance.now()-d.t;
+    if(dist>14||dt>650)return;
+    /* Stop here so the legacy bubble-phase tap handler cannot toggle twice. */
+    e.preventDefault();e.stopImmediatePropagation();
+    if(!video.src&&!video.currentSrc)return;
+    if(video.paused||video.ended){
+      const p=video.play();if(p?.then)p.then(()=>v32Feedback(prefix,true)).catch(()=>v32Feedback(prefix,false));else v32Feedback(prefix,true);
+    }else{video.pause();v32Feedback(prefix,false);}
+  },{capture:true});
+}
+
+/* ----- Results-reading mode: independent fallback in addition to v31 ----- */
+function v32InstallReading(prefix){
+  const base=prefix==='start'?'start-offline':'sprint-offline',workspace=document.getElementById(`${base}-workspace`),summary=document.getElementById(`${base}-evaluation-summary`),video=document.getElementById(`${base}-video`);
+  if(!workspace||!summary||workspace.dataset.readingV32)return;workspace.dataset.readingV32='1';const card=summary.closest('.settings-card');if(!card)return;let raf=0;
+  const tick=()=>{raf=0;if(workspace.offsetParent===null){workspace.classList.remove('v32-results-reading');return;}const on=card.getBoundingClientRect().top<=86;workspace.classList.toggle('v32-results-reading',on);if(on&&video&&!video.paused)video.pause();};
+  const schedule=()=>{if(!raf)raf=requestAnimationFrame(tick);};
+  window.addEventListener('scroll',schedule,{passive:true});window.addEventListener('resize',schedule,{passive:true});
+  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>setTimeout(schedule,0)));schedule();
+}
+
+/* ----- SPRINTPEAK side sequence stabilization ----- */
+function v32NearestSignal(side,tSec,maxGap=.14){
+  const arr=(typeof sprintOfflineFootSignals!=='undefined'&&sprintOfflineFootSignals?.[side])||[];let best=null,idx=-1,bd=Infinity;
+  for(let i=0;i<arr.length;i++){const t=v32Finite(arr[i]?.t)?arr[i].t:(v32Finite(arr[i]?.tMs)?arr[i].tMs/1000:NaN);if(!v32Finite(t))continue;const d=Math.abs(t-tSec);if(d<bd){bd=d;best=arr[i];idx=i;}if(t>tSec&&d>bd)break;}
+  return best&&bd<=maxGap?{q:best,index:idx,gap:bd,arr}:null;
+}
+function v32FootScore(side,tSec){
+  const fps=(typeof sprintOfflineEffectiveFps==='function'?Math.max(1,sprintOfflineEffectiveFps()):60),hit=v32NearestSignal(side,tSec,Math.max(.12,2.8/fps));if(!hit)return null;
+  const q=hit.q,P=hit.arr[hit.index-1]||null,N=hit.arr[hit.index+1]||null;
+  let ev=.25;try{if(typeof offlineContactEvidence==='function')ev=offlineContactEvidence(q,P,N,'sprint');}catch(_){}
+  const h=v32Finite(q?.contactHeightM)?Math.max(0,Math.min(1,(.045-q.contactHeightM)/.04)):.25,near=Math.max(0,Math.min(1,1-hit.gap/Math.max(.14,3/fps))),conf=q?.confidence||q?.p?.visibility||0;
+  return {side,hit,score:Math.max(0,Math.min(1,ev*.52+h*.20+conf*.18+near*.10))};
+}
+function v32ExplicitManualSide(c){
+  if(!c?.manualAnchor||typeof sprintManualContacts==='undefined')return false;
+  const tSec=v32Finite(c.t)?c.t/1000:NaN,frame=c.frame??c.index;
+  const a=(sprintManualContacts||[]).find(x=>(v32Finite(frame)&&x.index===frame)||(v32Finite(tSec)&&Math.abs(x.tSec-tSec)<.025));
+  return !!(a&&a.sidePref&&a.sidePref!=='auto');
+}
+function v32StabilizeSprintSides(){
+  if(typeof sprintOfflineContacts==='undefined'||!Array.isArray(sprintOfflineContacts)||sprintOfflineContacts.length<2)return;
+  let prev=null,adjusted=0,warnings=0;
+  for(const c of sprintOfflineContacts){
+    c.sideSequenceAdjusted=false;c.sideSequenceWarning=false;
+    if(!(c.side==='left'||c.side==='right')||!v32Finite(c.t)){prev=c;continue;}
+    if(prev&&(prev.side==='left'||prev.side==='right')&&v32Finite(prev.t)){
+      const gap=(c.t-prev.t)/1000;
+      if(c.side===prev.side&&gap>=.075&&gap<=.315){
+        if(v32ExplicitManualSide(c)){c.sideSequenceWarning=true;warnings++;}
+        else{
+          const opposite=prev.side==='left'?'right':'left',cur=v32FootScore(c.side,c.t/1000),alt=v32FootScore(opposite,c.t/1000),weakCurrent=(c.sideConfidence??cur?.score??0)<.68;
+          /* Require real opposite-foot evidence; do not invent alternation. */
+          if(alt&&alt.score>=.34&&(!cur||alt.score>=cur.score-.14||weakCurrent||c.manualAnchor)){
+            c.side=opposite;c.sideSequenceAdjusted=true;c.sideConfidence=Math.max(c.sideConfidence||0,alt.score*.92);c.source=`${c.source||'contact'}+sequence-side-corrected`;
+            const p=alt.hit?.q?.p;if(p&&v32Finite(p.x)&&v32Finite(p.y)){c.x=p.x;c.y=p.y;c.visibility=p.visibility??alt.hit.q.confidence??c.visibility;}
+            adjusted++;
+          }else{c.sideSequenceWarning=true;warnings++;}
+        }
+      }
+    }
+    prev=c;
+  }
+  window.__sprintV32SideStats={adjusted,warnings};
+  /* Keep contact-duration side labels consistent with any safe correction. */
+  if(typeof sprintOfflineContactDurations!=='undefined'&&Array.isArray(sprintOfflineContactDurations)){
+    for(const d of sprintOfflineContactDurations){const c=sprintOfflineContacts.find(x=>v32Finite(d.start)&&Math.abs(x.t-d.start)<3);if(c)d.side=c.side;}
+  }
+}
+if(typeof sprintOfflineDetectContacts==='function'){
+  const v32DetectBase=sprintOfflineDetectContacts;
+  sprintOfflineDetectContacts=function(...args){const r=v32DetectBase(...args);v32StabilizeSprintSides();return r;};
+}
+
+/* ----- Result provenance / duration reason UI ----- */
+function v32DurationReason(c){
+  if(!c)return '算出不可';
+  if(v32Finite(c.duration))return null;
+  const reason=String(c.durationInvalidReason||'');
+  if(reason){if(/範囲外|interval/i.test(reason))return '離地間隔エラー';return '離地判定エラー';}
+  if(c.manualAnchor||c.timingOnly)return '離地未確定';
+  return '離地未検出';
+}
+function v32EnsureQualityCard(){
+  let card=document.getElementById('sprint-offline-data-quality');if(card)return card;
+  const conf=document.getElementById('sprint-offline-confidence');if(!conf)return null;
+  card=document.createElement('div');card.id='sprint-offline-data-quality';card.className='v32-data-quality-card';card.innerHTML='<div class="v32-quality-title">解析データの内訳</div><div class="v32-quality-note">解析後、自動検出と手動補正の割合を表示します。</div>';conf.insertAdjacentElement('afterend',card);return card;
+}
+function v32RefreshQuality(){
+  const card=v32EnsureQualityCard();if(!card||typeof sprintOfflineContacts==='undefined')return;
+  const contacts=sprintOfflineContacts||[],total=contacts.length,manual=contacts.filter(c=>c.manualAnchor||String(c.source||'').includes('manual-contact')).length,auto=Math.max(0,total-manual),manualLift=contacts.filter(c=>c.manualLiftoff).length,durationN=contacts.filter(c=>v32Finite(c.duration)).length,sideAdj=window.__sprintV32SideStats?.adjusted||0,sideWarn=window.__sprintV32SideStats?.warnings||0;
+  const poseN=(typeof sprintOfflinePoseFrames!=='undefined'&&sprintOfflinePoseFrames?.length)||0,attempts=(typeof ATS!=='undefined'&&ATS?.sprint?.run?.attempts)||poseN,poseRate=attempts?Math.round(poseN/attempts*100):0,autoPct=total?Math.round(auto/total*100):0,manualPct=total?Math.round(manual/total*100):0;
+  card.classList.remove('attention','good');if(total&&manualPct>=50)card.classList.add('attention');else if(total&&poseRate>=70&&manualPct<35)card.classList.add('good');
+  if(!total){card.innerHTML='<div class="v32-quality-title">解析データの内訳</div><div class="v32-quality-note">接地系列が確定すると、自動検出・手動補正・離地確定数を表示します。</div>';return;}
+  const chips=[`Pose ${poseN}/${attempts||'--'}F (${poseRate}%)`,`最終接地 ${total}件`,`自動確定 ${auto}件 (${autoPct}%)`,`手動接地 ${manual}件 (${manualPct}%)`,`接地時間確定 ${durationN}/${total}`,manualLift?`手動離地 ${manualLift}件`:null,sideAdj?`脚系列補正 ${sideAdj}件`:null,sideWarn?`脚系列要確認 ${sideWarn}件`:null].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
+  let note='自動確定率は「最終接地系列のうち自動のまま採用できた割合」であり、解析精度そのものを表す数値ではありません。';
+  if(manualPct>=50)note+=` 今回は手動接地が${manualPct}%を占めるため、接地時刻は補正後データを優先し、Pose由来の姿勢・位置指標はPose取得率も併せて確認してください。`;
+  if(sideWarn)note+=` 同じ脚が短い間隔で連続し、反対脚の画像根拠が不足した箇所が${sideWarn}件あります。接地系列を目視確認してください。`;
+  card.innerHTML=`<div class="v32-quality-title">解析データの内訳</div><div class="v32-quality-chips">${chips}</div><div class="v32-quality-note">${note}</div>`;
+}
+function v32PatchContactTables(){
+  const contacts=(typeof sprintOfflineContacts!=='undefined'&&sprintOfflineContacts)||[];
+  for(const spec of [{id:'sprint-offline-events',offset:0},{id:'sprint-offline-sequence-table',offset:0}]){
+    const root=document.getElementById(spec.id);if(!root)continue;const rows=[...root.querySelectorAll('table tr')].slice(1);
+    rows.forEach((tr,i)=>{const c=contacts[i],td=tr.children?.[3];if(!c||!td)return;const reason=v32DurationReason(c);if(reason){td.textContent=reason;td.classList.add('v32-duration-reason');}else td.classList.remove('v32-duration-reason');
+      const sideTd=tr.children?.[1];if(sideTd){sideTd.querySelectorAll('.v32-side-adjusted,.v32-side-warning').forEach(x=>x.remove());if(c.sideSequenceAdjusted)sideTd.insertAdjacentHTML('beforeend','<span class="v32-side-adjusted">系列から補正</span>');else if(c.sideSequenceWarning)sideTd.insertAdjacentHTML('beforeend','<span class="v32-side-warning">要確認</span>');}
+    });
+  }
+  const overall=document.getElementById('sprint-offline-contact');if(overall&&contacts.length&&!contacts.some(c=>v32Finite(c.duration))){overall.textContent=contacts.some(c=>c.manualAnchor)?'離地未確定':'離地未検出';}
+}
+function v32RefreshSprintUi(){v32RefreshQuality();v32PatchContactTables();}
+if(typeof sprintOfflineRenderResults==='function'){
+  const v32RenderBase=sprintOfflineRenderResults;
+  sprintOfflineRenderResults=function(...args){const r=v32RenderBase(...args);v32RefreshSprintUi();return r;};
+}
+if(typeof mandatoryRenderSprintSequence==='function'){
+  const v32SeqBase=mandatoryRenderSprintSequence;
+  mandatoryRenderSprintSequence=function(...args){const r=v32SeqBase(...args);v32RefreshSprintUi();return r;};
+}
+/* Manual edits may update the sequence via paths that do not repaint every result card. */
+for(const id of ['sprint-offline-manual-contact','sprint-offline-manual-liftoff','sprint-offline-manual-undo','sprint-offline-manual-clear','sprint-offline-sequence-confirm'])document.getElementById(id)?.addEventListener('click',()=>setTimeout(v32RefreshSprintUi,30));
+
+for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32EnsureQualityCard();v32RefreshSprintUi();
+})();
+</script>
+
+</body>
 </html>
