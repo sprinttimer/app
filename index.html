@@ -116,6 +116,33 @@ button.action-btn:disabled { opacity:.55; cursor:not-allowed; }
 .offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact{width:min(56%,360px)!important;margin-left:auto!important;margin-right:auto!important;border-radius:9px;transition:width .16s ease}
 @media(max-width:480px){.offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact{width:58%!important}.analysis-evidence-btn{width:27px;height:27px;min-width:27px}.evidence-event-table{font-size:10px}}
 
+/* 2026-09-04 Start接地補正クイックバー + 足部時系列判定 */
+.start-contact-mini-toolbar{position:relative;z-index:8;background:rgba(250,252,255,.97);color:#172033;border-top:1px solid rgba(148,163,184,.55);padding:7px 8px 8px;box-sizing:border-box;touch-action:manipulation}
+.start-contact-mini-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;line-height:1.25;margin-bottom:5px}
+.start-contact-mini-head b{font-size:12px}.start-contact-mini-state{font-weight:800;color:#0d6efd}.start-contact-mini-frame{font-variant-numeric:tabular-nums;color:#475569;font-weight:700}
+.start-contact-mini-step{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:5px}
+.start-contact-mini-step button,.start-contact-mini-actions button{min-height:32px;padding:6px 5px;border-radius:7px;border:1px solid #cbd5e0;font-weight:800;cursor:pointer}
+.start-contact-mini-step button{background:#fff;color:#263445}.start-contact-mini-step button:active,.start-contact-mini-actions button:active{transform:scale(.98)}
+.start-contact-mini-actions{display:grid;grid-template-columns:minmax(86px,.72fr) 1.25fr 1fr;gap:5px}
+.start-contact-mini-actions select{min-width:0;height:34px;border:1px solid #cbd5e0;border-radius:7px;background:#fff;padding:0 6px;font-weight:700;color:#27364a}
+.start-contact-mini-add{background:#fff4e5!important;border-color:#f59e0b!important;color:#9a4b00!important}
+.start-contact-mini-apply{background:#eaf3ff!important;border-color:#1677ff!important;color:#0b57c5!important}
+.start-contact-mini-apply:disabled{opacity:.42;cursor:not-allowed}
+.start-contact-quality-note{margin-top:6px;padding:7px 8px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0;font-size:11px;line-height:1.55;color:#475569}
+.start-contact-quality-note.warn{background:#fff7ed;border-color:#fdba74;color:#9a3412}
+.start-contact-quality-note.danger{background:#fff1f2;border-color:#fda4af;color:#9f1239}
+.offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact .start-contact-mini-toolbar{padding:5px}
+.offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact .start-contact-mini-head{font-size:9px;margin-bottom:4px}
+.offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact .start-contact-mini-head b{font-size:10px}
+.offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact .start-contact-mini-step button,.offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact .start-contact-mini-actions button{min-height:28px;font-size:10px;padding:4px 2px}
+.offline-sticky-preview.offline-sticky-enabled.offline-sticky-compact .start-contact-mini-actions select{height:30px;font-size:10px}
+@media(max-width:520px){
+  .start-contact-mini-toolbar{padding:6px}
+  .start-contact-mini-actions{grid-template-columns:.8fr 1.2fr 1fr}
+  .start-contact-mini-step button,.start-contact-mini-actions button{font-size:11px}
+  .start-contact-mini-head{font-size:10px}
+}
+
 /* 2026-09-04 接地系列必須確認 + 日本語評価根拠4パネル集約 */
 .sequence-required-panel{border:2px solid #f59e0b!important;background:#fffbeb!important;box-shadow:none!important}
 .sequence-required-panel.sequence-confirmed{border-color:#16a34a!important;background:#f0fdf4!important}
@@ -178,6 +205,15 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 .science-reference-list{font-size:11px;color:#64748b;margin-top:6px;line-height:1.65}
 .science-reference-list b{color:#334155}
 </style>
+<style>
+/* 2026-09-06 地面ライン＋スタート飛び出し角度 UX */
+.start-angle-protractor{padding:10px 0 4px}
+#start-offline-angle-slider{width:100%;height:36px;accent-color:#f5b400;touch-action:pan-x}
+.start-angle-scale{display:flex;justify-content:space-between;gap:8px;margin-top:-2px;font-size:11px;color:#64748b;font-weight:700}
+.start-angle-scale span:nth-child(2){text-align:center}.start-angle-scale span:last-child{text-align:right}
+#start-offline-ground-confirm:disabled{opacity:.48}
+@media (max-width:520px){#start-offline-ground-control .button-row{grid-template-columns:1fr!important}#start-offline-ground-control .button-row button{margin:0}}
+</style>
 </head>
 <body>
 <header>Sprint Timer Pro</header>
@@ -214,7 +250,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 <!-- スタート解析：第2世代 自動解析＋高精度リプレイ検証 -->
 <div id="tab-camera-analysis" class="tab-content">
-    <div class="notice"><b>スタート解析：</b>三脚を使用し、選手をできるだけ真横から撮影してください。第2世代ロジックでは、<b>録画映像とMediaPipe解析を分離</b>し、録画FPSを解析速度に引きずられにくくしています。リアクションタイムは撮影フレーム基準で補正でき、飛び出し角度 A は<b>スタート投射角（Start Projection Angle）</b>として測定します。高精度モードでは、実測身体寸法に加えて<b>28〜30cmのバトンを1本または2本、走行方向と平行に地面へ置いて実物校正</b>できます。2本校正では画面内の位置による縮尺変化も補正します。</div>
+    <div class="notice"><b>スタート解析：</b>三脚を使用し、選手をできるだけ真横から撮影してください。第2世代ロジックでは、<b>録画映像とMediaPipe解析を分離</b>し、録画FPSを解析速度に引きずられにくくしています。リアクションタイムは撮影フレーム基準で補正でき、<b>スタート飛び出し角度</b>は地面のラインを基準に、スタート直後の身体の傾きを測定します。高精度モードでは、実測身体寸法に加えて<b>28〜30cmのバトンを1本または2本、走行方向と平行に地面へ置いて実物校正</b>できます。2本校正では画面内の位置による縮尺変化も補正します。</div>
     <div class="info" id="start-camera-info">カメラ：確認中 ／ 実映像FPS：-- ／ Pose解析FPS：--</div>
     <div id="video-container">
         <video id="input-video" playsinline muted></video>
@@ -300,7 +336,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             #start-offline-quality-warning{margin-top:10px;}
         </style>
         <h3>動画からスタート解析（リアクションタイムなし）</h3>
-        <div class="notice"><b>過去動画・標準カメラ動画を高精度解析：</b>端末のカメラアプリで高画質・高FPS撮影した動画を読み込み、リアルタイム処理速度に制限されずフレーム単位でMediaPipe解析します。<b>リアクションタイムはこのモードでは計算しません。</b> 投射角、ブロッククリアランス、接地時間、2歩目以降のステップ長、身体寸法・バトン校正、ランドマーク手動補正、姿勢比較を行えます。</div>
+        <div class="notice"><b>過去動画・標準カメラ動画を高精度解析：</b>端末のカメラアプリで高画質・高FPS撮影した動画を読み込み、リアルタイム処理速度に制限されずフレーム単位でMediaPipe解析します。<b>リアクションタイムはこのモードでは計算しません。</b> スタート飛び出し角度、ブロッククリアランス、接地時間、2歩目以降のステップ長、身体寸法・バトン校正、ランドマーク手動補正、姿勢比較を行えます。</div>
         <div class="notice" style="border-left-color:#e53e3e;background:#fff5f5;"><b>重要：撮影時は高FPSを優先してください。</b> 最低60fps、<b>推奨120fps</b>です。十分な明るさと画質を確保できる場合は240fpsも有効です。30fpsは1フレーム約33.3ms、60fpsは約16.7ms、120fpsは約8.33ms、240fpsは約4.17msのため、ブロッククリアランス・接地・離地など瞬間的なイベントは高FPSほどコマ送り補正の時間分解能が高くなります。高FPSで解像度や明るさが大きく低下する端末では、無理に240fpsへ上げず<b>120fpsを優先</b>してください。撮影時はカメラを三脚などで固定し、選手の全身が画面内に収まる真横方向からの撮影を推奨します。</div>
 
         <div class="setting-item">
@@ -326,6 +362,27 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                     <canvas id="start-offline-canvas" class="overlay-canvas" style="pointer-events:auto;touch-action:none;"></canvas>
                 </div>
                 <div class="offline-zoom-crosshair" id="start-offline-crosshair" aria-hidden="true"></div>
+                <div class="start-contact-mini-toolbar" id="start-offline-contact-mini-toolbar" aria-label="接地補正クイック操作">
+                    <div class="start-contact-mini-head">
+                        <span><b>接地補正</b> <span class="start-contact-mini-state" id="start-offline-contact-mini-state">追加モード</span></span>
+                        <span class="start-contact-mini-frame" id="start-offline-contact-mini-frame">Frame --</span>
+                    </div>
+                    <div class="start-contact-mini-step">
+                        <button type="button" data-start-contact-mini-step="-5">◀ 5F</button>
+                        <button type="button" data-start-contact-mini-step="-1">◀ 1F</button>
+                        <button type="button" data-start-contact-mini-step="1">1F ▶</button>
+                        <button type="button" data-start-contact-mini-step="5">5F ▶</button>
+                    </div>
+                    <div class="start-contact-mini-actions">
+                        <select id="start-offline-contact-mini-side" aria-label="接地脚">
+                            <option value="auto">脚：自動</option>
+                            <option value="left">脚：左</option>
+                            <option value="right">脚：右</option>
+                        </select>
+                        <button type="button" class="start-contact-mini-add" id="start-offline-contact-mini-add">＋ このフレームを接地</button>
+                        <button type="button" class="start-contact-mini-apply" id="start-offline-contact-mini-apply" disabled>修正を確定</button>
+                    </div>
+                </div>
             </div>
             <div class="offline-zoom-toolbar" aria-label="スタート動画表示ズーム">
                 <span class="offline-zoom-label">表示ズーム <b id="start-offline-zoom-label">1.0×</b></span>
@@ -501,20 +558,22 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             </div>
 
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
-                <h3>Start Projection Angle 手動補正 <button type="button" class="start-offline-help-btn" data-start-offline-help="angle" aria-label="投射角手動補正の説明">?</button></h3>
-                <div class="info">角度測定フレームで黄色線の起点・終点をドラッグできます。進行方向と逆向きの線は無効です。</div>
-                <div class="setting-item">
-                    <div class="setting-header"><span>投射角</span><span class="setting-value" id="start-offline-angle-value">--</span></div>
-                    <input type="range" id="start-offline-angle-slider" min="0" max="90" step="0.1" value="45" disabled>
+                <h3>スタート飛び出し角度を測る <button type="button" class="start-offline-help-btn" data-start-offline-help="angle" aria-label="スタート飛び出し角度の説明">?</button></h3>
+                <div class="info"><b>黄色い線を身体の傾きに合わせてください。</b><br>根元の●をドラッグすると線の位置を移動でき、先端の●をドラッグすると大まかに角度を変えられます。最後に下の<b>角度バー（分度器）</b>で微調整してください。地面のラインを0°として表示します。</div>
+                <div class="setting-item start-angle-protractor">
+                    <div class="setting-header"><span>角度の微調整（分度器）</span><span class="setting-value" id="start-offline-angle-value">--</span></div>
+                    <input type="range" id="start-offline-angle-slider" min="0" max="90" step="0.1" value="45" list="start-offline-angle-ticks" disabled aria-label="スタート飛び出し角度を微調整">
+                    <datalist id="start-offline-angle-ticks"><option value="0"></option><option value="15"></option><option value="30"></option><option value="45"></option><option value="60"></option><option value="75"></option><option value="90"></option></datalist>
+                    <div class="start-angle-scale"><span>0° 地面と平行</span><span>45°</span><span>90° 垂直</span></div>
                 </div>
                 <div class="button-row" style="grid-template-columns:1fr 1fr 1fr;">
                     <button class="action-btn btn-gray" id="start-offline-angle-minus" disabled>−0.1°</button>
-                    <button class="action-btn btn-blue" id="start-offline-angle-auto" disabled>自動線に戻す</button>
+                    <button class="action-btn btn-blue" id="start-offline-angle-auto" disabled>自動候補に戻す</button>
                     <button class="action-btn btn-gray" id="start-offline-angle-plus" disabled>＋0.1°</button>
                 </div>
                 <table class="metric-table" style="margin-top:10px;">
-                    <tr><td>自動角度</td><td id="start-offline-auto-angle">--</td></tr>
-                    <tr><td>手動補正</td><td id="start-offline-manual-angle">未指定</td></tr>
+                    <tr><td>自動候補</td><td id="start-offline-auto-angle">--</td></tr>
+                    <tr><td>手動設定</td><td id="start-offline-manual-angle">未指定</td></tr>
                     <tr><td><b>採用角度</b></td><td id="start-offline-final-angle">--</td></tr>
                 </table>
             </div>
@@ -559,7 +618,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             </div>
 
             <div class="results-grid" id="start-offline-results-grid">
-                <div class="data-card"><div class="data-label">Start Projection Angle <button type="button" class="analysis-evidence-btn" data-start-evidence="projection" aria-label="Start Projection Angleの測定根拠を見る">!</button></div><div class="data-value" id="start-offline-angle-result">-- <span class="unit">°</span></div><div class="small" id="start-offline-angle-source">未解析</div></div>
+                <div class="data-card"><div class="data-label">スタート飛び出し角度 <button type="button" class="analysis-evidence-btn" data-start-evidence="projection" aria-label="スタート飛び出し角度の測定根拠を見る">!</button></div><div class="data-value" id="start-offline-angle-result">-- <span class="unit">°</span></div><div class="small" id="start-offline-angle-source">未解析</div></div>
                 <div class="data-card"><div class="data-label">1歩目接地時間 <button type="button" class="analysis-evidence-btn" data-start-evidence="first-contact" aria-label="1歩目接地時間の根拠を見る">!</button></div><div class="data-value" id="start-offline-first-contact">-- <span class="unit">s</span></div><div class="small" id="start-offline-first-contact-source">未解析</div></div>
                 <div class="data-card"><div class="data-label">距離校正信頼度</div><div class="data-value" id="start-offline-cal-confidence">-- <span class="unit">%</span></div><div class="small" id="start-offline-cal-method">未校正</div></div>
             </div>
@@ -571,7 +630,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                     <summary>参照した研究値と、このアプリでの使い方</summary>
                     <div class="science-reference-list">
                         <b>1歩目接地：</b>高レベル選手を扱った複数研究の群平均は概ね約0.17〜0.23秒に分布します。Čoh et al. (2017) は170±18 ms / 174±17 ms、レビューではDiamond League選手の平均0.210秒（男子）・0.225秒（女子）も報告されています。<br>
-                        <b>投射角：</b>Harland &amp; Steele (1997) はブロック離脱時の低い投射として40〜45°を記述しています。ただし本アプリのStart Projection Angleは「Set時の前脚基準点→投射姿勢フレームの肩中央」の画像上角度で、論文の重心速度ベクトルやtake-off angleとは同一定義ではありません。したがって40〜45°を合否判定には使いません。<br>
+                        <b>スタート飛び出し角度：</b>Harland &amp; Steele (1997) はブロック離脱時の低い投射として40〜45°を記述しています。ただし本アプリの「スタート飛び出し角度」は「Set時の前脚基準点→飛び出し姿勢フレームの肩中央」の画像上角度で、論文の重心速度ベクトルやtake-off angleとは同一定義ではありません。したがって40〜45°を合否判定には使いません。<br>
                         <b>正常性チェック：</b>研究値から大きく外れる接地時間は、フォームの良否より先に接地・離地フレームの誤検出を疑うための警告に使います。個人差・競技レベル差を考慮し、参考帯の外＝悪いフォームとは判定しません。<br>
                         参考：Harland &amp; Steele, Sports Med. 1997; Čoh et al., J Hum Kinet. 2017; Biomechanical Performance Factors in the Track and Field Sprint Start, 2022 systematic review.
                     </div>
@@ -585,7 +644,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <div class="evaluation-lock" id="start-offline-evaluation-lock">接地系列の確認が完了すると、日本語評価と解析根拠パネルを確定表示します。</div>
                 <div class="evidence-hub" id="start-offline-evidence-hub" aria-live="polite"></div>
                 <details class="offline-analysis-quality"><summary>解析品質・技術情報</summary><div class="small" id="start-offline-evaluation-quality">解析待機中</div></details>
-                <div class="small" style="margin-top:8px;color:#718096;">※ 投射姿勢、接地、支持脚・遊脚、腰の動き、ステップ連続性を組み合わせた補助評価です。個人差があるため、単独の角度や接地時間だけで良否を断定しません。</div>
+                <div class="small" style="margin-top:8px;color:#718096;">※ 飛び出し姿勢、接地、支持脚・遊脚、腰の動き、ステップ連続性を組み合わせた補助評価です。個人差があるため、単独の角度や接地時間だけで良否を断定しません。</div>
             </div>
 
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
@@ -651,7 +710,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <tr><td><b>採用値</b></td><td id="start-review-final-reaction">--</td></tr>
         </table>
 
-        <h3>飛び出し角度 A（Start Projection Angle）</h3>
+        <h3>スタート飛び出し角度</h3>
         <div class="setting-item">
             <div class="setting-header"><span>進行方向</span><span class="setting-value" id="start-direction-info">自動判定：未判定</span></div>
             <select id="start-direction-select" style="width:100%;padding:10px;border:1px solid #cbd5e0;border-radius:8px;background:#fff;">
@@ -1016,6 +1075,25 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             #sprint-offline-help-dialog .sprint-offline-help-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}
             #sprint-offline-help-dialog .sprint-offline-help-close{border:0;background:#edf2f7;border-radius:8px;padding:7px 11px;font-size:18px;cursor:pointer;}
             #sprint-offline-quality-warning{margin-top:10px;}
+            #sprint-offline-roi-card{border:1px solid #bee3f8;background:#f7fcff;border-radius:10px;padding:10px;margin:8px 0 10px;}
+            #sprint-offline-roi-card.roi-attention{border-color:#e53e3e;background:#fff5f5;box-shadow:0 0 0 2px rgba(229,62,62,.08);}
+            #sprint-offline-roi-card .roi-title{font-weight:700;margin-bottom:4px;}
+            #sprint-offline-required-details{margin:10px 0;border:1px solid #d7dee8;border-radius:10px;background:#f8fafc;overflow:hidden;}
+            #sprint-offline-required-details>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;cursor:pointer;font-weight:800;list-style:none;background:#edf2f7;user-select:none;}
+            #sprint-offline-required-details>summary::-webkit-details-marker,.sprint-offline-subdetails>summary::-webkit-details-marker{display:none;}
+            #sprint-offline-required-details>summary:before{content:'▼';font-size:12px;transition:transform .15s ease;}
+            #sprint-offline-required-details:not([open])>summary:before{transform:rotate(-90deg);}
+            .sprint-offline-required-title{flex:1;}
+            #sprint-offline-required-summary-status{font-size:12px;font-weight:700;color:#4a5568;background:#fff;border:1px solid #cbd5e0;border-radius:999px;padding:3px 7px;white-space:nowrap;}
+            #sprint-offline-required-summary-status.warn{color:#9c4221;border-color:#f6ad55;background:#fffaf0;}
+            #sprint-offline-required-summary-status.ok{color:#276749;border-color:#9ae6b4;background:#f0fff4;}
+            .sprint-offline-required-body{padding:8px;}
+            .sprint-offline-subdetails{margin:7px 0;border:1px solid #e2e8f0;border-radius:9px;background:#fff;overflow:hidden;}
+            .sprint-offline-subdetails>summary{cursor:pointer;list-style:none;padding:10px 11px;font-weight:700;background:#fff;display:flex;align-items:center;gap:7px;}
+            .sprint-offline-subdetails>summary:before{content:'▶';font-size:11px;color:#4a5568;}
+            .sprint-offline-subdetails[open]>summary:before{content:'▼';}
+            .sprint-offline-subdetails>.settings-card{margin:0!important;border-radius:0;box-shadow:none!important;border:0;border-top:1px solid #edf2f7;}
+            @media(max-width:600px){#sprint-offline-required-details>summary{padding:10px 9px}.sprint-offline-required-title{font-size:14px}#sprint-offline-required-summary-status{font-size:11px}.sprint-offline-subdetails>summary{font-size:14px;padding:9px}}
         </style>
         <h3>動画からSPRINTPEAK高精度解析 <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="overview" aria-label="動画解析の説明">?</button></h3>
         <div class="notice"><b>練習中は撮影だけ、分析は後から：</b>スマホ標準カメラや外部カメラで撮りためた中間走動画を読み込み、リアルタイム処理速度に制限されずフレーム単位で解析します。上のリアルタイム計測はそのまま残しているため、単発計測と事後分析を使い分けられます。</div>
@@ -1052,6 +1130,15 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button type="button" class="action-btn btn-gray" id="sprint-offline-zoom-reset">等倍</button>
             </div>
             <div class="small" style="margin-bottom:8px;text-align:left;">1〜5倍。スマートフォンは2本指でピンチ拡大・縮小、そのまま2本指で移動できます。拡大は表示だけに適用し、関節・バトンのタップ位置は元動画座標へ逆変換して保存します。</div>
+            <div id="sprint-offline-roi-card">
+                <div class="setting-header"><span class="roi-title">解析対象選手（遠い・複数人動画向け）</span><span class="setting-value" id="sprint-offline-roi-label">全画面</span></div>
+                <div class="small" style="text-align:left;margin-bottom:8px;">選手が小さい、または複数人が映る場合に使用します。<b>「対象範囲を指定」→映像上の対角2点をタップ</b>してください。指定範囲だけを切り抜いて拡大してPose解析し、結果座標は元動画へ戻します。走行中に選手が枠外へ出ないよう少し広めに指定してください。</div>
+                <div class="button-row" style="grid-template-columns:2fr 1fr;">
+                    <button type="button" class="action-btn btn-blue" id="sprint-offline-roi-set">対象範囲を指定</button>
+                    <button type="button" class="action-btn btn-gray" id="sprint-offline-roi-reset">全画面に戻す</button>
+                </div>
+                <div class="info" id="sprint-offline-roi-status" style="margin:8px 0 0;">通常解析：動画全体をMediaPipeへ入力します。</div>
+            </div>
             <input type="range" id="sprint-offline-seek" min="0" max="1" step="0.0001" value="0">
             <div class="setting-header"><span id="sprint-offline-time-label">0.000 s</span><span class="setting-value" id="sprint-offline-frame-label">Frame --</span></div>
             <div class="small" id="sprint-offline-fps-info" style="margin-bottom:10px;">フレーム情報：--</div>
@@ -1069,6 +1156,11 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 </div>
             </div>
 
+            <details id="sprint-offline-required-details">
+                <summary><span class="sprint-offline-required-title">必須工程・補正</span><span id="sprint-offline-required-summary-status">解析前：必要時のみ展開</span></summary>
+                <div class="sprint-offline-required-body">
+                    <details class="sprint-offline-subdetails" id="sprint-offline-tracking-details">
+                        <summary>任意：手前脚／奥脚 10点初期指定</summary>
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
                 <h3>任意：手前脚／奥脚 10点初期指定 <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="tracking" aria-label="脚の初期追跡補助の説明">?</button></h3>
                 <div class="info">両脚が見やすいフレームで、必要な点だけ指定できます。指定しなくても通常解析できます。指定点は脚ID固定、膝の双方向補完、足首・踵・つま先の画像パッチ追跡に利用します。<b>接地精度を優先する場合は足首・踵・つま先の指定を推奨</b>します。</div>
@@ -1096,8 +1188,10 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button class="action-btn btn-gray" id="sprint-offline-tracking-reset" style="margin-top:8px;">初期追跡指定をリセット</button>
                 <div class="info" id="sprint-offline-tracking-status">任意機能：未指定。通常のMediaPipe解析をそのまま実行できます。</div>
             </div>
+                    </details>
 
-
+                    <details class="sprint-offline-subdetails" id="sprint-offline-sequence-details">
+                        <summary>必須：接地系列の確認</summary>
             <div class="settings-card sequence-required-panel" id="sprint-offline-sequence-panel" style="margin:12px 0;box-shadow:none;">
                 <h3>接地系列の確認 <span class="sequence-required-badge">必須工程</span></h3>
                 <div class="small">SPRINTPEAKではピッチ・接地時間・ストライドなどが接地イベント列に依存します。解析後に、<b>手前脚／奥脚の交互性・接地フレーム・接地時間</b>を映像で確認してください。手動補正は誤判定がある時だけで構いません。</div>
@@ -1106,7 +1200,10 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button type="button" class="action-btn btn-orange" id="sprint-offline-sequence-confirm" disabled style="margin-top:9px;">この接地系列を確認して確定</button>
                 <div class="small" style="margin-top:6px;">※ 接地・離地アンカーの追加や再解析で系列が変わると確認状態を解除します。日本語評価は確認完了後に確定表示します。</div>
             </div>
+                    </details>
 
+                    <details class="sprint-offline-subdetails" id="sprint-offline-manual-details">
+                        <summary>必要な場合のみ：接地・離地タイミング補正</summary>
             <div class="settings-card offline-quick-panel" id="sprint-offline-manual-contact-panel" style="margin:12px 0;box-shadow:none;">
                 <h3>必要な場合のみ：接地・離地タイミング補正</h3>
                 <div class="info">上の必須工程「接地系列の確認」でずれが見つかった箇所だけ補正してください。<b>接地アンカーは自動値より優先</b>し、その前後の左右交互の接地系列も再探索します。接地時間を厳密に直したい場合は同じ脚の離地も指定できます。補正後は接地系列を再確認してください。</div>
@@ -1128,6 +1225,9 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <div class="offline-contact-anchor-list" id="sprint-offline-manual-list"></div>
                 <div class="checkbox-row" style="margin-top:10px;margin-bottom:0;"><input type="checkbox" id="sprint-offline-sticky-toggle" checked><label for="sprint-offline-sticky-toggle">補正中も動画を画面上部に固定する（結果閲覧時は自動で小さく表示）</label></div>
             </div>
+                    </details>
+                </div>
+            </details>
 
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
                 <h3>動画フレーム・解析範囲 <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="range" aria-label="動画フレームと解析範囲の説明">?</button></h3>
@@ -3276,12 +3376,12 @@ const startOfflineHelpContent={
     range:{title:"動画フレーム・解析範囲",body:"動画を再生またはコマ送りして、解析したい区間の最初で『現在を解析開始』、最後で『現在を解析終了』を押します。押したボタンは色が変わり、✓と時刻が表示されます。全編を解析する場合は『全動画』で戻せます。元動画FPSを自動取得できない場合は、撮影時のFPSを手動指定してください。"},
     "body-calibration":{title:"高精度身体キャリブレーション",body:"通常モードは身長から身体寸法を推定します。高精度モードでは実測した大腿長・下腿長・下肢長・足長を優先して距離換算します。未入力の部位だけ身長比へフォールバックします。"},
     "scene-calibration":{title:"実物距離校正",body:"28〜30cmのバトンを映像内の地面に走行方向と平行に置き、両端を指定すると実物スケールを補助できます。2本モードは解析区間の前後に離して置くことで、画面内の位置による縮尺差を補正します。"},
-    markers:{title:"Set・ブロッククリアランス・角度フレーム",body:"自動候補が正しければ操作不要です。Setは単なる最小動作フレームではなく、静止状態から加速状態へ切り替わる直前を優先します。ブロッククリアランスは前ブロック側の足が離れる候補、角度測定フレームは後ろ足が完全に離れて振り出され、前ブロック側の脚〜体幹が最も一直線に近い投射姿勢を優先します。接地アンカーがある場合は、最初の接地より前だけを角度候補として探索します。"},
-    angle:{title:"Start Projection Angle 手動補正",body:"角度測定フレームで黄色線の起点・終点を映像に合わせます。スライダーまたは±0.1°で微調整できます。『自動線に戻す』で自動推定へ戻ります。"},
+    markers:{title:"Set・ブロッククリアランス・角度フレーム",body:"自動候補が正しければ操作不要です。Setは単なる最小動作フレームではなく、静止状態から加速状態へ切り替わる直前を優先します。ブロッククリアランスは前ブロック側の足が離れる候補、角度測定フレームは後ろ足が完全に離れて振り出され、前ブロック側の脚〜体幹が最も一直線に近い飛び出し姿勢を優先します。接地アンカーがある場合は、最初の接地より前だけを角度候補として探索します。"},
+    angle:{title:"スタート飛び出し角度を測る",body:"黄色い線をスタート直後の身体の傾きに合わせます。根元の丸をドラッグすると線の位置を移動でき、先端の丸をドラッグすると角度を大まかに変えられます。最後に角度バー（分度器）または±0.1°で微調整してください。地面のラインを0°として表示します。『自動候補に戻す』で自動推定へ戻ります。"},
     contacts:{title:"接地・離地イベント手動補正",body:"自動検出がずれたときだけ使います。対象足を選び、正しい接地フレームで『接地を追加/修正』、その接地後の正しい離地フレームで『離地を設定』を押します。誤検出した接地はその時刻付近で『近い接地を削除』します。接地解析はブロッククリアランスの自動検出に失敗しても独立して継続します。自動接地時間が0.7秒以上になった場合は誤追跡の可能性が高いため数値を採用せず『計測不能』にします。"},
     landmarks:{title:"MediaPipeランドマーク手動補正",body:"肩・股関節・膝・足首・踵・つま先の点が明らかにずれている場合に使用します。部位を選択→『選択部位を補正』→映像上の正しい位置を1回タップすると、その位置で派生値を再計算します。"},
     steps:{title:"ステップ解析",body:"検出した接地イベントを時系列に並べ、各接地時間と2歩目以降のステップ長を表示します。ブロッククリアランスが未検出でも接地イベントの解析は実行されます。Heel/つま先が短時間隠れた場合は足首と前後フレームから足中心を補助推定し、左右が同じ足で連続する不自然な長い間隔では反対足の接地候補を慎重に再探索します。再探索値は信頼度を下げて表示します。"},
-    evaluation:{title:"日本語フォーム評価",body:"投射姿勢、1歩目の接地時間・接地位置・支持脚膝、遊脚の切り返し、腰の沈み込み、上体の起き方、接地リズム、ステップ長の連続性などを複合評価します。接地時間は高レベル選手の研究値を参考にしますが、短いほど良いとは判定しません。Start Projection Angleは論文の重心速度ベクトル角と定義が異なるため、40〜45°を合否閾値には使いません。研究値から極端に外れる場合は、フォーム評価より先に接地・離地フレームの誤検出を確認します。"},
+    evaluation:{title:"日本語フォーム評価",body:"飛び出し姿勢、1歩目の接地時間・接地位置・支持脚膝、遊脚の切り返し、腰の沈み込み、上体の起き方、接地リズム、ステップ長の連続性などを複合評価します。接地時間は高レベル選手の研究値を参考にしますが、短いほど良いとは判定しません。スタート飛び出し角度は論文の重心速度ベクトル角と定義が異なるため、40〜45°を合否閾値には使いません。研究値から極端に外れる場合は、フォーム評価より先に接地・離地フレームの誤検出を確認します。"},
     compare:{title:"各フレームの姿勢比較",body:"比較したい1つ目のフレームで『現在を比較A』、2つ目で『現在を比較B』を押します。腰中央を基準に位置をそろえ、進行方向を統一して体幹・股関節・膝・足関節角度の差を比較します。"}
 };
 function startOfflineOpenHelp(key){const c=startOfflineHelpContent[key];if(!c)return;const ov=document.getElementById("start-offline-help-overlay");document.getElementById("start-offline-help-title").innerText=c.title;document.getElementById("start-offline-help-body").innerText=c.body;ov.style.display="flex";ov.setAttribute("aria-hidden","false");}
@@ -3652,7 +3752,7 @@ function startOfflineUpdateMarkerButtons(){
     const setBtn=document.getElementById("start-offline-mark-set"),clearBtn=document.getElementById("start-offline-mark-clearance"),angleBtn=document.getElementById("start-offline-mark-angle"),paint=(btn,on,base,label)=>{if(!btn)return;for(const c of ["btn-gray","btn-blue","btn-orange","btn-green","btn-red"])btn.classList.remove(c);btn.classList.add(on?"btn-green":base);btn.innerText=on?`✓ ${label}`:label;btn.setAttribute("aria-pressed",String(on));};paint(setBtn,startOfflineManualSetIndex!==null,"btn-gray","現在をSet基準");paint(clearBtn,startOfflineManualClearanceIndex!==null,"btn-orange","現在をブロッククリアランス");paint(angleBtn,startOfflineAngleIndexManual,"btn-blue","現在を角度測定フレーム");
 }
 function startOfflineRenderMarkerStatus(){
-    const set=startOfflineManualSetIndex??startOfflineAutoSetIndex,clear=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex;const s=set===null?"--":`Frame ${set} / ${startOfflineFrameTime(set).toFixed(3)}s${startOfflineManualSetIndex!==null?" 手動":" 自動（静止→加速遷移）"}`,c=clear===null?"--":`Frame ${clear} / ${startOfflineFrameTime(clear).toFixed(3)}s${startOfflineManualClearanceIndex!==null?" 手動":" 自動"}`,a=startOfflineAngleIndex===null?"--":`Frame ${startOfflineAngleIndex} / ${startOfflineFrameTime(startOfflineAngleIndex).toFixed(3)}s${startOfflineAngleIndexManual?" 手動":" 自動（投射姿勢）"}`;
+    const set=startOfflineManualSetIndex??startOfflineAutoSetIndex,clear=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex;const s=set===null?"--":`Frame ${set} / ${startOfflineFrameTime(set).toFixed(3)}s${startOfflineManualSetIndex!==null?" 手動":" 自動（静止→加速遷移）"}`,c=clear===null?"--":`Frame ${clear} / ${startOfflineFrameTime(clear).toFixed(3)}s${startOfflineManualClearanceIndex!==null?" 手動":" 自動"}`,a=startOfflineAngleIndex===null?"--":`Frame ${startOfflineAngleIndex} / ${startOfflineFrameTime(startOfflineAngleIndex).toFixed(3)}s${startOfflineAngleIndexManual?" 手動":" 自動（飛び出し姿勢）"}`;
     document.getElementById("start-offline-marker-status").innerText=`Set基準：${s} ／ ブロッククリアランス：${c} ／ 角度測定：${a}${clear===null?" ／ 接地解析：ブロック判定とは独立して継続":""}`;const d=startOfflineDirection();document.getElementById("start-offline-direction-info").innerText=document.getElementById("start-offline-direction").value==="auto"?`自動：${d<0?"← 左":d>0?"右 →":"未判定"}`:`手動：${d<0?"← 左":"右 →"}（自動 ${startOfflineAutoDirection<0?"←左":startOfflineAutoDirection>0?"右→":"--"}）`;startOfflineUpdateMarkerButtons();
 }
 function startOfflineFirstContactKneeInsight(first){if(!first)return null;const f=startOfflineFrameRecord(first.index)||startOfflineFrameRecord(startOfflineNearestPoseIndexByTime(first.t,.12));if(!f)return null;const l=startOfflineCorrectedLandmarks(f),swing=first.side==="left"?"right":"left",ki=swing==="left"?25:26,hi=swing==="left"?23:24,ai=swing==="left"?27:28,k=l?.[ki],hip=l?.[hi],ank=l?.[ai],hipMid=startOfflineHipPoint(l);if(!k||!hip||!ank||!hipMid||(k.visibility??0)<.28)return null;const kp={x:k.x*startOfflineCanvas.width,y:k.y*startOfflineCanvas.height},fwd=startOfflineForwardUnit(),bs=startOfflineBodyStateAtFrame(f),sc=startOfflineSceneScaleAtPoint(kp.x,kp.y,bs);if(!sc?.pxPerMeter||sc.confidence<.25)return null;const leadM=((kp.x-hipMid.x)*fwd.x+(kp.y-hipMid.y)*fwd.y)/sc.pxPerMeter,angle=startOfflineJointAngle({x:hip.x,y:hip.y},{x:k.x,y:k.y},{x:ank.x,y:ank.y});return {swing,leadM,angle,inferred:!!k._inferredKnee,confidence:Math.min(k.visibility??0,sc.confidence,f.poseQuality||0)};}
@@ -3667,8 +3767,8 @@ function startOfflineEvaluationHtml(rows,finalA){
     if(!startOfflinePoseFrames.length)return {summary:"解析後、計測値とフォームから総評を表示します。",detail:"評価待機中",quality:"解析待機中"};
     const positives=[],priorities=[],insights=[],beginner=[],quality=[],first=rows[0]?.contact||null,dur=first?.duration,poseQ=offlineTrackMedian(startOfflinePoseFrames.map(f=>f.poseQuality).filter(Number.isFinite)),calQ=startOfflineScaleSummary?.confidence||0,knee=startOfflineFirstContactKneeInsight(first),firstFrame=startOfflineEvaluationFrameInsight(first),hipDrop=startOfflineHipDropInsight(first),rhythm=startOfflineContactRhythmInsight(rows);
     if(Number.isFinite(finalA)){
-        insights.push(`Start Projection Angleは ${finalA.toFixed(1)}°です。文献ではブロック離脱時の低い投射として40〜45°が代表的に記述されていますが、本アプリの角度はSet時の前脚基準点→肩中央の画像上角度で、重心速度ベクトル／take-off angleとは同一定義ではありません。そのため数値の近さだけで良否判定せず、本人の過去動画と1〜3歩目の姿勢変化を優先して比較してください。`);
-    }else insights.push("投射角を十分な信頼度で算出できていないため、角度評価は保留します。");
+        insights.push(`スタート飛び出し角度は ${finalA.toFixed(1)}°です。文献ではブロック離脱時の低い投射として40〜45°が代表的に記述されていますが、本アプリの角度はSet時の前脚基準点→肩中央の画像上角度で、重心速度ベクトル／take-off angleとは同一定義ではありません。そのため数値の近さだけで良否判定せず、本人の過去動画と1〜3歩目の姿勢変化を優先して比較してください。`);
+    }else insights.push("スタート飛び出し角度を十分な信頼度で算出できていないため、角度評価は保留します。");
     if(Number.isFinite(dur)){
         const ms=dur*1000;
         if(dur<.08||dur>.32){priorities.push(`1歩目の接地時間は ${ms.toFixed(0)}ms です。スタート1歩目の研究報告（多くの群平均が概ね約0.17〜0.23秒）から大きく外れるため、フォームを評価する前に接地フレームと離地フレームが同じ脚で正しく取れているか確認してください。`);beginner.push("接地時間が極端な値のときは、まず『速い／遅い』と解釈せず、接地系列と離地タイミングをコマ送りで確認してください。");}
@@ -3680,12 +3780,12 @@ function startOfflineEvaluationHtml(rows,finalA){
     if(knee&&knee.confidence>=.34){const side=knee.swing==="left"?"左":"右";if(knee.leadM<-.02){priorities.push(`1歩目接地時、反対側の${side}膝が腰より後方に残る傾向があります。遊脚の切り返しが遅れていないか確認してください。`);beginner.push("後ろ脚を長く伸ばし続けず、押し終えた脚は素早く回収して次の接地準備へ移してください。");}else if(knee.leadM<.06)insights.push(`1歩目接地時の反対側${side}膝の前方移動は小さめです。次の一歩へ向けた切り返しタイミングを確認してください。`);else positives.push(`1歩目接地時、反対側${side}膝は腰より前方へ移動し、次の一歩への切り返しがつながっています。`);}else insights.push("1歩目接地時の反対脚膝を十分な信頼度で取得できず、遊脚評価は保留します。");
     const distances=rows.slice(1).map(r=>r.distance).filter(Number.isFinite),med=offlineMedianPositive(distances);if(med){const suspect=rows.slice(1).filter(r=>Number.isFinite(r.distance)&&r.distance>Math.max(1.8,med*1.65));if(suspect.length){priorities.push(`ステップ長に前後より大きい値が ${suspect.length}件あります。接地見落とし、または一歩だけ無理に伸ばしていないか確認してください。`);beginner.push("歩幅を急に大きくしようとすると接地が前へ流れやすくなります。加速では一歩ごとに自然に歩幅が伸びる流れを優先してください。");}else if(distances.length>=3)positives.push("2歩目以降のステップ長は大きく飛ばず、連続性は比較的安定しています。");}
     if(rhythm){if(rhythm.maxDev>.45){priorities.push("最初の数歩の接地間隔に大きな乱れがあります。一歩だけ極端に長い／短い区間をコマ送りで確認してください。");beginner.push("スタート直後は『1歩目だけ頑張る』より、1歩目→2歩目→3歩目を連続したリズムでつなぐことを優先してください。");}else insights.push(`最初の接地間隔は中央値 ${(rhythm.median*1000).toFixed(0)}msで、大きな単発の乱れは目立ちません。`);}
-    const projIdx=startOfflineAngleIndex,third=rows[2]?.contact;if(projIdx!==null&&third){const p0=startOfflinePostureMetrics(projIdx),p3=startOfflinePostureMetrics(third.index);if(p0&&p3&&Number.isFinite(p0.trunk)&&Number.isFinite(p3.trunk)){const rise=p3.trunk-p0.trunk;if(rise>28){priorities.push(`投射姿勢から3歩目までに体幹角が約 ${rise.toFixed(0)}° 起きています。上体の起き上がりが急でないか確認してください。`);beginner.push("頭や胸だけを先に起こさず、腰の前進に合わせて身体全体が徐々に起きる動きを目指してください。");}else if(rise>=8)positives.push(`投射姿勢から3歩目にかけて体幹が約 ${rise.toFixed(0)}° 段階的に起きています。`);else insights.push("投射姿勢から3歩目まで体幹角の変化が小さめです。低い姿勢を保つことが前進の妨げになっていないか確認してください。");}}
+    const projIdx=startOfflineAngleIndex,third=rows[2]?.contact;if(projIdx!==null&&third){const p0=startOfflinePostureMetrics(projIdx),p3=startOfflinePostureMetrics(third.index);if(p0&&p3&&Number.isFinite(p0.trunk)&&Number.isFinite(p3.trunk)){const rise=p3.trunk-p0.trunk;if(rise>28){priorities.push(`飛び出し姿勢から3歩目までに体幹角が約 ${rise.toFixed(0)}° 起きています。上体の起き上がりが急でないか確認してください。`);beginner.push("頭や胸だけを先に起こさず、腰の前進に合わせて身体全体が徐々に起きる動きを目指してください。");}else if(rise>=8)positives.push(`飛び出し姿勢から3歩目にかけて体幹が約 ${rise.toFixed(0)}° 段階的に起きています。`);else insights.push("飛び出し姿勢から3歩目まで体幹角の変化が小さめです。低い姿勢を保つことが前進の妨げになっていないか確認してください。");}}
     if(first?.source?.includes("first-contact"))quality.push(`1歩目：First Contact Detector採用（判定スコア ${Math.round((first.firstContactScore||0)*100)}%）。`);if(startOfflineContactRecoveryStats.recoveredContacts)quality.push(`接地再探索 ${startOfflineContactRecoveryStats.recoveredContacts}件（低めの信頼度で内部採用）。`);if(startOfflineContactRecoveryStats.manualAnchorsUsed)quality.push(`手動接地アンカー ${startOfflineContactRecoveryStats.manualAnchorsUsed}件を時刻基準に使用。`);if(startOfflineContactRecoveryStats.sequenceRecovered)quality.push(`左右交互性・予測窓による接地系列再探索 ${startOfflineContactRecoveryStats.sequenceRecovered}件。`);if(startOfflineContactRecoveryStats.inferredFootFrames)quality.push(`足部遮蔽補完 ${startOfflineContactRecoveryStats.inferredFootFrames}フレーム。`);if(startOfflinePatchStats.enabled)quality.push(`画像パッチ追跡 ${startOfflinePatchStats.frames}フレーム／${startOfflinePatchStats.points}点。`);if(startOfflineGroundModel?.valid)quality.push(`固定地面モデル信頼度 約${Math.round(startOfflineGroundModel.confidence*100)}%。`);quality.push(`Pose品質 約${Math.round(poseQ*100)}% ／ 距離校正 約${Math.round(calQ*100)}%。`);
     const evalQ=bodyClamp(poseQ*.55+calQ*.25+(first?.confidence||0)*.20,0,1);if(evalQ<.45)priorities.unshift("解析信頼度が低めです。フォームの断定より、該当フレームのコマ送り確認を優先してください。");const summary=priorities.length?`総評：まず「${priorities[0].split("。")[0]}」を確認してください。`:(positives.length?"総評：大きな破綻は検出されていません。良い点を保ちながら、追加の気づきも確認してください。":"総評：判断材料が不足しているため、断定的な評価は保留します。");const section=(title,arr)=>arr.length?`<div style="margin-top:9px;"><b>${title}</b><ul style="margin:5px 0 0 20px;padding:0;line-height:1.65;">${arr.map(x=>`<li>${x}</li>`).join("")}</ul></div>`:"";return {summary,detail:`評価信頼度：約${Math.round(evalQ*100)}%${section("良かった点",positives)}${section("優先して確認",priorities)}${section("追加の気づき",insights)}${section("初心者向け改善の意識",beginner)}`,quality:quality.length?quality.join("<br>"):"特記事項なし"};
 }
 function startOfflineRenderResults(){
-    const finalA=startOfflineAngleManual??startOfflineAngleAuto;document.getElementById("start-offline-angle-result").innerHTML=(finalA===null||!Number.isFinite(finalA)?"--":finalA.toFixed(1))+' <span class="unit">°</span>';document.getElementById("start-offline-angle-source").innerText=startOfflineAngleManual!==null?"採用：手動補正":startOfflineAngleAuto!==null?"採用：自動（投射姿勢フレーム）":"判定不可/未解析";document.getElementById("start-offline-auto-angle").innerText=startOfflineAngleAuto===null?"--":startOfflineAngleAuto.toFixed(1)+"°";document.getElementById("start-offline-manual-angle").innerText=startOfflineAngleManual===null?"未指定":startOfflineAngleManual.toFixed(1)+"°";document.getElementById("start-offline-final-angle").innerText=finalA===null?"--":finalA.toFixed(1)+"°";document.getElementById("start-offline-angle-value").innerText=finalA===null?"--":finalA.toFixed(1)+"°";
+    const finalA=startOfflineAngleManual??startOfflineAngleAuto;document.getElementById("start-offline-angle-result").innerHTML=(finalA===null||!Number.isFinite(finalA)?"--":finalA.toFixed(1))+' <span class="unit">°</span>';document.getElementById("start-offline-angle-source").innerText=startOfflineAngleManual!==null?"採用：手動設定":startOfflineAngleAuto!==null?"採用：自動候補":"判定不可/未解析";document.getElementById("start-offline-auto-angle").innerText=startOfflineAngleAuto===null?"--":startOfflineAngleAuto.toFixed(1)+"°";document.getElementById("start-offline-manual-angle").innerText=startOfflineAngleManual===null?"未指定":startOfflineAngleManual.toFixed(1)+"°";document.getElementById("start-offline-final-angle").innerText=finalA===null?"--":finalA.toFixed(1)+"°";document.getElementById("start-offline-angle-value").innerText=finalA===null?"--":finalA.toFixed(1)+"°";
     const rows=startOfflineCalculateSteps(startOfflineContacts),first=rows[0]?.contact,dur=first?.duration;document.getElementById("start-offline-first-contact").innerHTML=Number.isFinite(dur)?dur.toFixed(3)+' <span class="unit">s</span>':first?.durationInvalidReason?"計測不能":"--";document.getElementById("start-offline-first-contact-source").innerText=Number.isFinite(dur)?`${first.source||"auto"} ／ 信頼度 ${Math.round((first.confidence||0)*100)}%`:first?.durationInvalidReason?first.durationInvalidReason:"接地→離地を信頼して捕捉できていません";
     const base=sceneBaseCalibration("offline"),calPoint=startOfflineCurrentPoseFrame()?startOfflineHipPoint(startOfflineCorrectedLandmarks(startOfflineCurrentPoseFrame())):{x:startOfflineCanvas.width/2,y:startOfflineCanvas.height/2},fused=calPoint?startOfflineSceneScaleAtPoint(calPoint.x,calPoint.y,startOfflineScaleSummary):startOfflineScaleSummary,conf=fused?.confidence??startOfflineScaleSummary?.confidence??0;document.getElementById("start-offline-cal-confidence").innerHTML=(conf?Math.round(conf*100):"--")+' <span class="unit">%</span>';document.getElementById("start-offline-cal-method").innerText=base.valid?`${base.method}＋身体寸法クロスチェック`:bodyReadCalibrationProfile().mode==="precision"?"高精度身体寸法":"身長比推定";
     const stepEl=document.getElementById("start-offline-step-results");if(!rows.length)stepEl.innerText="接地イベントをまだ検出していません。";else stepEl.innerHTML='<table class="metric-table"><tr><th>歩</th><th>接地時間</th><th>ステップ長</th><th>信頼度</th></tr>'+rows.map(r=>`<tr><td>${r.step}歩目</td><td>${Number.isFinite(r.contact.duration)?(r.contact.duration*1000).toFixed(0)+" ms":r.contact.durationInvalidReason?"計測不能":"--"}</td><td>${r.step===1?"—（距離非表示）":r.distance!==null?r.distance.toFixed(2)+" m":"判定不可"}</td><td>${Math.round((r.contact.confidence||0)*100)}%${r.step>1&&r.distance!==null?` / 距離 ${Math.round(r.distanceConfidence*100)}%`:""}</td></tr>`).join("")+"</table>";
@@ -3751,7 +3851,7 @@ for(const id of ["offline-baton1-length","offline-baton2-length"])document.getEl
 document.getElementById("offline-baton1-set").addEventListener("click",()=>{startOfflineTrackingActive=null;startOfflineRenderTrackingUi();sceneStartPointSelection("offline",1);startOfflineInteraction="baton";sceneRenderBatonButtons("offline");});document.getElementById("offline-baton2-set").addEventListener("click",()=>{startOfflineTrackingActive=null;startOfflineRenderTrackingUi();sceneStartPointSelection("offline",2);startOfflineInteraction="baton";sceneRenderBatonButtons("offline");});document.getElementById("offline-baton-reset").addEventListener("click",()=>{sceneResetPoints("offline");startOfflineInteraction=null;drawStartOfflineOverlay();if(startOfflinePoseFrames.length)startOfflineRecomputeDerived(true);});
 
 document.getElementById("start-offline-direction").addEventListener("change",()=>startOfflineRecomputeDerived(true));
-document.getElementById("start-offline-mark-set").addEventListener("click",()=>{startOfflineManualSetIndex=startOfflineCurrentFrameIndex();startOfflineManualClearanceIndex=null;startOfflineAngleIndex=null;startOfflineAutoProjectionIndex=null;startOfflineAngleIndexManual=false;startOfflineAngleManual=null;startOfflineRecomputeDerived(true);});document.getElementById("start-offline-mark-clearance").addEventListener("click",()=>{const frame=startOfflineCurrentPoseFrame();if(!frame){alert("このフレーム付近にPoseデータがありません。解析後、人物が認識されているフレームで指定してください。");return;}startOfflineManualClearanceIndex=frame.index;if(!startOfflineAngleIndexManual){startOfflineAngleIndex=null;startOfflineAutoProjectionIndex=null;startOfflineAngleManual=null;}startOfflineRecomputeDerived(true);document.getElementById("start-offline-analysis-status").innerText=`手動ブロッククリアランスを Frame ${frame.index} / ${frame.t.toFixed(3)}s に設定し、投射姿勢・接地系列・ステップを再計算しました。`;});document.getElementById("start-offline-mark-angle").addEventListener("click",()=>{startOfflineAngleIndex=startOfflineCurrentFrameIndex();startOfflineAngleIndexManual=true;startOfflineAngleManual=null;const r=startOfflineProjectionAt(startOfflineAngleIndex);startOfflineAngleAuto=r.valid?r.angle:null;startOfflineAngleLineAuto=r.line?{...r.line}:null;startOfflineAngleLine=startOfflineAngleLineAuto?{...startOfflineAngleLineAuto}:null;startOfflineRenderResults();startOfflineRenderMarkerStatus();drawStartOfflineOverlay();});document.getElementById("start-offline-reset-markers").addEventListener("click",()=>{startOfflineManualSetIndex=null;startOfflineManualClearanceIndex=null;startOfflineAngleIndex=null;startOfflineAutoProjectionIndex=null;startOfflineAngleIndexManual=false;startOfflineAngleManual=null;startOfflineRecomputeDerived(true);});
+document.getElementById("start-offline-mark-set").addEventListener("click",()=>{startOfflineManualSetIndex=startOfflineCurrentFrameIndex();startOfflineManualClearanceIndex=null;startOfflineAngleIndex=null;startOfflineAutoProjectionIndex=null;startOfflineAngleIndexManual=false;startOfflineAngleManual=null;startOfflineRecomputeDerived(true);});document.getElementById("start-offline-mark-clearance").addEventListener("click",()=>{const frame=startOfflineCurrentPoseFrame();if(!frame){alert("このフレーム付近にPoseデータがありません。解析後、人物が認識されているフレームで指定してください。");return;}startOfflineManualClearanceIndex=frame.index;if(!startOfflineAngleIndexManual){startOfflineAngleIndex=null;startOfflineAutoProjectionIndex=null;startOfflineAngleManual=null;}startOfflineRecomputeDerived(true);document.getElementById("start-offline-analysis-status").innerText=`手動ブロッククリアランスを Frame ${frame.index} / ${frame.t.toFixed(3)}s に設定し、飛び出し姿勢・接地系列・ステップを再計算しました。`;});document.getElementById("start-offline-mark-angle").addEventListener("click",()=>{startOfflineAngleIndex=startOfflineCurrentFrameIndex();startOfflineAngleIndexManual=true;startOfflineAngleManual=null;const r=startOfflineProjectionAt(startOfflineAngleIndex);startOfflineAngleAuto=r.valid?r.angle:null;startOfflineAngleLineAuto=r.line?{...r.line}:null;startOfflineAngleLine=startOfflineAngleLineAuto?{...startOfflineAngleLineAuto}:null;startOfflineRenderResults();startOfflineRenderMarkerStatus();drawStartOfflineOverlay();});document.getElementById("start-offline-reset-markers").addEventListener("click",()=>{startOfflineManualSetIndex=null;startOfflineManualClearanceIndex=null;startOfflineAngleIndex=null;startOfflineAutoProjectionIndex=null;startOfflineAngleIndexManual=false;startOfflineAngleManual=null;startOfflineRecomputeDerived(true);});
 
 document.getElementById("start-offline-angle-slider").addEventListener("input",e=>startOfflineSetAngleByDegrees(e.target.value));document.getElementById("start-offline-angle-minus").addEventListener("click",()=>{const r=startOfflineAngleFromLine(startOfflineAngleLine);if(r.valid)startOfflineSetAngleByDegrees(r.angle-.1);});document.getElementById("start-offline-angle-plus").addEventListener("click",()=>{const r=startOfflineAngleFromLine(startOfflineAngleLine);if(r.valid)startOfflineSetAngleByDegrees(r.angle+.1);});document.getElementById("start-offline-angle-auto").addEventListener("click",()=>{if(startOfflineAngleLineAuto){startOfflineAngleLine={...startOfflineAngleLineAuto};startOfflineAngleManual=null;startOfflineRenderResults();drawStartOfflineOverlay();}});
 
@@ -3794,7 +3894,7 @@ function offlineInstallAccordions(containerId,titles){
     for(const card of root.querySelectorAll(":scope > .settings-card")){const h=card.querySelector(":scope > h3");if(!h)continue;const title=(h.childNodes[0]?.textContent||h.textContent||"").trim();if(![...wanted].some(x=>title.startsWith(x)))continue;if(card.classList.contains("offline-collapsible"))continue;card.classList.add("offline-collapsible");const body=document.createElement("div");body.className="offline-collapse-body";for(const n of [...card.childNodes])if(n!==h)body.appendChild(n);card.appendChild(body);const b=document.createElement("button");b.type="button";b.className="offline-collapse-toggle";b.setAttribute("aria-expanded","false");b.setAttribute("aria-label",`${title}を開く`);b.innerText="▼";h.appendChild(b);const setOpen=open=>{card.classList.toggle("offline-open",open);b.innerText=open?"▲":"▼";b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",`${title}を${open?"閉じる":"開く"}`);};b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();const open=!card.classList.contains("offline-open");if(open)for(const other of root.querySelectorAll(":scope > .settings-card.offline-collapsible.offline-open")){if(other===card)continue;other.classList.remove("offline-open");const ob=other.querySelector(":scope > h3 .offline-collapse-toggle");if(ob){ob.innerText="▼";ob.setAttribute("aria-expanded","false");}}setOpen(open);});
     }
 }
-offlineInstallAccordions("start-offline-workspace",["任意：脚の初期追跡補助","高精度身体キャリブレーション","フレーム基準・進行方向","Start Projection Angle 手動補正","接地・離地イベント手動補正","MediaPipeランドマーク・手動補正","ブロッククリアランス付近の姿勢","各フレームの姿勢比較"]);
+offlineInstallAccordions("start-offline-workspace",["任意：脚の初期追跡補助","高精度身体キャリブレーション","フレーム基準・進行方向","スタート飛び出し角度を測る","接地・離地イベント手動補正","MediaPipeランドマーク・手動補正","ブロッククリアランス付近の姿勢","各フレームの姿勢比較"]);
 offlineInstallAccordions("sprint-offline-workspace",["任意：脚の初期追跡補助","距離キャリブレーション"]);
 
 /* =========================
@@ -7199,11 +7299,11 @@ async function sprintOfflineAnalyze(){
     for(let i=0;i<sprintOfflineFrameTimes.length;i+=stride){const t=sprintOfflineFrameTimes[i];if(t+1e-6>=from&&t-1e-6<=to)indices.push(i);}if(indices.length){const lastCandidate=sprintOfflineFrameTimes.length-1;if(sprintOfflineFrameTimes[lastCandidate]<=to&&indices[indices.length-1]!==lastCandidate)indices.push(lastCandidate);}if(sprintOfflineTrackingSeed.frameIndex!==null){const ri=sprintOfflineTrackingSeed.frameIndex,rt=sprintOfflineFrameTimes[ri];if(Number.isFinite(rt)&&rt>=from-.001&&rt<=to+.001&&!indices.includes(ri))indices.push(ri);}indices.sort((a,b)=>a-b);
     document.getElementById("sprint-offline-analysis-status").innerText=`高精度解析中：${indices.length}フレーム（元動画約${fps.toFixed(1)}fps / Pose解析約${Math.min(fps,maxRate===Infinity?fps:maxRate).toFixed(1)}fps相当）。`;
     try{
-        for(let n=0;n<indices.length;n++){if(sprintOfflineCancelRequested)break;const idx=indices[n],t=sprintOfflineFrameTimes[idx];await sprintOfflineSeekTime(t);let r=null;try{r=await startOfflinePoseSend(sprintOfflineVideo);}catch(e){console.warn("sprint offline pose",e);}if(r?.poseLandmarks){const l=startOfflineCloneLandmarks(r.poseLandmarks),scale=bodyCalibrationEstimate(l,sprintOfflineCanvas.width,sprintOfflineCanvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:l,poseQuality:startOfflinePoseQuality(l),scale};sprintOfflinePoseFrames.push(f);sprintOfflinePoseMap.set(idx,f);}
+        for(let n=0;n<indices.length;n++){if(sprintOfflineCancelRequested)break;const idx=indices[n],t=sprintOfflineFrameTimes[idx];await sprintOfflineSeekTime(t);let r=null;try{r=await sprintOfflinePoseSendAdaptive();}catch(e){console.warn("sprint offline pose",e);}if(r?.poseLandmarks){const l=startOfflineCloneLandmarks(r.poseLandmarks),scale=bodyCalibrationEstimate(l,sprintOfflineCanvas.width,sprintOfflineCanvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:l,poseQuality:startOfflinePoseQuality(l),scale};sprintOfflinePoseFrames.push(f);sprintOfflinePoseMap.set(idx,f);}
             if(n%3===0||n===indices.length-1){const pct=(n+1)/Math.max(1,indices.length)*84;document.getElementById("sprint-offline-progress").style.width=pct.toFixed(1)+"%";document.getElementById("sprint-offline-analysis-status").innerText=`Pose解析 ${n+1}/${indices.length}（${((n+1)/Math.max(1,indices.length)*100).toFixed(1)}%） ／ 有効Pose ${sprintOfflinePoseFrames.length}`;await new Promise(r=>setTimeout(r,0));}}
         sprintOfflinePoseFrames.sort((a,b)=>a.t-b.t);
         if(!sprintOfflineCancelRequested&&offlineTrackPointCount(sprintOfflineTrackingSeed)>0&&sprintOfflinePoseFrames.length){sprintOfflineTrackingResolvedSeed=offlineTrackResolveSeed(sprintOfflineTrackingSeed,sprintOfflinePoseFrames,sprintOfflineCanvas.width,sprintOfflineCanvas.height);if(sprintOfflineTrackingResolvedSeed){document.getElementById("sprint-offline-analysis-status").innerText="Pose解析完了。初期タップを使って画像パッチ追跡を前後方向に実行しています…";const pr=await offlineRunPatchTracking({video:sprintOfflineVideo,seekTime:sprintOfflineSeekTime,indices,frameTimes:sprintOfflineFrameTimes,seed:sprintOfflineTrackingSeed,resolved:sprintOfflineTrackingResolvedSeed,poseMap:sprintOfflinePoseMap,w:sprintOfflineCanvas.width,h:sprintOfflineCanvas.height,cancelled:()=>sprintOfflineCancelRequested,onProgress:(done,total,dir)=>{const local=total?done/total:1,pct=84+Math.min(15,local*15);document.getElementById("sprint-offline-progress").style.width=pct.toFixed(1)+"%";if(done%12===0)document.getElementById("sprint-offline-analysis-status").innerText=`画像追跡 ${dir==="forward"?"順方向":"逆方向"} ${done}/${total}`;}});sprintOfflinePatchTracks=pr.map;sprintOfflinePatchStats=pr.stats;}}
-        sprintOfflineRecomputeDerived();document.getElementById("sprint-offline-progress").style.width=sprintOfflineCancelRequested?document.getElementById("sprint-offline-progress").style.width:"100%";if(sprintOfflineCancelRequested)document.getElementById("sprint-offline-analysis-status").innerText=`解析を中止しました。有効Pose ${sprintOfflinePoseFrames.length}フレーム。取得済み範囲で暫定結果を表示します。`;else{const patchInfo=sprintOfflinePatchStats.enabled?` ／ 画像追跡 ${sprintOfflinePatchStats.frames}フレーム`:"",groundInfo=sprintOfflineGroundModel?.valid?` ／ 地面モデル ${Math.round(sprintOfflineGroundModel.confidence*100)}%`:"";document.getElementById("sprint-offline-analysis-status").innerText=`解析完了：有効Pose ${sprintOfflinePoseFrames.length}/${indices.length}フレーム ／ 速度サンプル ${sprintOfflineSpeedFrames.length} ／ 接地 ${sprintOfflineContacts.length}件${patchInfo}${groundInfo}`;}
+        sprintOfflineRecomputeDerived();document.getElementById("sprint-offline-progress").style.width=sprintOfflineCancelRequested?document.getElementById("sprint-offline-progress").style.width:"100%";if(sprintOfflineCancelRequested)document.getElementById("sprint-offline-analysis-status").innerText=`解析を中止しました。有効Pose ${sprintOfflinePoseFrames.length}フレーム。取得済み範囲で暫定結果を表示します。`;else{const patchInfo=sprintOfflinePatchStats.enabled?` ／ 画像追跡 ${sprintOfflinePatchStats.frames}フレーム`:"",groundInfo=sprintOfflineGroundModel?.valid?` ／ 地面モデル ${Math.round(sprintOfflineGroundModel.confidence*100)}%`:"",poseRatio=sprintOfflinePoseFrames.length/Math.max(1,indices.length);if(!sprintOfflinePoseFrames.length){document.getElementById("sprint-offline-analysis-status").innerText="⚠ 人体Poseを検出できませんでした。選手が遠い・小さい、または複数人が映っている可能性があります。上の『解析対象選手』を指定して再解析してください。";}else{document.getElementById("sprint-offline-analysis-status").innerText=`解析完了：有効Pose ${sprintOfflinePoseFrames.length}/${indices.length}フレーム ／ 速度サンプル ${sprintOfflineSpeedFrames.length} ／ 接地 ${sprintOfflineContacts.length}件${patchInfo}${groundInfo}${poseRatio<.20?" ／ ⚠ Pose取得率が低いため対象範囲指定を推奨":""}`;}sprintOfflineRoiPostAnalyze(indices.length);}
         await sprintOfflineSeekTime(from);
     }finally{sprintOfflineAnalyzing=false;analyzeBtn.disabled=false;cancelBtn.disabled=true;if(startOfflineBtn)startOfflineBtn.disabled=false;if(liveBtn)liveBtn.disabled=false;}
 }
@@ -7440,7 +7540,7 @@ function startEvidenceSetPanel(text,contact=null){
 async function startShowEvidence(kind){
     if(!startOfflineFrameTimes?.length||!startOfflineVideo?.src)return;
     let frame=null,contact=null,title="測定根拠";
-    if(kind==="projection"){frame=startOfflineAngleIndex;title="Start Projection Angle";}
+    if(kind==="projection"){frame=startOfflineAngleIndex;title="スタート飛び出し角度";}
     else if(kind.startsWith("clearance-")){frame=startEvidenceClearanceFrame();title="ブロッククリアランス姿勢";}
     else if(kind==="first-contact"||kind==="start-step"){contact=startEvidenceFirstContact();frame=contact?.index??null;title="1歩目接地";}
     if(frame===null||frame===undefined||!Number.isFinite(frame)){startEvidenceSetPanel(`${title}：根拠フレームを確定できません。解析結果または手動補正を確認してください。`,contact);return;}
@@ -7495,7 +7595,7 @@ function startEnhanceEvaluationLinks(){
 function startRenderEvidenceResultUi(){
     const el=document.getElementById("start-offline-clearance-posture"),fi=startEvidenceClearanceFrame(),pm=fi===null?null:startOfflinePostureMetrics(fi),fmt=v=>Number.isFinite(v)?v.toFixed(1)+"°":"--",row=(name,key,label)=>`<tr><td>${name}</td><td>${fmt(pm?.[key])} ${Number.isFinite(pm?.[key])?`<button type="button" class="analysis-evidence-btn" data-start-evidence="${label}" aria-label="${name}の測定根拠を見る">!</button>`:""}</td></tr>`;
     if(el){el.innerHTML=pm?`<table class="metric-table"><tr><td>フレーム</td><td>Frame ${pm.frame} / ${pm.t.toFixed(3)} s <button type="button" class="analysis-evidence-btn" data-start-evidence="clearance-trunk" aria-label="ブロッククリアランスフレームを見る">!</button></td></tr>${row("体幹角（地面基準）","trunk","clearance-trunk")}${row("左股関節（肩中央-股関節-膝）","leftHip","clearance-leftHip")}${row("右股関節（肩中央-股関節-膝）","rightHip","clearance-rightHip")}${row("左膝（股関節-膝-足首）","leftKnee","clearance-leftKnee")}${row("右膝（股関節-膝-足首）","rightKnee","clearance-rightKnee")}${row("左足関節（膝-足首-つま先）","leftAnkle","clearance-leftAnkle")}${row("右足関節（膝-足首-つま先）","rightAnkle","clearance-rightAnkle")}<tr><td>Pose品質</td><td>${Math.round((pm.quality||0)*100)}%</td></tr></table><div class="evidence-definition-note"><b>角度定義：</b>体幹角は「地面の進行方向」と「腰中央→肩中央」。股関節・膝・足関節は表記した3点の中央点を頂点にした内角です。［!］で実際の採用フレームと測定線を確認できます。</div>`:"ブロッククリアランスフレームをまだ確定できていません。";}
-    const src=document.getElementById("start-offline-angle-source");if(src&&startOfflinePoseFrames?.length){const base=src.textContent.split(" ／ 測定定義")[0];src.textContent=`${base} ／ 測定定義：前脚Set基準点→肩中央 と 地面進行方向の角度`;}
+    const src=document.getElementById("start-offline-angle-source");if(src&&startOfflinePoseFrames?.length){const base=src.textContent.split(" ／ 測定定義")[0];src.textContent=`${base} ／ 測定定義：地面ラインを0°として、前脚Set基準点→肩中央の線との角度`;}
     startEnhanceEvaluationLinks();
 }
 const startRenderBase=startOfflineRenderResults;startOfflineRenderResults=function(){startRenderBase();startRenderEvidenceResultUi();};
@@ -7654,7 +7754,7 @@ function mandatoryRenderStartHub(){
     if(!mandatoryStartConfirmed()||!startOfflinePoseFrames?.length){hub.classList.remove("active");hub.innerHTML="";return;}
     const t=mandatoryEvalTexts(root);
     hub.innerHTML=`<div class="evidence-hub-title">解析根拠を見る（4パネルに集約）</div><div class="evidence-hub-grid">
-      <div class="evidence-hub-card"><b>① 投射姿勢・Start Projection Angle</b><div class="evidence-hub-findings">${mandatoryPick(t,/投射角|Projection|前方への投射|上体.*起き/)}</div><button type="button" data-start-evidence="projection">根拠フレームを見る</button></div>
+      <div class="evidence-hub-card"><b>① 飛び出し姿勢・スタート飛び出し角度</b><div class="evidence-hub-findings">${mandatoryPick(t,/投射角|Projection|前方への投射|上体.*起き/)}</div><button type="button" data-start-evidence="projection">根拠フレームを見る</button></div>
       <div class="evidence-hub-card"><b>② ブロッククリアランス・体幹</b><div class="evidence-hub-findings">${mandatoryPick(t,/ブロック|体幹|クリアランス|股関節/)}</div><button type="button" data-start-evidence="clearance-trunk">根拠フレームを見る</button></div>
       <div class="evidence-hub-card"><b>③ ブロッククリアランス下肢角度</b><div class="evidence-hub-findings">${mandatoryPick(t,/膝|股関節|足関節|下肢/)}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:5px"><button type="button" data-start-evidence="clearance-leftKnee">左膝</button><button type="button" data-start-evidence="clearance-rightKnee">右膝</button></div></div>
       <div class="evidence-hub-card"><b>④ 1歩目接地・接地系列・初期ステップ</b><div class="evidence-hub-findings">${mandatoryPick(t,/1歩目|接地|支持脚|遊脚|ステップ|リズム|腰/)}</div><button type="button" data-mandatory-scroll="start-sequence">接地系列パネルで確認</button></div>
@@ -7769,8 +7869,8 @@ function scienceStartCheck(){
     else{if(level!=="warn")level="review";parts.push(`<b>1歩目接地 ${ms.toFixed(0)}ms：</b>主要研究の群平均帯からは外れますが、個人差・競技レベル差があるため測定値の確認後に他指標と合わせて解釈します。`);}
     if((first?.confidence||0)<.55){level="warn";parts.push(`<b>接地信頼度 ${Math.round((first?.confidence||0)*100)}%：</b>低信頼のため接地系列パネルで映像確認を優先してください。`);}
   }else{level="review";parts.push(`<b>1歩目接地時間：</b>${first?.durationInvalidReason?"計測不能":"未確定"}。接地系列と離地を確認してください。`);}
-  if(Number.isFinite(finalA))parts.push(`<b>Start Projection Angle ${finalA.toFixed(1)}°：</b>40〜45°という文献記述はありますが測定定義が異なるため、合否判定には使用しません。`);
-  else parts.push(`<b>Start Projection Angle：</b>未確定。角度基準はフォーム合否より測定線の再現性を優先します。`);
+  if(Number.isFinite(finalA))parts.push(`<b>スタート飛び出し角度 ${finalA.toFixed(1)}°：</b>40〜45°という文献記述はありますが測定定義が異なるため、合否判定には使用しません。`);
+  else parts.push(`<b>スタート飛び出し角度：</b>未確定。角度基準はフォーム合否より測定線の再現性を優先します。`);
   const startConfirmed=!!document.getElementById("start-offline-sequence-panel")?.classList.contains("sequence-confirmed");if(!startConfirmed){if(level==="ok")level="review";parts.unshift(`<b>暫定チェック：</b>接地系列はまだ最終確認されていません。`);}
   scienceSet("start-offline-science-status",level,parts.join("<br>"));
 }
@@ -7828,11 +7928,16 @@ setTimeout(()=>{scienceStartCheck();scienceSprintCheck(typeof sprintOfflineLastR
 let startGroundAutoModel=null;
 let startGroundManualPoints=[];
 let startGroundPendingPoints=[];
+let startGroundDragHandle=0;
+let startGroundPointerId=null;
+let startGroundDrawingNew=false;
 let startGroundMode="auto";
 let startGroundAutoValidEnd=Infinity;
 let startGroundGuardStats={offscreenRejected:0,stateRejected:0,duplicateRejected:0,autoEndReason:"",validEnd:Infinity};
 let startSequenceEditIndex=null;
 let startGroundEnhancingTable=false;
+let startGroundTemporalStats={added:0,refined:0,rejectedLowConsensus:0,candidates:0};
+let startGroundResolution={level:"unknown",footPx:NaN,shankPx:NaN,score:0};
 
 const START_GROUND_LOW_CONF=.40;
 const START_GROUND_REVIEW_CONF=.60;
@@ -7914,13 +8019,117 @@ function startGroundEnforceState(events,anchorT){
     return out;
 }
 
+
+/* ---------- Start専用：足部3点合議 + 前後フレーム時系列による接地補助判定 ---------- */
+function startGroundResolutionSummary(){
+    const foot=[],shank=[],w=startOfflineCanvas.width||1,h=startOfflineCanvas.height||1;
+    for(const f of startOfflinePoseFrames||[]){
+        const d=startOfflineFootDetail?.get?.(f.index)||{},l=startOfflineCorrectedLandmarks(f);
+        for(const side of ["left","right"]){
+            const q=d?.[side];if(q?.heel&&q?.toe)foot.push(Math.hypot(q.toe.x-q.heel.x,q.toe.y-q.heel.y));
+            const ki=side==="left"?25:26,ai=side==="left"?27:28,k=l?.[ki],a=l?.[ai];
+            if(k&&a&&(k.visibility??0)>=.25&&(a.visibility??0)>=.25)shank.push(Math.hypot((k.x-a.x)*w,(k.y-a.y)*h));
+        }
+    }
+    const fp=startGroundMedian(foot),sp=startGroundMedian(shank);
+    let level="good",score=1;
+    if((Number.isFinite(fp)&&fp<12)||(Number.isFinite(sp)&&sp<38)){level="low";score=.35;}
+    else if((Number.isFinite(fp)&&fp<20)||(Number.isFinite(sp)&&sp<58)){level="medium";score=.65;}
+    else if(!Number.isFinite(fp)&&!Number.isFinite(sp)){level="unknown";score=.45;}
+    startGroundResolution={level,footPx:fp,shankPx:sp,score};return startGroundResolution;
+}
+function startGroundPartConsensus(q){
+    if(!q)return {available:0,near:0,ratio:0,ground:0};
+    const low=startGroundResolution?.level==="low",toeT=low?.044:.039,heelT=low?.052:.046,ankleT=low?.128:.115;
+    const parts=[
+        [q.toeHeightM,toeT,q.parts?.toe],
+        [q.heelHeightM,heelT,q.parts?.heel],
+        [q.ankleHeightM,ankleT,q.parts?.ankle]
+    ];
+    let available=0,near=0,weight=0,total=0;
+    for(const [height,thr,part] of parts){
+        if(!Number.isFinite(height)||!part)continue;
+        const rawVis=Number.isFinite(part.visibility)?part.visibility:(q.confidence||0),tracked=!!(part._patchTracked||part._fusionSource),minVis=tracked?.14:.20;
+        if(rawVis<minVis)continue;
+        const vis=bodyClamp(rawVis,.15,1);available++;total+=vis;if(height<=thr){near++;weight+=vis*bodyClamp((thr+.020-height)/.040,.25,1);}
+    }
+    return {available,near,ratio:available?near/available:0,ground:total?bodyClamp(weight/total,0,1):0};
+}
+function startGroundMedianFinite(a){return startGroundMedian((a||[]).filter(Number.isFinite));}
+function startGroundHipMotionByFrame(){
+    const map=new Map(),frames=startOfflinePoseFrames||[],fwd=startOfflineForwardUnit(),w=Math.max(1,startOfflineCanvas.width);
+    for(let i=0;i<frames.length;i++){
+        const P=frames[Math.max(0,i-1)],N=frames[Math.min(frames.length-1,i+1)],p=startOfflineHipPoint(startOfflineCorrectedLandmarks(P)),n=startOfflineHipPoint(startOfflineCorrectedLandmarks(N));
+        let v=NaN;if(p&&n&&N.t>P.t)v=((n.x-p.x)*fwd.x+(n.y-p.y)*fwd.y)/(w*(N.t-P.t));map.set(frames[i].index,v);
+    }
+    return map;
+}
+function startGroundTemporalFeature(arr,i,hipMap){
+    const q=arr?.[i];if(!q)return null;const pre=arr.slice(Math.max(0,i-3),i),post=arr.slice(i+1,Math.min(arr.length,i+4)),cons=startGroundPartConsensus(q);
+    const h=q.contactHeightM,ground=Number.isFinite(h)?bodyClamp((.050-h)/.046,0,1):0;
+    const preH=startGroundMedianFinite(pre.map(x=>x.contactHeightM)),drop=Number.isFinite(preH)&&Number.isFinite(h)?preH-h:NaN,approach=Number.isFinite(drop)?bodyClamp((drop+.003)/.020,0,1):.35;
+    const postNear=post.length?post.filter(x=>{const c=startGroundPartConsensus(x);return c.available>=2&&c.near>=2;}).length/post.length:0;
+    const postV=startGroundMedianFinite(post.map(x=>Math.abs(x.vGround))),settle=Number.isFinite(postV)?bodyClamp((1.9-postV)/1.65,0,1):.35;
+    const postVert=startGroundMedianFinite(post.flatMap(x=>[Math.abs(x.toeVUp),Math.abs(x.ankleVUp)].filter(Number.isFinite))),vertSettle=Number.isFinite(postVert)?bodyClamp((.90-postVert)/.78,0,1):.35;
+    const preDown=startGroundMedianFinite(pre.flatMap(x=>[x.toeVUp,x.ankleVUp].filter(Number.isFinite))),down=Number.isFinite(preDown)?bodyClamp((-preDown+.05)/.70,0,1):.35;
+    const hipV=hipMap?.get(q.index),hip=Number.isFinite(hipV)?bodyClamp((hipV+.005)/.11,0,1):.45;
+    const confidence=bodyClamp(q.confidence||0,0,1);
+    const score=bodyClamp(cons.ground*.24+cons.ratio*.18+ground*.15+approach*.12+postNear*.13+settle*.07+vertSettle*.04+down*.03+confidence*.025+hip*.025,0,1);
+    return {score,cons,ground,approach,postNear,settle,vertSettle,down,hip,confidence};
+}
+function startGroundTemporalCandidates(anchorT){
+    startGroundResolutionSummary();const hipMap=startGroundHipMotionByFrame(),out=[],lowGround=!startOfflineGroundModel?.manual&&(startOfflineGroundModel?.confidence||0)<START_GROUND_LOW_CONF;
+    for(const side of ["left","right"]){
+        const arr=startOfflineFootSignals?.[side]||[];let armed=false,airCount=0,clusterUntil=-Infinity;
+        for(let i=0;i<arr.length;i++){
+            const q=arr[i];if(q.t<anchorT+.025||q.t>(Number.isFinite(startGroundAutoValidEnd)?startGroundAutoValidEnd:Infinity)+.001)continue;
+            const isAir=Number.isFinite(q.contactHeightM)&&q.contactHeightM>.043&&q.confidence>=.18;if(isAir){airCount++;if(airCount>=1)armed=true;}else airCount=0;
+            if(!armed||q.t<clusterUntil)continue;
+            const f=startGroundTemporalFeature(arr,i,hipMap);if(!f)continue;
+            if(f.cons.available<2||f.cons.near<2){if(f.score>.48)startGroundTemporalStats.rejectedLowConsensus++;continue;}
+            const threshold=(lowGround?.64:.58)+(startGroundResolution.level==="low"?.025:0);
+            if(f.score<threshold||f.postNear<.33)continue;
+            let best={i,f};for(let j=i+1;j<Math.min(arr.length,i+3);j++){const fj=startGroundTemporalFeature(arr,j,hipMap);if(fj&&fj.cons.available>=2&&fj.cons.near>=2&&fj.score>best.f.score+.025)best={i:j,f:fj};}
+            const land=arr[best.i],end=offlineContactEndStatus(arr,best.i,.70,.035),conf=bodyClamp((land.confidence||0)*.40+best.f.score*.46+(startOfflineGroundModel?.confidence||0)*.08+startGroundResolution.score*.06,.30,.94);
+            out.push({side,index:land.index,frame:land.index,t:land.t,x:land.p.x,y:land.p.y,visibility:land.p.visibility??land.confidence,confidence:conf,source:(land.parts?.heel?._patchTracked||land.parts?.toe?._patchTracked||land.parts?.ankle?._patchTracked)?"auto-temporal-patch":"auto-temporal",liftoff:end.liftoff?.t??null,duration:end.duration,durationInvalid:!!end.invalidReason,durationInvalidReason:end.invalidReason,method:"3点合議＋前後フレーム時系列",contactEvidence:best.f.score,temporalScore:best.f.score,_signal:land});
+            armed=false;clusterUntil=land.t+Math.max(.055,1.4/Math.max(1,startOfflineEffectiveFps()));
+        }
+    }
+    out.sort((a,b)=>a.t-b.t);startGroundTemporalStats.candidates=out.length;return out;
+}
+function startGroundRefineAndSupplement(base,anchorT){
+    startGroundTemporalStats={added:0,refined:0,rejectedLowConsensus:0,candidates:0};const temporal=startGroundTemporalCandidates(anchorT),used=new Set(),out=[],hipMap=startGroundHipMotionByFrame();
+    for(const c0 of base||[]){
+        let c={...c0};
+        /* 手動指定は正解データとして扱い、自動の時系列補正でフレームを動かさない。 */
+        if(startGroundIsManual(c)){
+            let nearest=-1,nd=.085;for(let j=0;j<temporal.length;j++){if(used.has(j)||temporal[j].side!==c.side)continue;const d=Math.abs(temporal[j].t-c.t);if(d<nd){nd=d;nearest=j;}}if(nearest>=0)used.add(nearest);
+            out.push(c);continue;
+        }
+        let best=-1,bd=.095;
+        for(let j=0;j<temporal.length;j++){if(used.has(j)||temporal[j].side!==c.side)continue;const d=Math.abs(temporal[j].t-c.t);if(d<bd){bd=d;best=j;}}
+        if(best>=0){
+            const t=temporal[best],isFirst=String(c.source||"").includes("first-contact");
+            if(t.temporalScore>=.48&&(!isFirst||bd<=.065)){c={...c,index:t.index,frame:t.frame,t:t.t,x:t.x,y:t.y,confidence:bodyClamp((c.confidence||0)*.52+t.confidence*.48,0,1),temporalScore:t.temporalScore,temporalRefined:true,method:(c.method?c.method+" / ":"")+"3点合議＋時系列補正"};if(Number.isFinite(t.liftoff)){c.liftoff=t.liftoff;c.duration=t.duration;}used.add(best);startGroundTemporalStats.refined++;}
+        }
+        const arr=startOfflineFootSignals?.[c.side]||[],ix=startGroundNearestSignalIndex(arr,c.t,.075),feat=ix>=0?startGroundTemporalFeature(arr,ix,hipMap):null;
+        if(!String(c.source||"").includes("first-contact")&&feat&&feat.cons.available>=2&&feat.cons.near<2&&feat.score<.36){startGroundTemporalStats.rejectedLowConsensus++;continue;}
+        out.push(c);
+    }
+    for(let j=0;j<temporal.length;j++){
+        if(used.has(j))continue;const t=temporal[j],near=out.some(c=>Math.abs(c.t-t.t)<.085);if(near)continue;
+        const before=out.filter(c=>c.t<t.t).length,need=before<2?.58:.64;if((t.temporalScore||0)<need)continue;out.push({...t});startGroundTemporalStats.added++;
+    }
+    out.sort((a,b)=>a.t-b.t);return out;
+}
+
 /* Automatic contact output is guarded after the existing detector/recovery logic.
    Manual anchors are intentionally exempt from auto-end/state rejection. */
 const startGroundDetectBase=startOfflineDetectContacts;
 startOfflineDetectContacts=function(anchorIndex=null){
     let anchorT=startOfflineRangeStart||0;if(anchorIndex!==null){const f=startOfflineFrameRecord(anchorIndex);if(f)anchorT=f.t;else{const t=startOfflineFrameTime(anchorIndex);if(Number.isFinite(t))anchorT=t;}}
     const autoEnd=startGroundComputeAutoEnd(anchorT);startGroundAutoValidEnd=autoEnd.end;startGroundGuardStats.validEnd=autoEnd.end;startGroundGuardStats.autoEndReason=autoEnd.reason;
-    const raw=startGroundDetectBase(anchorIndex);return startGroundEnforceState(raw,anchorT).slice(0,12);
+    const raw=startGroundDetectBase(anchorIndex),refined=startGroundRefineAndSupplement(raw,anchorT);return startGroundEnforceState(refined,anchorT).slice(0,12);
 };
 
 function startGroundRebuildFootSignals(){
@@ -7945,17 +8154,18 @@ startOfflineRecomputeDerived=function(preserveManual=true){
 };
 
 function startGroundSetManualFromPending(){
-    const m=startGroundBuildManualModel(startGroundPendingPoints);if(!m){startGroundPendingPoints=[];startOfflineInteraction=null;startGroundRenderUi("2点が近すぎるためGROUNDを作れません。離れた2点を指定してください。",true);drawStartOfflineOverlay();return;}
-    startGroundManualPoints=startGroundPendingPoints.map(p=>({x:p.x,y:p.y}));startGroundPendingPoints=[];startGroundMode="manual";startOfflineGroundModel=m;startOfflineInteraction=null;startGroundFastRecomputeContacts("手動GROUNDを2点指定しました");
+    const m=startGroundBuildManualModel(startGroundPendingPoints);if(!m){startGroundRenderUi("地面のラインが短すぎます。走路に沿って、もう少し長く線を引いてください。",true);drawStartOfflineOverlay();return;}
+    startGroundManualPoints=startGroundPendingPoints.map(p=>({x:p.x,y:p.y}));startGroundPendingPoints=[];startGroundMode="manual";startOfflineGroundModel=m;startOfflineInteraction=null;startGroundDragHandle=0;startGroundPointerId=null;startGroundDrawingNew=false;startGroundFastRecomputeContacts("手動で設定した地面のラインを採用しました");
 }
 function startGroundBeginManual(){
-    if(startOfflineAnalyzing){alert("解析中はGROUNDを変更できません。解析完了後に指定してください。");return;}if(!startOfflineVideo.src){alert("先に動画を読み込んでください。");return;}
-    startOfflineVideo.pause();startGroundPendingPoints=[];startOfflineInteraction="ground";startGroundRenderUi("GROUND指定中：実際の走路面上の1点目をタップしてください。");drawStartOfflineOverlay();
+    if(startOfflineAnalyzing){alert("解析中は地面のラインを変更できません。解析完了後に設定してください。");return;}if(!startOfflineVideo.src){alert("先に動画を読み込んでください。");return;}
+    startOfflineVideo.pause();startGroundPendingPoints=startGroundManualPoints.length===2?startGroundManualPoints.map(p=>({x:p.x,y:p.y})):[];startGroundDragHandle=0;startGroundPointerId=null;startGroundDrawingNew=false;startOfflineInteraction="ground";
+    startGroundRenderUi(startGroundPendingPoints.length===2?"地面ライン編集中：両端の●をドラッグして微調整できます。別の場所からドラッグすると線を引き直せます。":"地面ライン設定中：実際の走路面に沿って、指を押したまま横へドラッグして線を引いてください。");drawStartOfflineOverlay();
 }
 function startGroundRestoreAuto(){
-    if(startOfflineAnalyzing)return;startGroundMode="auto";startGroundManualPoints=[];startGroundPendingPoints=[];if(startOfflineInteraction==="ground")startOfflineInteraction=null;
+    if(startOfflineAnalyzing)return;startGroundMode="auto";startGroundManualPoints=[];startGroundPendingPoints=[];startGroundDragHandle=0;startGroundPointerId=null;startGroundDrawingNew=false;if(startOfflineInteraction==="ground")startOfflineInteraction=null;
     if(startGroundAutoModel?.valid)startOfflineGroundModel=startGroundCloneAutoModel(startGroundAutoModel);else if(startOfflinePoseFrames?.length)startOfflineGroundModel=offlineBuildFixedGroundModel(startOfflineFootDetail,startOfflineGroundAxis(),startOfflineUpUnit());
-    if(startOfflineGroundModel?.valid)startGroundFastRecomputeContacts("自動GROUNDへ戻しました");else{startGroundRenderUi();drawStartOfflineOverlay();}
+    if(startOfflineGroundModel?.valid)startGroundFastRecomputeContacts("自動の地面ラインへ戻しました");else{startGroundRenderUi();drawStartOfflineOverlay();}
 }
 
 function startGroundAddAnchor(frame,sidePref,action="sequence-add"){
@@ -7973,7 +8183,7 @@ function startGroundDeleteContact(i){
     if(Number.isFinite(t))startOfflineManualLiftoffs=startOfflineManualLiftoffs.filter(m=>!(m.side===side&&m.t>=t-.02&&m.t<=t+.55));startSequenceEditIndex=null;startGroundFastRecomputeContacts(`C${i+1} を接地系列から削除しました`);
 }
 function startGroundStartEdit(i){
-    const c=startOfflineContacts?.[i];if(!c)return;startSequenceEditIndex=i;const frame=startGroundFrameForContact(c);if(Number.isFinite(frame)){startOfflineVideo.pause();startOfflineSeekToFrame(frame);document.getElementById("start-offline-video-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});}startGroundRenderUi(`C${i+1}（${startGroundSideText(c.side)}）を修正中：コマ送りで正しい接地フレームへ移動し「現在フレームに変更」を押してください。`);startGroundEnhanceSequenceTable();
+    const c=startOfflineContacts?.[i];if(!c)return;startSequenceEditIndex=i;startContactMiniSyncSide(c.side||"auto");const frame=startGroundFrameForContact(c);if(Number.isFinite(frame)){startOfflineVideo.pause();startOfflineSeekToFrame(frame);document.getElementById("start-offline-video-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});}startGroundRenderUi(`C${i+1}（${startGroundSideText(c.side)}）を修正中：動画直下のクイックバーでコマ送りし「修正を確定」を押してください。`);startGroundEnhanceSequenceTable();startContactMiniUpdate();
 }
 function startGroundApplyEdit(){
     if(!Number.isInteger(startSequenceEditIndex)){startGroundRenderUi("先に接地系列表の「修正」を押してください。",true);return;}const c=startOfflineContacts?.[startSequenceEditIndex];if(!c){startSequenceEditIndex=null;startGroundRenderUi();return;}
@@ -7992,14 +8202,16 @@ function startGroundAddCurrent(){
 function startGroundInjectUi(){
     const panel=document.getElementById("start-offline-sequence-panel");if(!panel||document.getElementById("start-offline-ground-control"))return;
     const box=document.createElement("div");box.id="start-offline-ground-control";box.className="start-ground-control";box.innerHTML=`
-      <div class="setting-header" style="margin-bottom:6px;"><span><b>GROUND基準線</b></span><span class="setting-value" id="start-offline-ground-mode-label">自動</span></div>
-      <div class="small" id="start-offline-ground-status">解析後、自動GROUNDの信頼度を表示します。</div>
+      <div class="setting-header" style="margin-bottom:6px;"><span><b>地面のラインを設定</b></span><span class="setting-value" id="start-offline-ground-mode-label">自動</span></div>
+      <div class="small" id="start-offline-ground-status">解析後、自動で推定した地面ラインの信頼度を表示します。</div>
+      <div class="start-contact-quality-note" id="start-offline-contact-quality-note">接地判定品質：解析待機中</div>
       <div class="start-ground-warning" id="start-offline-ground-warning" style="display:none;"></div>
-      <div class="button-row" style="grid-template-columns:1fr 1fr;margin-top:8px;">
-        <button type="button" class="action-btn btn-orange" id="start-offline-ground-set">GROUNDを2点指定</button>
-        <button type="button" class="action-btn btn-gray" id="start-offline-ground-auto">自動GROUNDに戻す</button>
+      <div class="button-row" style="grid-template-columns:1.25fr 1.25fr 1fr;margin-top:8px;">
+        <button type="button" class="action-btn btn-orange" id="start-offline-ground-set">地面のラインを引く</button>
+        <button type="button" class="action-btn btn-green" id="start-offline-ground-confirm" disabled>✓ このラインで決定</button>
+        <button type="button" class="action-btn btn-gray" id="start-offline-ground-auto">自動ラインに戻す</button>
       </div>
-      <div class="small" style="margin-top:6px;">手動指定は、映像上の実際の走路面に沿って離れた2点をタップします。GROUND変更後はPoseを再解析せず、接地判定だけを再計算します。</div>`;
+      <div class="small" style="margin-top:6px;"><b>操作：</b>走路面に沿って指を押したままドラッグして線を引きます。線を引いた後は、両端の●をドラッグして位置を微調整できます。確認できたら「このラインで決定」を押してください。変更後はPoseを再解析せず、接地判定だけを再計算します。</div>`;
     const status=panel.querySelector("#start-offline-sequence-status");panel.insertBefore(box,status||panel.children[2]||null);
     const edit=document.createElement("div");edit.id="start-offline-sequence-editor";edit.className="start-sequence-editor";edit.innerHTML=`
       <div><b>接地系列を直接修正</b></div>
@@ -8012,33 +8224,76 @@ function startGroundInjectUi(){
       </div>`;
     const confirm=document.getElementById("start-offline-sequence-confirm");panel.insertBefore(edit,confirm||null);
     document.getElementById("start-offline-ground-set")?.addEventListener("click",startGroundBeginManual);
+    document.getElementById("start-offline-ground-confirm")?.addEventListener("click",startGroundSetManualFromPending);
     document.getElementById("start-offline-ground-auto")?.addEventListener("click",startGroundRestoreAuto);
     document.getElementById("start-offline-sequence-add-current")?.addEventListener("click",startGroundAddCurrent);
     document.getElementById("start-offline-sequence-apply-edit")?.addEventListener("click",startGroundApplyEdit);
-    document.getElementById("start-offline-sequence-cancel-edit")?.addEventListener("click",()=>{startSequenceEditIndex=null;startGroundRenderUi("接地フレーム修正をキャンセルしました。");startGroundEnhanceSequenceTable();});
+    document.getElementById("start-offline-sequence-cancel-edit")?.addEventListener("click",()=>{startSequenceEditIndex=null;startGroundRenderUi("接地フレーム修正をキャンセルしました。");startGroundEnhanceSequenceTable();startContactMiniUpdate();});
+    const seqSide=document.getElementById("start-offline-sequence-side");if(seqSide){seqSide.value=startContactMiniSide();seqSide.addEventListener("change",e=>startContactMiniSyncSide(e.target.value));}
+    const quickSide=document.getElementById("start-offline-quick-contact-side");if(quickSide)quickSide.addEventListener("change",e=>startContactMiniSyncSide(e.target.value));
+    startContactMiniUpdate();
 }
 function startGroundRenderUi(message="",isError=false){
-    startGroundInjectUi();const label=document.getElementById("start-offline-ground-mode-label"),status=document.getElementById("start-offline-ground-status"),warning=document.getElementById("start-offline-ground-warning"),setBtn=document.getElementById("start-offline-ground-set"),autoBtn=document.getElementById("start-offline-ground-auto"),editStatus=document.getElementById("start-offline-sequence-edit-status"),apply=document.getElementById("start-offline-sequence-apply-edit"),cancel=document.getElementById("start-offline-sequence-cancel-edit");
-    const autoConf=startGroundAutoModel?.valid?startGroundAutoModel.confidence:null,current=startOfflineGroundModel,manual=startGroundMode==="manual"&&current?.manual;
-    if(label)label.textContent=manual?"手動2点":"自動";
-    if(setBtn)setBtn.textContent=startOfflineInteraction==="ground"?`GROUND指定中 (${startGroundPendingPoints.length}/2)`:"GROUNDを2点指定";
-    if(autoBtn)autoBtn.disabled=!manual&&!startGroundManualPoints.length;
+    startGroundInjectUi();const label=document.getElementById("start-offline-ground-mode-label"),status=document.getElementById("start-offline-ground-status"),warning=document.getElementById("start-offline-ground-warning"),setBtn=document.getElementById("start-offline-ground-set"),confirmBtn=document.getElementById("start-offline-ground-confirm"),autoBtn=document.getElementById("start-offline-ground-auto"),editStatus=document.getElementById("start-offline-sequence-edit-status"),apply=document.getElementById("start-offline-sequence-apply-edit"),cancel=document.getElementById("start-offline-sequence-cancel-edit");
+    const autoConf=startGroundAutoModel?.valid?startGroundAutoModel.confidence:null,current=startOfflineGroundModel,manual=startGroundMode==="manual"&&current?.manual,editing=startOfflineInteraction==="ground",pendingValid=!!startGroundBuildManualModel(startGroundPendingPoints);
+    if(label)label.textContent=editing?"編集中":manual?"手動設定":"自動";
+    if(setBtn)setBtn.textContent=editing?(startGroundPendingPoints.length===2?"ラインを引き直す":"ライン作成中"):manual?"地面ラインを調整":"地面のラインを引く";
+    if(confirmBtn)confirmBtn.disabled=!editing||!pendingValid;
+    if(autoBtn)autoBtn.disabled=!manual&&!startGroundManualPoints.length&&!editing;
     if(status){
         if(message)status.innerHTML=`<span style="color:${isError?"#b42318":"#1f6f43"}">${startGroundEsc(message)}</span>`;
-        else if(manual)status.innerHTML=`<b>手動GROUNDを採用中。</b>${Number.isFinite(autoConf)?` 自動推定信頼度は ${Math.round(autoConf*100)}%。`:""} 自動接地有効区間：〜${Number.isFinite(startGroundAutoValidEnd)?startGroundAutoValidEnd.toFixed(3):"--"}s。`;
-        else if(current?.valid)status.innerHTML=`自動GROUND信頼度 <b>${Math.round((current.confidence||0)*100)}%</b> ／ 自動接地有効区間：〜${Number.isFinite(startGroundAutoValidEnd)?startGroundAutoValidEnd.toFixed(3):"--"}s${startGroundGuardStats.autoEndReason?`（${startGroundEsc(startGroundGuardStats.autoEndReason)}）`:""}`;
-        else status.textContent="GROUND：未解析";
+        else if(editing)status.innerHTML=`<b>地面ラインを編集中。</b> 両端の●をドラッグして微調整し、「このラインで決定」を押してください。`;
+        else if(manual)status.innerHTML=`<b>手動で設定した地面ラインを採用中。</b>${Number.isFinite(autoConf)?` 自動推定の信頼度は ${Math.round(autoConf*100)}%。`:""} 自動接地有効区間：〜${Number.isFinite(startGroundAutoValidEnd)?startGroundAutoValidEnd.toFixed(3):"--"}s。`;
+        else if(current?.valid)status.innerHTML=`自動の地面ライン信頼度 <b>${Math.round((current.confidence||0)*100)}%</b> ／ 自動接地有効区間：〜${Number.isFinite(startGroundAutoValidEnd)?startGroundAutoValidEnd.toFixed(3):"--"}s${startGroundGuardStats.autoEndReason?`（${startGroundEsc(startGroundGuardStats.autoEndReason)}）`:""}`;
+        else status.textContent="地面ライン：未解析";
     }
     if(warning){
-        const conf=manual?autoConf:(current?.valid?current.confidence:null);if(!manual&&(!current?.valid||!Number.isFinite(conf))){warning.style.display="block";warning.className="start-ground-warning danger";warning.innerHTML="⚠ GROUNDを安定して推定できません。接地系列を確定する前に手動2点指定を推奨します。";}
-        else if(!manual&&conf<START_GROUND_LOW_CONF){warning.style.display="block";warning.className="start-ground-warning danger";warning.innerHTML=`⚠ 自動GROUND信頼度 ${Math.round(conf*100)}%。低信頼のため、接地の良否より先にGROUND位置を確認してください。手動2点指定を推奨します。`;}
-        else if(!manual&&conf<START_GROUND_REVIEW_CONF){warning.style.display="block";warning.className="start-ground-warning review";warning.innerHTML=`自動GROUND信頼度 ${Math.round(conf*100)}%。接地系列を確定する前に点線が実際の走路面と一致しているか確認してください。`;}
-        else if(manual&&Number.isFinite(autoConf)&&autoConf<START_GROUND_LOW_CONF){warning.style.display="block";warning.className="start-ground-warning ok";warning.innerHTML=`✓ 低信頼だった自動GROUND（${Math.round(autoConf*100)}%）を使わず、手動2点GROUNDを採用しています。`;}
+        const conf=manual?autoConf:(current?.valid?current.confidence:null);if(!editing&&!manual&&(!current?.valid||!Number.isFinite(conf))){warning.style.display="block";warning.className="start-ground-warning danger";warning.innerHTML="⚠ 地面の位置を安定して推定できません。接地系列を確定する前に『地面のラインを引く』で手動設定することを推奨します。";}
+        else if(!editing&&!manual&&conf<START_GROUND_LOW_CONF){warning.style.display="block";warning.className="start-ground-warning danger";warning.innerHTML=`⚠ 自動の地面ライン信頼度 ${Math.round(conf*100)}%。低信頼のため、接地の良否より先に点線が実際の走路面と一致しているか確認してください。必要なら手動でラインを引いてください。`;}
+        else if(!editing&&!manual&&conf<START_GROUND_REVIEW_CONF){warning.style.display="block";warning.className="start-ground-warning review";warning.innerHTML=`自動の地面ライン信頼度 ${Math.round(conf*100)}%。接地系列を確定する前に、点線が実際の走路面と一致しているか確認してください。`;}
+        else if(!editing&&manual&&Number.isFinite(autoConf)&&autoConf<START_GROUND_LOW_CONF){warning.style.display="block";warning.className="start-ground-warning ok";warning.innerHTML=`✓ 信頼度の低い自動推定（${Math.round(autoConf*100)}%）ではなく、手動で設定した地面ラインを採用しています。`;}
         else{warning.style.display="none";warning.innerHTML="";}
     }
     if(editStatus){if(Number.isInteger(startSequenceEditIndex)){const c=startOfflineContacts?.[startSequenceEditIndex];editStatus.innerHTML=c?`<b>C${startSequenceEditIndex+1} ${startGroundSideText(c.side)}</b> を修正中。動画を正しい接地フレームへ移動してください。`:"修正対象が更新されたため、もう一度選択してください。";}else if(!message)editStatus.textContent=`自動ガード：画面外/Pose喪失後 ${startGroundGuardStats.offscreenRejected}件除外 ／ 状態遷移違反 ${startGroundGuardStats.stateRejected}件除外 ／ 近接重複 ${startGroundGuardStats.duplicateRejected}件除外。`;}
     if(apply)apply.disabled=!Number.isInteger(startSequenceEditIndex);if(cancel)cancel.disabled=!Number.isInteger(startSequenceEditIndex);
+    const qnote=document.getElementById("start-offline-contact-quality-note");if(qnote){
+        const r=startGroundResolution?.level==="unknown"?startGroundResolutionSummary():startGroundResolution,label=r.level==="low"?"低":r.level==="medium"?"中":r.level==="good"?"良":"確認",parts=[];
+        if(Number.isFinite(r.footPx))parts.push(`足部 ${r.footPx.toFixed(0)}px`);if(Number.isFinite(r.shankPx))parts.push(`下腿 ${r.shankPx.toFixed(0)}px`);
+        const stats=startGroundTemporalStats||{};qnote.className=`start-contact-quality-note ${r.level==="low"?"danger":r.level==="medium"?"warn":""}`.trim();
+        qnote.innerHTML=`<b>接地判定品質：${label}</b>${parts.length?`（${parts.join(" / ")}）`:""} ／ 3点合議＋前後フレーム判定：候補 ${stats.candidates||0}、補正 ${stats.refined||0}、追加 ${stats.added||0}${r.level==="low"?"<br>⚠ 足部が小さく写っているため、自動接地は候補として扱い、上のクイックバーで最終フレームを確認してください。":""}`;
+    }
+    startContactMiniUpdate();
 }
+
+
+function startContactMiniSide(){
+    const mini=document.getElementById("start-offline-contact-mini-side"),seq=document.getElementById("start-offline-sequence-side"),quick=document.getElementById("start-offline-quick-contact-side");
+    return mini?.value||seq?.value||quick?.value||"auto";
+}
+function startContactMiniSyncSide(value){
+    for(const id of ["start-offline-contact-mini-side","start-offline-sequence-side","start-offline-quick-contact-side"]){const el=document.getElementById(id);if(el&&[...el.options].some(o=>o.value===value))el.value=value;}
+}
+function startContactMiniUpdate(){
+    const frame=document.getElementById("start-offline-contact-mini-frame"),state=document.getElementById("start-offline-contact-mini-state"),apply=document.getElementById("start-offline-contact-mini-apply");
+    if(frame)frame.textContent=startOfflineFrameTimes?.length?`Frame ${startOfflineCurrentFrameIndex()} / ${(startOfflineVideo.currentTime||0).toFixed(3)}s`:"Frame --";
+    const editing=Number.isInteger(startSequenceEditIndex);if(state)state.textContent=editing?`C${startSequenceEditIndex+1} 修正中`:"追加モード";if(apply)apply.disabled=!editing;
+}
+function startContactMiniAdd(){
+    if(startOfflineAnalyzing)return;const frame=startOfflineCurrentFrameIndex(),side=startContactMiniSide();startContactMiniSyncSide(side);startGroundAddAnchor(frame,side,"sequence-mini-add");startGroundFastRecomputeContacts(`Frame ${frame} を接地として追加しました`);startContactMiniUpdate();
+}
+function startContactMiniApply(){
+    if(!Number.isInteger(startSequenceEditIndex))return;const side=startContactMiniSide();startContactMiniSyncSide(side);startGroundApplyEdit();startContactMiniUpdate();
+}
+document.querySelectorAll("[data-start-contact-mini-step]").forEach(btn=>btn.addEventListener("click",()=>{
+    if(!startOfflineFrameTimes?.length)return;startOfflineVideo.pause();const d=parseInt(btn.dataset.startContactMiniStep||"0",10);startOfflineSeekToFrame(startOfflineCurrentFrameIndex()+d).then(startContactMiniUpdate);
+}));
+document.getElementById("start-offline-contact-mini-add")?.addEventListener("click",startContactMiniAdd);
+document.getElementById("start-offline-contact-mini-apply")?.addEventListener("click",startContactMiniApply);
+document.getElementById("start-offline-contact-mini-side")?.addEventListener("change",e=>startContactMiniSyncSide(e.target.value));
+/* 既存のFrame UI関数は置換せず、追加リスナーだけでミニバーを同期する。 */
+startOfflineVideo?.addEventListener("timeupdate",startContactMiniUpdate);
+startOfflineVideo?.addEventListener("seeked",startContactMiniUpdate);
+startOfflineVideo?.addEventListener("loadeddata",startContactMiniUpdate);
 
 function startGroundEnhanceSequenceTable(){
     if(startGroundEnhancingTable)return;const tableRoot=document.getElementById("start-offline-sequence-table");if(!tableRoot)return;const table=tableRoot.querySelector("table");if(!table)return;startGroundEnhancingTable=true;
@@ -8058,29 +8313,49 @@ function startGroundEnhanceSequenceTable(){
 const startGroundTable=document.getElementById("start-offline-sequence-table");
 startGroundTable?.addEventListener("click",e=>{const edit=e.target.closest("[data-start-seq-edit]"),del=e.target.closest("[data-start-seq-delete]");if(edit){e.preventDefault();e.stopPropagation();startGroundStartEdit(parseInt(edit.dataset.startSeqEdit,10));}else if(del){e.preventDefault();e.stopPropagation();const i=parseInt(del.dataset.startSeqDelete,10),c=startOfflineContacts?.[i];if(c&&confirm(`C${i+1}（${startGroundSideText(c.side)} / F${startGroundFrameForContact(c)??"--"}）を接地系列から削除しますか？`))startGroundDeleteContact(i);}});
 
-/* Manual GROUND tap capture takes priority over angle-line dragging / landmark taps. */
-startOfflineCanvas?.addEventListener("pointerdown",e=>{if(startOfflineInteraction!=="ground"||offlineZoomShouldIgnoreTap("start",e))return;e.preventDefault();e.stopImmediatePropagation();},true);
-startOfflineCanvas?.addEventListener("pointerup",e=>{
-    if(startOfflineInteraction!=="ground"||offlineZoomShouldIgnoreTap("start",e))return;e.preventDefault();e.stopImmediatePropagation();const p=startOfflinePointerPoint(e);if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return;startGroundPendingPoints.push({x:p.x,y:p.y});
-    if(startGroundPendingPoints.length===1){startGroundRenderUi("GROUND 1点目を指定しました。走路面上の離れた2点目をタップしてください。");drawStartOfflineOverlay();}
-    else startGroundSetManualFromPending();
+/* 地面ライン編集は明示的な編集モード中だけ有効。動画ズームや角度線操作との競合を避ける。 */
+function startGroundHandleAt(p){
+    const pts=startGroundPendingPoints.length===2?startGroundPendingPoints:startGroundManualPoints;if(pts.length!==2)return 0;const th=Math.max(28*p.scale,(startOfflineCanvas.width||1)/28),d1=Math.hypot(p.x-pts[0].x,p.y-pts[0].y),d2=Math.hypot(p.x-pts[1].x,p.y-pts[1].y);return Math.min(d1,d2)<=th?(d1<=d2?1:2):0;
+}
+startOfflineCanvas?.addEventListener("pointerdown",e=>{
+    if(startOfflineInteraction!=="ground"||offlineZoomShouldIgnoreTap("start",e))return;const p=startOfflinePointerPoint(e);if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return;e.preventDefault();e.stopImmediatePropagation();
+    if(startGroundPendingPoints.length!==2&&startGroundManualPoints.length===2)startGroundPendingPoints=startGroundManualPoints.map(q=>({x:q.x,y:q.y}));
+    const hit=startGroundHandleAt(p);if(hit){startGroundDragHandle=hit;startGroundDrawingNew=false;}else{startGroundPendingPoints=[{x:p.x,y:p.y},{x:p.x,y:p.y}];startGroundDragHandle=2;startGroundDrawingNew=true;}
+    startGroundPointerId=e.pointerId;startOfflineCanvas.setPointerCapture?.(e.pointerId);startGroundRenderUi(startGroundDrawingNew?"そのまま指を動かし、実際の走路面に沿ってラインを引いてください。":"端の●を動かして地面の位置を微調整してください。");drawStartOfflineOverlay();
 },true);
+startOfflineCanvas?.addEventListener("pointermove",e=>{
+    if(startOfflineInteraction!=="ground"||!startGroundDragHandle||startGroundPointerId!==e.pointerId)return;const p=startOfflinePointerPoint(e);if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return;e.preventDefault();e.stopImmediatePropagation();if(startGroundPendingPoints.length!==2)return;const i=startGroundDragHandle-1;startGroundPendingPoints[i]={x:p.x,y:p.y};drawStartOfflineOverlay();
+},true);
+startOfflineCanvas?.addEventListener("pointerup",e=>{
+    if(startOfflineInteraction!=="ground"||startGroundPointerId!==e.pointerId)return;e.preventDefault();e.stopImmediatePropagation();startGroundDragHandle=0;startGroundPointerId=null;try{startOfflineCanvas.releasePointerCapture?.(e.pointerId);}catch(_){}
+    if(startGroundBuildManualModel(startGroundPendingPoints))startGroundRenderUi("ラインを確認してください。必要なら両端の●をドラッグして微調整し、問題なければ『このラインで決定』を押してください。");else startGroundRenderUi("ラインが短すぎます。走路に沿って、もう少し長くドラッグしてください。",true);drawStartOfflineOverlay();
+},true);
+startOfflineCanvas?.addEventListener("pointercancel",e=>{if(startGroundPointerId!==e.pointerId)return;startGroundDragHandle=0;startGroundPointerId=null;startGroundDrawingNew=false;try{startOfflineCanvas.releasePointerCapture?.(e.pointerId);}catch(_){}startGroundRenderUi();drawStartOfflineOverlay();},true);
 
 /* Manual ground line uses a deterministic label rather than a pseudo statistical 95%. */
 const startGroundDrawModelBase=offlineDrawGroundModel;
-offlineDrawGroundModel=function(ctx,model,groundAxis,upUnit,label="GROUND"){
-    if(!model?.manual)return startGroundDrawModelBase(ctx,model,groundAxis,upUnit,label);if(!ctx||!model.valid)return;const s1=Number.isFinite(model.sMin)?model.sMin:0,s2=Number.isFinite(model.sMax)?model.sMax:s1+300,u1=model.at(s1),u2=model.at(s2),p1={x:s1*groundAxis.x+u1*upUnit.x,y:s1*groundAxis.y+u1*upUnit.y},p2={x:s2*groundAxis.x+u2*upUnit.x,y:s2*groundAxis.y+u2*upUnit.y};ctx.save();ctx.strokeStyle="#38bdf8";ctx.fillStyle="#38bdf8";ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();ctx.setLineDash([]);ctx.font="bold 12px sans-serif";ctx.fillText(`${label} 手動`,p1.x+6,p1.y-6);ctx.restore();
+offlineDrawGroundModel=function(ctx,model,groundAxis,upUnit,label="地面ライン"){
+    if(!model?.manual)return startGroundDrawModelBase(ctx,model,groundAxis,upUnit,(ctx===startOfflineCtx&&label==="GROUND")?"地面ライン":label);if(!ctx||!model.valid)return;const s1=Number.isFinite(model.sMin)?model.sMin:0,s2=Number.isFinite(model.sMax)?model.sMax:s1+300,u1=model.at(s1),u2=model.at(s2),p1={x:s1*groundAxis.x+u1*upUnit.x,y:s1*groundAxis.y+u1*upUnit.y},p2={x:s2*groundAxis.x+u2*upUnit.x,y:s2*groundAxis.y+u2*upUnit.y};ctx.save();ctx.strokeStyle="#38bdf8";ctx.fillStyle="#38bdf8";ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();ctx.setLineDash([]);ctx.font="bold 12px sans-serif";ctx.fillText(`地面ライン 手動`,p1.x+6,p1.y-6);ctx.restore();
 };
 const startGroundDrawBase=drawStartOfflineOverlay;
-drawStartOfflineOverlay=function(){startGroundDrawBase();const pts=startGroundPendingPoints.length?startGroundPendingPoints:startGroundManualPoints;if(!pts?.length)return;const ctx=startOfflineCtx,w=startOfflineCanvas.width;ctx.save();for(let i=0;i<pts.length;i++){const p=pts[i];ctx.fillStyle=i===0?"#ff9f0a":"#34c759";ctx.strokeStyle="#111";ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,Math.max(7,w/150),0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.font=`bold ${Math.max(13,w/75)}px sans-serif`;ctx.fillText(`G${i+1}`,p.x+10,p.y-8);}if(startGroundPendingPoints.length===1){ctx.setLineDash([5,5]);ctx.strokeStyle="#ff9f0a";ctx.beginPath();ctx.moveTo(startGroundPendingPoints[0].x,startGroundPendingPoints[0].y);ctx.lineTo(startGroundPendingPoints[0].x+Math.max(80,w*.12),startGroundPendingPoints[0].y);ctx.stroke();}ctx.restore();};
+drawStartOfflineOverlay=function(){startGroundDrawBase();const editing=startOfflineInteraction==="ground",pts=(editing&&startGroundPendingPoints.length?startGroundPendingPoints:startGroundManualPoints);if(!pts?.length)return;const ctx=startOfflineCtx,w=startOfflineCanvas.width;ctx.save();if(pts.length===2){ctx.strokeStyle=editing?"#00d5ff":"#38bdf8";ctx.lineWidth=Math.max(4,w/260);ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);ctx.lineTo(pts[1].x,pts[1].y);ctx.stroke();}
+    for(let i=0;i<pts.length;i++){const p=pts[i],r=editing?Math.max(10,w/105):Math.max(6,w/165);ctx.fillStyle=editing?"#00d5ff":"#38bdf8";ctx.strokeStyle="#fff";ctx.lineWidth=Math.max(3,w/420);ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.stroke();if(editing){ctx.fillStyle="#111";ctx.font=`bold ${Math.max(12,w/82)}px sans-serif`;ctx.fillText(i===0?"端1":"端2",p.x+r+5,p.y-r-3);}}
+    if(editing&&pts.length===2){const mx=(pts[0].x+pts[1].x)/2,my=(pts[0].y+pts[1].y)/2;ctx.fillStyle="#00d5ff";ctx.font=`bold ${Math.max(14,w/72)}px sans-serif`;ctx.fillText("地面ライン",mx+8,my-10);}ctx.restore();};
 
 /* Post-render additions: management buttons, warning state and manual-ground wording. */
+
+const startContactResetBase=startOfflineResetAnalysisState;
+startOfflineResetAnalysisState=function(){
+    startGroundTemporalStats={added:0,refined:0,rejectedLowConsensus:0,candidates:0};startGroundResolution={level:"unknown",footPx:NaN,shankPx:NaN,score:0};startSequenceEditIndex=null;
+    const r=startContactResetBase();startContactMiniUpdate();return r;
+};
+
 const startGroundRenderBase=startOfflineRenderResults;
-startOfflineRenderResults=function(){const r=startGroundRenderBase();startGroundEnhanceSequenceTable();startGroundRenderUi();if(startGroundMode==="manual"){const q=document.getElementById("start-offline-evaluation-quality");if(q)q.innerHTML=q.innerHTML.replace(/固定地面モデル信頼度 約\d+%。/g,"GROUND：手動2点指定を採用。");}return r;};
+startOfflineRenderResults=function(){const r=startGroundRenderBase();startGroundEnhanceSequenceTable();startGroundRenderUi();if(startGroundMode==="manual"){const q=document.getElementById("start-offline-evaluation-quality");if(q)q.innerHTML=q.innerHTML.replace(/固定地面モデル信頼度 約\d+%。/g,"地面ライン：手動設定を採用。");}return r;};
 
 /* New video clears the manual ground and edit state. */
 const startGroundResetBase=startOfflineResetAnalysisState;
-startOfflineResetAnalysisState=function(){startGroundAutoModel=null;startGroundManualPoints=[];startGroundPendingPoints=[];startGroundMode="auto";startGroundAutoValidEnd=Infinity;startSequenceEditIndex=null;startGroundGuardStats={offscreenRejected:0,stateRejected:0,duplicateRejected:0,autoEndReason:"",validEnd:Infinity};const r=startGroundResetBase();startGroundRenderUi();return r;};
+startOfflineResetAnalysisState=function(){startGroundAutoModel=null;startGroundManualPoints=[];startGroundPendingPoints=[];startGroundDragHandle=0;startGroundPointerId=null;startGroundDrawingNew=false;startGroundMode="auto";startGroundAutoValidEnd=Infinity;startSequenceEditIndex=null;startGroundGuardStats={offscreenRejected:0,stateRejected:0,duplicateRejected:0,autoEndReason:"",validEnd:Infinity};const r=startGroundResetBase();startGroundRenderUi();return r;};
 
 /* If mandatory confirmation redraws the table without a result rerender, restore controls. */
 document.getElementById("start-offline-sequence-confirm")?.addEventListener("click",()=>queueMicrotask(()=>{startGroundEnhanceSequenceTable();startGroundRenderUi();}));
@@ -8097,6 +8372,143 @@ setTimeout(()=>{startGroundInjectUi();startGroundEnhanceSequenceTable();startGro
 })();
 </script>
 
+
+<script>
+/* =========================================================
+   2026-09-06 SPRINTPEAK ROI拡大Pose + 折りたたみUX
+   - 表示ズームとは独立して、Pose入力だけ対象領域をcrop/upscale
+   - Pose座標は元動画の正規化座標へ逆変換
+   - 接地系列/手動補正/10点指定を折りたたみ化
+   ========================================================= */
+(function(){
+'use strict';
+window.__sprintOfflineRoi=null;          // normalized original-video rectangle {x,y,w,h}
+window.__sprintOfflineRoiPickStep=0;    // 0:none 1:first point 2:second point
+window.__sprintOfflineRoiFirst=null;
+const roiInputCanvas=document.createElement('canvas');
+const roiInputCtx=roiInputCanvas.getContext('2d',{alpha:false,willReadFrequently:false});
+
+function sprintOfflineRoiElements(){
+    return {
+        card:document.getElementById('sprint-offline-roi-card'),
+        label:document.getElementById('sprint-offline-roi-label'),
+        status:document.getElementById('sprint-offline-roi-status'),
+        set:document.getElementById('sprint-offline-roi-set'),
+        reset:document.getElementById('sprint-offline-roi-reset')
+    };
+}
+function sprintOfflineRoiEffective(){
+    const r=window.__sprintOfflineRoi;if(!r)return null;
+    const padX=r.w*.10,padY=r.h*.10;
+    const x=Math.max(0,r.x-padX),y=Math.max(0,r.y-padY);
+    const x2=Math.min(1,r.x+r.w+padX),y2=Math.min(1,r.y+r.h+padY);
+    return {x,y,w:Math.max(.001,x2-x),h:Math.max(.001,y2-y)};
+}
+function sprintOfflineRoiRenderUi(message){
+    const el=sprintOfflineRoiElements(),r=window.__sprintOfflineRoi;
+    if(!el.card)return;
+    if(window.__sprintOfflineRoiPickStep===1){el.label.textContent='1点目待ち';el.status.innerHTML='<b>1点目：</b>解析対象範囲の一方の角をタップしてください。';el.set.textContent='指定中：1点目をタップ';el.card.classList.remove('roi-attention');return;}
+    if(window.__sprintOfflineRoiPickStep===2){el.label.textContent='2点目待ち';el.status.innerHTML='<b>2点目：</b>反対側の角をタップしてください。';el.set.textContent='指定中：反対側をタップ';el.card.classList.remove('roi-attention');return;}
+    el.set.textContent='対象範囲を指定';
+    if(!r){el.label.textContent='全画面';el.status.textContent=message||'通常解析：動画全体をMediaPipeへ入力します。選手が小さい・複数人が映る場合は対象範囲を指定してください。';return;}
+    const eff=sprintOfflineRoiEffective(),zoom=eff?1/Math.max(.001,eff.h):1;
+    el.label.textContent=`指定済み 約${zoom.toFixed(1)}×`;
+    el.status.innerHTML=message||`✓ 対象範囲を使用します。Pose入力は縦方向基準で約 <b>${zoom.toFixed(1)}倍</b> の占有率になります（周囲10%の安全余白を自動追加）。`;
+    el.card.classList.remove('roi-attention');
+}
+function sprintOfflineRoiBegin(){
+    if(!sprintOfflineVideo?.src)return;
+    sprintOfflineVideo.pause();
+    sprintOfflineTrackingActive=null;
+    window.__sprintOfflineRoiPickStep=1;window.__sprintOfflineRoiFirst=null;
+    sprintOfflineRoiRenderUi();sprintOfflineDrawOverlay();
+}
+function sprintOfflineRoiReset(){
+    window.__sprintOfflineRoi=null;window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;
+    sprintOfflineRoiRenderUi();sprintOfflineDrawOverlay();
+}
+function sprintOfflineRoiCapture(p){
+    if(!window.__sprintOfflineRoiPickStep||!sprintOfflineCanvas.width||!sprintOfflineCanvas.height)return false;
+    const q={x:bodyClamp(p.x/sprintOfflineCanvas.width,0,1),y:bodyClamp(p.y/sprintOfflineCanvas.height,0,1)};
+    if(window.__sprintOfflineRoiPickStep===1){window.__sprintOfflineRoiFirst=q;window.__sprintOfflineRoiPickStep=2;sprintOfflineRoiRenderUi();sprintOfflineDrawOverlay();return true;}
+    const a=window.__sprintOfflineRoiFirst||q,x=Math.min(a.x,q.x),y=Math.min(a.y,q.y),w=Math.abs(a.x-q.x),h=Math.abs(a.y-q.y);
+    if(w<.06||h<.08){window.__sprintOfflineRoiPickStep=1;window.__sprintOfflineRoiFirst=null;sprintOfflineRoiRenderUi('範囲が小さすぎます。もう一度指定してください。');return true;}
+    window.__sprintOfflineRoi={x,y,w,h};window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;
+    sprintOfflineRoiRenderUi();sprintOfflineDrawOverlay();return true;
+}
+function sprintOfflineRoiDraw(){
+    if(!sprintOfflineCanvas?.width)return;const ctx=sprintOfflineCtx,w=sprintOfflineCanvas.width,h=sprintOfflineCanvas.height,r=window.__sprintOfflineRoi;
+    ctx.save();ctx.lineWidth=Math.max(3,w/500);ctx.setLineDash([Math.max(10,w/100),Math.max(7,w/150)]);ctx.strokeStyle='#00d4ff';ctx.fillStyle='rgba(0,212,255,.07)';ctx.font=`700 ${Math.max(18,w/70)}px sans-serif`;
+    if(r){ctx.fillRect(r.x*w,r.y*h,r.w*w,r.h*h);ctx.strokeRect(r.x*w,r.y*h,r.w*w,r.h*h);ctx.setLineDash([]);ctx.fillStyle='#00d4ff';ctx.fillText('POSE対象',r.x*w+10,Math.max(24,r.y*h+28));}
+    const a=window.__sprintOfflineRoiFirst;if(window.__sprintOfflineRoiPickStep===2&&a){ctx.setLineDash([]);ctx.fillStyle='#ffbf00';ctx.beginPath();ctx.arc(a.x*w,a.y*h,Math.max(8,w/170),0,Math.PI*2);ctx.fill();ctx.strokeStyle='#111';ctx.stroke();}
+    ctx.restore();
+}
+
+// Called by the existing sprintOfflineAnalyze loop.
+window.sprintOfflinePoseSendAdaptive=async function(){
+    const r=sprintOfflineRoiEffective();
+    if(!r)return startOfflinePoseSend(sprintOfflineVideo);
+    const vw=sprintOfflineVideo.videoWidth||sprintOfflineCanvas.width||1280,vh=sprintOfflineVideo.videoHeight||sprintOfflineCanvas.height||720;
+    const sx=r.x*vw,sy=r.y*vh,sw=Math.max(2,r.w*vw),sh=Math.max(2,r.h*vh);
+    const aspect=sw/sh;let dw,dh;
+    if(aspect>=1){dw=1280;dh=Math.max(360,Math.round(dw/aspect));}
+    else{dh=1280;dw=Math.max(360,Math.round(dh*aspect));}
+    const long=Math.max(dw,dh);if(long>1536){const k=1536/long;dw=Math.max(320,Math.round(dw*k));dh=Math.max(320,Math.round(dh*k));}
+    roiInputCanvas.width=dw;roiInputCanvas.height=dh;
+    roiInputCtx.fillStyle='#000';roiInputCtx.fillRect(0,0,dw,dh);roiInputCtx.drawImage(sprintOfflineVideo,sx,sy,sw,sh,0,0,dw,dh);
+    const out=await startOfflinePoseSend(roiInputCanvas);
+    if(!out?.poseLandmarks)return out;
+    const mapped=out.poseLandmarks.map(p=>({...p,x:r.x+p.x*r.w,y:r.y+p.y*r.h,z:Number.isFinite(p.z)?p.z*r.w:p.z}));
+    return {...out,poseLandmarks:mapped};
+};
+
+window.sprintOfflineRoiPostAnalyze=function(total){
+    const el=sprintOfflineRoiElements(),valid=sprintOfflinePoseFrames?.length||0,ratio=valid/Math.max(1,total||0),r=window.__sprintOfflineRoi;
+    if(!el.card)return;
+    if(valid===0){el.card.classList.add('roi-attention');sprintOfflineRoiRenderUi(r?'⚠ 指定範囲でもPoseを検出できませんでした。選手が範囲内にいるか、範囲を少し広げて再指定してください。':'⚠ Poseを検出できませんでした。選手が小さい・複数人が映る動画では「対象範囲を指定」を使用してください。');el.card.classList.add('roi-attention');}
+    else if(ratio<.20){el.card.classList.add('roi-attention');sprintOfflineRoiRenderUi(`⚠ Pose取得率 ${Math.round(ratio*100)}%。対象選手が枠外へ出ていないか確認し、必要なら範囲を調整してください。`);el.card.classList.add('roi-attention');}
+    else{el.card.classList.remove('roi-attention');sprintOfflineRoiRenderUi(r?`✓ ROI拡大解析：Pose取得率 ${Math.round(ratio*100)}%。指定範囲を元動画座標へ戻して解析しています。`:`Pose取得率 ${Math.round(ratio*100)}%。全画面解析で認識できています。`);}
+    sprintOfflineUpdateRequiredFold();
+};
+
+// Draw ROI after every existing overlay layer (including sequence evidence wrapper).
+const sprintOfflineRoiDrawBase=sprintOfflineDrawOverlay;
+sprintOfflineDrawOverlay=function(){sprintOfflineRoiDrawBase();sprintOfflineRoiDraw();};
+
+// New file: clear old ROI. Existing reset/mandatory gate behavior is preserved.
+const sprintOfflineRoiResetBase=sprintOfflineResetResults;
+sprintOfflineResetResults=function(){window.__sprintOfflineRoi=null;window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;const x=sprintOfflineRoiResetBase();sprintOfflineRoiRenderUi();sprintOfflineUpdateRequiredFold();return x;};
+
+// Fold status: only expand the section that actually requires confirmation.
+window.sprintOfflineUpdateRequiredFold=function(){
+    const outer=document.getElementById('sprint-offline-required-details'),seq=document.getElementById('sprint-offline-sequence-details'),badge=document.getElementById('sprint-offline-required-summary-status'),panel=document.getElementById('sprint-offline-sequence-panel');
+    if(!outer||!badge)return;badge.classList.remove('warn','ok');
+    if(sprintOfflineAnalyzing){badge.textContent='解析中';return;}
+    const poses=sprintOfflinePoseFrames?.length||0,contacts=sprintOfflineContacts?.length||0,confirmed=!!panel?.classList.contains('sequence-confirmed');
+    if(!poses){badge.textContent='解析前：必要時のみ展開';return;}
+    if(contacts&&confirmed){badge.textContent='✓ 接地系列確認済み';badge.classList.add('ok');return;}
+    if(contacts){badge.textContent='⚠ 接地系列を確認';badge.classList.add('warn');outer.open=true;if(seq)seq.open=true;return;}
+    badge.textContent='⚠ 接地を確認';badge.classList.add('warn');outer.open=true;
+};
+
+const roiSet=document.getElementById('sprint-offline-roi-set'),roiReset=document.getElementById('sprint-offline-roi-reset');
+roiSet?.addEventListener('click',sprintOfflineRoiBegin);roiReset?.addEventListener('click',sprintOfflineRoiReset);
+
+// Capture ROI before tracking/baton click logic. capture-phase prevents the existing pointerup handler from consuming the same tap.
+sprintOfflineCanvas?.addEventListener('pointerup',e=>{
+    if(!window.__sprintOfflineRoiPickStep)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    const p=offlineZoomClientToCanvas(sprintOfflineCanvas,e);sprintOfflineRoiCapture(p);offlineZoomHideCrosshair('sprintoffline');
+},{capture:true});
+
+// Keep required section compact during analysis; open only the sequence subsection when review becomes necessary.
+document.getElementById('sprint-offline-analyze')?.addEventListener('click',()=>{const o=document.getElementById('sprint-offline-required-details');if(o)o.open=false;const b=document.getElementById('sprint-offline-required-summary-status');if(b){b.textContent='解析中';b.classList.remove('warn','ok');}});
+document.getElementById('sprint-offline-sequence-confirm')?.addEventListener('click',()=>setTimeout(()=>{sprintOfflineUpdateRequiredFold();const p=document.getElementById('sprint-offline-sequence-panel');if(p?.classList.contains('sequence-confirmed')){const s=document.getElementById('sprint-offline-sequence-details'),o=document.getElementById('sprint-offline-required-details');if(s)s.open=false;if(o)o.open=false;}},0));
+const seqPanel=document.getElementById('sprint-offline-sequence-panel');if(seqPanel)new MutationObserver(()=>sprintOfflineUpdateRequiredFold()).observe(seqPanel,{attributes:true,childList:true,subtree:true});
+
+sprintOfflineRoiRenderUi();sprintOfflineUpdateRequiredFold();
+})();
+</script>
 
 </body>
 </html>
