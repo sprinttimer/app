@@ -336,7 +336,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             #start-offline-quality-warning{margin-top:10px;}
         </style>
         <h3>動画からスタート解析（リアクションタイムなし）</h3>
-        <div class="notice"><b>過去動画・標準カメラ動画を高精度解析：</b>端末のカメラアプリで高画質・高FPS撮影した動画を読み込み、リアルタイム処理速度に制限されずフレーム単位でMediaPipe解析します。<b>リアクションタイムはこのモードでは計算しません。</b> スタート飛び出し角度、ブロッククリアランス、接地時間、2歩目以降のステップ長、身体寸法・バトン校正、ランドマーク手動補正、姿勢比較を行えます。</div>
+        <div class="notice"><b>過去動画・標準カメラ動画を高精度解析：</b>端末のカメラアプリで高画質・高FPS撮影した動画を読み込み、リアルタイム処理速度に制限されずフレーム単位でMediaPipe解析します。<b>リアクションタイムはこのモードでは計算しません。</b> スタート飛び出し角度、ブロッククリアランス、接地時間、2歩目以降のステップ長、身体寸法・バトン校正、身体ポイントの手動補正、姿勢比較を行えます。</div>
         <div class="notice" style="border-left-color:#e53e3e;background:#fff5f5;"><b>重要：撮影時は高FPSを優先してください。</b> 最低60fps、<b>推奨120fps</b>です。十分な明るさと画質を確保できる場合は240fpsも有効です。30fpsは1フレーム約33.3ms、60fpsは約16.7ms、120fpsは約8.33ms、240fpsは約4.17msのため、ブロッククリアランス・接地・離地など瞬間的なイベントは高FPSほどコマ送り補正の時間分解能が高くなります。高FPSで解像度や明るさが大きく低下する端末では、無理に240fpsへ上げず<b>120fpsを優先</b>してください。撮影時はカメラを三脚などで固定し、選手の全身が画面内に収まる真横方向からの撮影を推奨します。</div>
 
         <div class="setting-item">
@@ -399,6 +399,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button class="action-btn btn-blue" id="start-offline-play">▶ 再生</button>
                 <button class="action-btn btn-gray" id="start-offline-next-frame">1フレーム ▶</button>
             </div>
+            <div class="video-tap-hint">動画を1回タップすると再生／停止できます。接地・地面・身体ポイントなどの補正中は誤操作防止のため自動的に無効になります。</div>
             <div class="settings-card start-offline-quick-analysis-card" id="start-offline-quick-analysis-card" style="margin:8px 0 10px;box-shadow:none;">
                 <div class="setting-header" style="margin-bottom:6px;"><span><b>解析範囲・解析開始</b></span><span class="setting-value">動画を見ながら設定</span></div>
                 <div class="small" style="margin-bottom:7px;">必要な区間だけに絞ると解析時間を短縮できます。開始フレームと終了フレームを決め、そのまま解析を開始できます。</div>
@@ -450,7 +451,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 </div>
                 <div class="info" id="start-offline-quick-contact-status" style="margin-top:8px;margin-bottom:8px;">手動接地：未指定</div>
                 <div class="offline-contact-anchor-list" id="start-offline-contact-anchor-list"></div>
-                <div class="checkbox-row" style="margin-top:10px;margin-bottom:0;"><input type="checkbox" id="start-offline-sticky-toggle" checked><label for="start-offline-sticky-toggle">補正中も動画を画面上部に固定する</label></div>
+                <div class="checkbox-row" style="margin-top:10px;margin-bottom:0;"><input type="checkbox" id="start-offline-sticky-toggle" checked><label for="start-offline-sticky-toggle">補正中も動画を画面上部に固定する（フォーム評価以降は自動解除）</label></div>
             </div>
 
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
@@ -597,12 +598,12 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                     <button class="action-btn btn-blue" id="start-offline-set-liftoff">離地を設定</button>
                     <button class="action-btn btn-red" id="start-offline-delete-event">近い接地を削除</button>
                 </div>
-                <div class="small">接地点は現在フレームのHeel＋Foot Index中央を使用します。必要なら下のランドマーク補正で足部位置を先に修正してください。</div>
+                <div class="small">接地点は現在フレームのHeel＋Foot Index中央を使用します。必要なら下の「身体の追跡ポイントを手動で補正」で足部位置を先に修正してください。</div>
             </div>
 
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
-                <h3>MediaPipeランドマーク・手動補正 <button type="button" class="start-offline-help-btn" data-start-offline-help="landmarks" aria-label="ランドマーク手動補正の説明">?</button></h3>
-                <div class="checkbox-row"><input type="checkbox" id="start-offline-show-landmarks" checked><label for="start-offline-show-landmarks">現在フレームのランドマークを表示</label></div>
+                <h3>身体の追跡ポイントを手動で補正 <button type="button" class="start-offline-help-btn" data-start-offline-help="landmarks" aria-label="身体ポイント手動補正の説明">?</button></h3>
+                <div class="checkbox-row"><input type="checkbox" id="start-offline-show-landmarks" checked><label for="start-offline-show-landmarks">現在フレームの身体ポイントを表示</label></div>
                 <div class="setting-item">
                     <div class="setting-header"><span>補正する部位</span><span class="setting-value">クリック位置へ移動</span></div>
                     <select id="start-offline-landmark-select" style="width:100%;padding:10px;border:1px solid #cbd5e0;border-radius:8px;background:#fff;">
@@ -620,7 +621,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                     <button class="action-btn btn-gray" id="start-offline-reset-landmarks-all">全補正解除</button>
                 </div>
                 <div class="info" id="start-offline-landmark-status">補正する場合は部位を選び、「選択部位を補正」→映像上の正しい位置をタップしてください。</div>
-                <div id="start-offline-landmark-table" class="small" style="margin-top:8px;">解析後、現在フレームの主要ランドマークを表示します。</div>
+                <div id="start-offline-landmark-table" class="small" style="margin-top:8px;">解析後、現在フレームの主要な身体ポイントを表示します。</div>
             </div>
 
             <div class="results-grid" id="start-offline-results-grid">
@@ -645,6 +646,17 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
                 <h3>日本語フォーム評価 <button type="button" class="start-offline-help-btn" data-start-offline-help="evaluation" aria-label="日本語フォーム評価の説明">?</button></h3>
+                <div class="evaluation-video-review" id="start-offline-evaluation-video-review">
+                    <button type="button" class="action-btn btn-gray evaluation-video-toggle" id="start-offline-evaluation-video-toggle">▶ 動画を確認する</button>
+                    <div class="evaluation-video-panel" id="start-offline-evaluation-video-panel" hidden>
+                        <div class="small evaluation-video-note">上まで戻らず、この場で映像だけ確認できます。動画を1回タップすると再生／停止します。</div>
+                        <div class="evaluation-video-frame">
+                            <video id="start-offline-evaluation-video" playsinline muted preload="metadata"></video>
+                            <div class="video-tap-feedback" id="start-offline-evaluation-video-feedback" aria-hidden="true"></div>
+                        </div>
+                        <button type="button" class="action-btn btn-gray evaluation-video-close" id="start-offline-evaluation-video-close">動画を閉じる</button>
+                    </div>
+                </div>
                 <div class="info" id="start-offline-evaluation-summary">解析後、計測値とフォームから簡単な総評を表示します。</div>
                 <div class="small" id="start-offline-evaluation-detail" style="margin-top:8px;">評価待機中</div>
                 <div class="evaluation-lock" id="start-offline-evaluation-lock">接地系列の確認が完了すると、日本語評価と解析根拠パネルを確定表示します。</div>
@@ -1153,6 +1165,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button class="action-btn btn-blue" id="sprint-offline-play">▶ 再生</button>
                 <button class="action-btn btn-gray" id="sprint-offline-next-frame">1フレーム ▶</button>
             </div>
+            <div class="video-tap-hint">動画を1回タップすると再生／停止できます。接地・地面・選手指定などの補正中は誤操作防止のため自動的に無効になります。</div>
             <div class="offline-evidence-panel" id="sprint-offline-evidence-panel" aria-live="polite">
                 <div id="sprint-offline-evidence-status"><b>測定根拠表示</b>：結果や接地イベントの［!］を押すと該当フレームへ移動し、支持脚・足部・体幹などの算出根拠を表示します。</div>
                 <div class="button-row" style="grid-template-columns:1fr 1fr 1fr;">
@@ -1229,7 +1242,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 </div>
                 <div class="info" id="sprint-offline-manual-status" style="margin-top:8px;margin-bottom:8px;">手動補正：未指定。自動解析のみでも使用できます。</div>
                 <div class="offline-contact-anchor-list" id="sprint-offline-manual-list"></div>
-                <div class="checkbox-row" style="margin-top:10px;margin-bottom:0;"><input type="checkbox" id="sprint-offline-sticky-toggle" checked><label for="sprint-offline-sticky-toggle">補正中も動画を画面上部に固定する（結果閲覧時は自動で小さく表示）</label></div>
+                <div class="checkbox-row" style="margin-top:10px;margin-bottom:0;"><input type="checkbox" id="sprint-offline-sticky-toggle" checked><label for="sprint-offline-sticky-toggle">補正中も動画を画面上部に固定する（フォーム評価以降は自動解除）</label></div>
             </div>
                     </details>
                 </div>
@@ -1318,6 +1331,17 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 </div>
                 <div class="settings-card" style="margin:12px 0 0;box-shadow:none;background:#f8fafc;">
                     <h3>日本語フォーム評価 <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="evaluation" aria-label="日本語フォーム評価の説明">?</button></h3>
+                    <div class="evaluation-video-review" id="sprint-offline-evaluation-video-review">
+                        <button type="button" class="action-btn btn-gray evaluation-video-toggle" id="sprint-offline-evaluation-video-toggle">▶ 動画を確認する</button>
+                        <div class="evaluation-video-panel" id="sprint-offline-evaluation-video-panel" hidden>
+                            <div class="small evaluation-video-note">上まで戻らず、この場で映像だけ確認できます。動画を1回タップすると再生／停止します。</div>
+                            <div class="evaluation-video-frame">
+                                <video id="sprint-offline-evaluation-video" playsinline muted preload="metadata"></video>
+                                <div class="video-tap-feedback" id="sprint-offline-evaluation-video-feedback" aria-hidden="true"></div>
+                            </div>
+                            <button type="button" class="action-btn btn-gray evaluation-video-close" id="sprint-offline-evaluation-video-close">動画を閉じる</button>
+                        </div>
+                    </div>
                     <div class="info" id="sprint-offline-evaluation-summary">解析後、最高速度付近の接地と膝の動きから簡単な総評を表示します。</div>
                     <div class="small" id="sprint-offline-evaluation-detail" style="margin-top:8px;">評価待機中</div>
                     <div class="evaluation-lock" id="sprint-offline-evaluation-lock">接地系列の確認が完了すると、日本語評価と解析根拠パネルを確定表示します。</div>
@@ -3385,7 +3409,7 @@ const startOfflineHelpContent={
     markers:{title:"Set・ブロッククリアランス・角度フレーム",body:"自動候補が正しければ操作不要です。Setは単なる最小動作フレームではなく、静止状態から加速状態へ切り替わる直前を優先します。ブロッククリアランスは前ブロック側の足が離れる候補、角度測定フレームは後ろ足が完全に離れて振り出され、前ブロック側の脚〜体幹が最も一直線に近い飛び出し姿勢を優先します。手動で接地を指定している場合は、最初の接地より前だけを角度候補として探索します。"},
     angle:{title:"スタート飛び出し角度を測る",body:"黄色い線をスタート直後の身体の傾きに合わせます。根元の丸をドラッグすると線の位置を移動でき、先端の丸をドラッグすると角度を大まかに変えられます。最後に角度バー（分度器）または±0.1°で微調整してください。地面のラインを0°として表示します。『自動候補に戻す』で自動推定へ戻ります。"},
     contacts:{title:"高度な補正：接地時間（離地）を修正",body:"自動検出がずれたときだけ使います。対象足を選び、正しい接地フレームで『接地を追加/修正』、その接地後の正しい離地フレームで『離地を設定』を押します。誤検出した接地はその時刻付近で『近い接地を削除』します。接地解析はブロッククリアランスの自動検出に失敗しても独立して継続します。自動接地時間が0.7秒以上になった場合は誤追跡の可能性が高いため数値を採用せず『計測不能』にします。"},
-    landmarks:{title:"MediaPipeランドマーク手動補正",body:"肩・股関節・膝・足首・踵・つま先の点が明らかにずれている場合に使用します。部位を選択→『選択部位を補正』→映像上の正しい位置を1回タップすると、その位置で派生値を再計算します。"},
+    landmarks:{title:"身体の追跡ポイントを手動で補正",body:"自動認識した肩・股関節・膝・足首・踵・つま先の位置が映像とずれている場合に使用します。補正する部位を選択→『選択部位を補正』→映像上の正しい位置を1回タップすると、その位置を使って関連する測定値を再計算します。"},
     steps:{title:"ステップ解析",body:"検出した接地イベントを時系列に並べ、各接地時間と2歩目以降のステップ長を表示します。ブロッククリアランスが未検出でも接地イベントの解析は実行されます。Heel/つま先が短時間隠れた場合は足首と前後フレームから足中心を補助推定し、左右が同じ足で連続する不自然な長い間隔では反対足の接地候補を慎重に再探索します。再探索値は信頼度を下げて表示します。"},
     evaluation:{title:"日本語フォーム評価",body:"飛び出し姿勢、1歩目の接地時間・接地位置・支持脚膝、遊脚の切り返し、腰の沈み込み、上体の起き方、接地リズム、ステップ長の連続性などを複合評価します。接地時間は高レベル選手の研究値を参考にしますが、短いほど良いとは判定しません。スタート飛び出し角度は論文の重心速度ベクトル角と定義が異なるため、40〜45°を合否閾値には使いません。研究値から極端に外れる場合は、フォーム評価より先に接地・離地フレームの誤検出を確認します。"},
     compare:{title:"各フレームの姿勢比較",body:"比較したい1つ目のフレームで『現在を比較A』、2つ目で『現在を比較B』を押します。腰中央を基準に位置をそろえ、進行方向を統一して体幹・股関節・膝・足関節角度の差を比較します。"}
@@ -3861,7 +3885,7 @@ document.getElementById("start-offline-mark-set").addEventListener("click",()=>{
 
 document.getElementById("start-offline-angle-slider").addEventListener("input",e=>startOfflineSetAngleByDegrees(e.target.value));document.getElementById("start-offline-angle-minus").addEventListener("click",()=>{const r=startOfflineAngleFromLine(startOfflineAngleLine);if(r.valid)startOfflineSetAngleByDegrees(r.angle-.1);});document.getElementById("start-offline-angle-plus").addEventListener("click",()=>{const r=startOfflineAngleFromLine(startOfflineAngleLine);if(r.valid)startOfflineSetAngleByDegrees(r.angle+.1);});document.getElementById("start-offline-angle-auto").addEventListener("click",()=>{if(startOfflineAngleLineAuto){startOfflineAngleLine={...startOfflineAngleLineAuto};startOfflineAngleManual=null;startOfflineRenderResults();drawStartOfflineOverlay();}});
 
-document.getElementById("start-offline-add-landing").addEventListener("click",()=>{const frame=startOfflineCurrentPoseFrame();if(!frame){alert("このフレーム付近にPoseデータがありません。");return;}const side=document.getElementById("start-offline-event-foot").value,p=startOfflineFootPoint(startOfflineCorrectedLandmarks(frame),side);if(!p){alert("対象足のHeel/つま先を認識できません。ランドマークを補正してください。");return;}const bs=startOfflineBodyStateAtFrame(frame),sc=startOfflineSceneScaleAtPoint(p.x,p.y,bs),m={side,index:frame.index,t:frame.t,x:p.x,y:p.y,visibility:p.visibility,confidence:Math.max(.80,sc?.confidence||0),source:"manual",liftoff:null,duration:null,method:sc?.method||"手動"};startOfflineManualLandings=startOfflineManualLandings.filter(x=>!(x.side===side&&Math.abs(x.t-m.t)<.12));startOfflineManualLandings.push(m);startOfflineRecomputeDerived(true);});
+document.getElementById("start-offline-add-landing").addEventListener("click",()=>{const frame=startOfflineCurrentPoseFrame();if(!frame){alert("このフレーム付近にPoseデータがありません。");return;}const side=document.getElementById("start-offline-event-foot").value,p=startOfflineFootPoint(startOfflineCorrectedLandmarks(frame),side);if(!p){alert("対象足の踵／つま先を認識できません。「身体の追跡ポイントを手動で補正」で位置を確認してください。");return;}const bs=startOfflineBodyStateAtFrame(frame),sc=startOfflineSceneScaleAtPoint(p.x,p.y,bs),m={side,index:frame.index,t:frame.t,x:p.x,y:p.y,visibility:p.visibility,confidence:Math.max(.80,sc?.confidence||0),source:"manual",liftoff:null,duration:null,method:sc?.method||"手動"};startOfflineManualLandings=startOfflineManualLandings.filter(x=>!(x.side===side&&Math.abs(x.t-m.t)<.12));startOfflineManualLandings.push(m);startOfflineRecomputeDerived(true);});
 document.getElementById("start-offline-set-liftoff").addEventListener("click",()=>{const side=document.getElementById("start-offline-event-foot").value,t=startOfflineVideo.currentTime||0;startOfflineManualLiftoffs=startOfflineManualLiftoffs.filter(x=>!(x.side===side&&Math.abs(x.t-t)<.12));startOfflineManualLiftoffs.push({side,t});startOfflineRecomputeDerived(true);});document.getElementById("start-offline-delete-event").addEventListener("click",()=>{const t=startOfflineVideo.currentTime||0;let best=null,bd=.18;for(const c of startOfflineContacts){const d=Math.abs(c.t-t);if(d<bd){best=c;bd=d;}}if(!best)return;if(best.source==="manual")startOfflineManualLandings=startOfflineManualLandings.filter(x=>x!==best&&!(x.side===best.side&&Math.abs(x.t-best.t)<.03));else startOfflineDeletedAutoContacts.push({side:best.side,t:best.t});startOfflineRecomputeDerived(true);});
 
 document.getElementById("start-offline-correct-landmark").addEventListener("click",()=>{if(!startOfflineCurrentPoseFrame()){alert("このフレーム付近にPoseデータがありません。");return;}startOfflineInteraction="landmark";document.getElementById("start-offline-landmark-status").innerText="映像上の正しい位置を1回タップしてください。";});document.getElementById("start-offline-reset-landmark-frame").addEventListener("click",()=>{const f=startOfflineCurrentPoseFrame();if(f){startOfflineLandmarkCorrections.delete(f.index);startOfflineRecomputeDerived(true);startOfflineRenderLandmarkTable();}});document.getElementById("start-offline-reset-landmarks-all").addEventListener("click",()=>{startOfflineLandmarkCorrections.clear();startOfflineRecomputeDerived(true);startOfflineRenderLandmarkTable();});document.getElementById("start-offline-show-landmarks").addEventListener("change",drawStartOfflineOverlay);
@@ -3900,7 +3924,7 @@ function offlineInstallAccordions(containerId,titles){
     for(const card of root.querySelectorAll(":scope > .settings-card")){const h=card.querySelector(":scope > h3");if(!h)continue;const title=(h.childNodes[0]?.textContent||h.textContent||"").trim();if(![...wanted].some(x=>title.startsWith(x)))continue;if(card.classList.contains("offline-collapsible"))continue;card.classList.add("offline-collapsible");const body=document.createElement("div");body.className="offline-collapse-body";for(const n of [...card.childNodes])if(n!==h)body.appendChild(n);card.appendChild(body);const b=document.createElement("button");b.type="button";b.className="offline-collapse-toggle";b.setAttribute("aria-expanded","false");b.setAttribute("aria-label",`${title}を開く`);b.innerText="▼";h.appendChild(b);const setOpen=open=>{card.classList.toggle("offline-open",open);b.innerText=open?"▲":"▼";b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",`${title}を${open?"閉じる":"開く"}`);};b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();const open=!card.classList.contains("offline-open");if(open)for(const other of root.querySelectorAll(":scope > .settings-card.offline-collapsible.offline-open")){if(other===card)continue;other.classList.remove("offline-open");const ob=other.querySelector(":scope > h3 .offline-collapse-toggle");if(ob){ob.innerText="▼";ob.setAttribute("aria-expanded","false");}}setOpen(open);});
     }
 }
-offlineInstallAccordions("start-offline-workspace",["任意：脚の初期追跡補助","高精度身体キャリブレーション","フレーム基準・進行方向","スタート飛び出し角度を測る","高度な補正：接地時間（離地）を修正","MediaPipeランドマーク・手動補正","ブロッククリアランス付近の姿勢","各フレームの姿勢比較"]);
+offlineInstallAccordions("start-offline-workspace",["任意：脚の初期追跡補助","高精度身体キャリブレーション","フレーム基準・進行方向","スタート飛び出し角度を測る","高度な補正：接地時間（離地）を修正","身体の追跡ポイントを手動で補正","ブロッククリアランス付近の姿勢","各フレームの姿勢比較"]);
 offlineInstallAccordions("sprint-offline-workspace",["任意：脚の初期追跡補助","距離キャリブレーション"]);
 
 /* =========================
@@ -8738,6 +8762,28 @@ setTimeout(()=>window.startOfflineRenderUnifiedManualUi?.(),0);
 #sprint-offline-quick-analysis-card{border:1px solid #b7d7c5;background:linear-gradient(180deg,#f8fffb,#f3fbf6);margin:8px 0 10px;box-shadow:none;}
 @media(max-width:640px){.athlete-track-card .athlete-track-buttons,.manual-view-tools .manual-view-buttons{grid-template-columns:1fr 1fr}.athlete-track-card{padding:9px}.athlete-track-status{font-size:12px}}
 </style>
+
+<style id="review-reading-ux-v31-style">
+/* 2026-09-07 v31: readable results + tap playback */
+.video-tap-hint{margin:-3px 0 9px;padding:6px 8px;border-radius:7px;background:#f8fafc;color:#5b6778;font-size:12px;line-height:1.45;text-align:center;}
+#start-offline-workspace.results-reading-mode #start-offline-video-wrap.offline-sticky-preview,
+#sprint-offline-workspace.results-reading-mode #sprint-offline-video-wrap.offline-sticky-preview{position:relative!important;top:auto!important;z-index:1!important;box-shadow:none!important;}
+#start-offline-workspace.results-reading-mode #start-offline-video-wrap.offline-sticky-compact,
+#sprint-offline-workspace.results-reading-mode #sprint-offline-video-wrap.offline-sticky-compact{width:100%!important;margin-left:0!important;margin-right:0!important;}
+.evaluation-video-review{margin:0 0 10px;}
+.evaluation-video-toggle{width:100%;min-height:42px;}
+.evaluation-video-panel{margin-top:8px;padding:9px;border:1px solid #cbd5e0;border-radius:10px;background:#fff;}
+.evaluation-video-panel[hidden]{display:none!important;}
+.evaluation-video-note{margin-bottom:7px;color:#5b6778;}
+.evaluation-video-frame{position:relative;width:min(100%,520px);margin:0 auto;background:#111;border-radius:9px;overflow:hidden;touch-action:manipulation;}
+.evaluation-video-frame video{display:block;width:100%;max-height:34vh;object-fit:contain;background:#000;cursor:pointer;}
+.evaluation-video-close{width:100%;margin-top:8px;}
+.video-tap-feedback{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.88);display:flex;align-items:center;justify-content:center;min-width:58px;height:58px;padding:0 14px;border-radius:999px;background:rgba(0,0,0,.58);color:#fff;font-size:25px;font-weight:800;opacity:0;pointer-events:none;transition:opacity .13s ease,transform .13s ease;z-index:85;}
+.video-tap-feedback.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+.offline-main-tap-feedback{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.88);display:flex;align-items:center;justify-content:center;min-width:64px;height:64px;padding:0 15px;border-radius:999px;background:rgba(0,0,0,.58);color:#fff;font-size:27px;font-weight:800;opacity:0;pointer-events:none;transition:opacity .13s ease,transform .13s ease;z-index:86;}
+.offline-main-tap-feedback.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+@media(max-width:640px){.evaluation-video-frame{width:100%}.evaluation-video-frame video{max-height:28vh}.video-tap-hint{font-size:11px}}
+</style>
 <script id="dynamic-athlete-tracking-v30-script">
 (()=>{
 'use strict';
@@ -8958,6 +9004,46 @@ document.getElementById('sprint-offline-manual-view-toggle')?.addEventListener('
 
 /* Keep diagnostics current after result/sequence UI changes. */
 const mo=new MutationObserver(()=>{diag('start');diag('sprint');});for(const id of ['start-offline-analysis-status','sprint-offline-analysis-status']){const el=document.getElementById(id);if(el)mo.observe(el,{childList:true,characterData:true,subtree:true});}
+
+
+/* =====================================================================
+   v31 Results reading UX + tap-to-play/pause
+   - Main preview: single tap toggles play/pause when no correction mode is active.
+   - At Japanese form evaluation and below, sticky preview is automatically released.
+   - Evaluation area can open a small synchronized review video without scrolling up.
+   ===================================================================== */
+function v31Feedback(el,playing){
+  if(!el)return;el.textContent=playing?'Ⅱ':'▶';el.classList.remove('show');void el.offsetWidth;el.classList.add('show');clearTimeout(el._hideTimer);el._hideTimer=setTimeout(()=>el.classList.remove('show'),430);
+}
+function v31EnsureMainFeedback(prefix){
+  const wrap=document.getElementById(AT[prefix].wrapId);if(!wrap)return null;let el=wrap.querySelector('.offline-main-tap-feedback');if(!el){el=document.createElement('div');el.className='offline-main-tap-feedback';el.setAttribute('aria-hidden','true');wrap.appendChild(el);}return el;
+}
+function v31TapExcludedTarget(t){return !!t?.closest?.('button,select,input,label,a,.start-contact-mini-toolbar,.manual-view-tools,.athlete-track-card');}
+function v31InstallMainTap(prefix){
+  const wrap=document.getElementById(AT[prefix].wrapId),video=AT[prefix].video();if(!wrap||!video||wrap.dataset.tapPlaybackV31)return;wrap.dataset.tapPlaybackV31='1';const feedback=v31EnsureMainFeedback(prefix),downs=new Map();
+  wrap.addEventListener('pointerdown',e=>{if(v31TapExcludedTarget(e.target)||inputBusy(prefix)||(prefix==='start'&&startOfflineAngleDragging))return;downs.set(e.pointerId,{x:e.clientX,y:e.clientY,t:performance.now(),type:e.pointerType});});
+  wrap.addEventListener('pointercancel',e=>downs.delete(e.pointerId));
+  wrap.addEventListener('pointerup',e=>{const d=downs.get(e.pointerId);downs.delete(e.pointerId);if(!d||v31TapExcludedTarget(e.target))return;if(inputBusy(prefix)||ATS[prefix].manualView)return;const moved=Math.hypot(e.clientX-d.x,e.clientY-d.y),dt=performance.now()-d.t;if(moved>12||dt>480)return;if(e.pointerType==='touch'&&offlineZoomShouldIgnoreTap(AT[prefix].zoomKey,e))return;e.preventDefault();if(video.paused){const p=video.play();if(p?.catch)p.catch(()=>{});v31Feedback(feedback,true);}else{video.pause();v31Feedback(feedback,false);}},false);
+}
+function v31SyncReviewSource(main,review,onReady){
+  const src=main.currentSrc||main.src;if(!src)return false;const setTime=()=>{try{review.currentTime=Math.min(Math.max(0,main.currentTime||0),Number.isFinite(review.duration)?review.duration:1e9);}catch(_){}review.playbackRate=main.playbackRate||1;if(onReady)onReady();};
+  if(review.src!==src){review.pause();review.src=src;review.load();review.addEventListener('loadedmetadata',setTime,{once:true});}else setTime();return true;
+}
+function v31InstallEvaluationReview(prefix){
+  const base=prefix==='start'?'start-offline':'sprint-offline',main=AT[prefix].video(),toggle=document.getElementById(`${base}-evaluation-video-toggle`),panel=document.getElementById(`${base}-evaluation-video-panel`),review=document.getElementById(`${base}-evaluation-video`),close=document.getElementById(`${base}-evaluation-video-close`),feedback=document.getElementById(`${base}-evaluation-video-feedback`);if(!main||!toggle||!panel||!review||!close)return;
+  const closePanel=()=>{if(!review.paused)review.pause();try{if(Number.isFinite(review.currentTime))main.currentTime=review.currentTime;}catch(_){}panel.hidden=true;toggle.textContent='▶ 動画を確認する';};
+  toggle.addEventListener('click',()=>{if(!panel.hidden){closePanel();return;}main.pause();if(!v31SyncReviewSource(main,review)){alert('先に動画を読み込んでください。');return;}panel.hidden=false;toggle.textContent='▲ 動画を閉じる';review.pause();});
+  close.addEventListener('click',closePanel);
+  review.addEventListener('click',e=>{e.preventDefault();if(review.paused){const p=review.play();if(p?.catch)p.catch(()=>{});v31Feedback(feedback,true);}else{review.pause();v31Feedback(feedback,false);}});
+  main.addEventListener('emptied',()=>{review.pause();review.removeAttribute('src');review.load();panel.hidden=true;toggle.textContent='▶ 動画を確認する';});
+}
+function v31InstallReadingMode(prefix){
+  const base=prefix==='start'?'start-offline':'sprint-offline',workspace=document.getElementById(AT[prefix].workspaceId),evalDetail=document.getElementById(`${base}-evaluation-summary`),main=AT[prefix].video();if(!workspace||!evalDetail)return;const card=evalDetail.closest('.settings-card');if(!card)return;let active=false,raf=0;
+  const tick=()=>{raf=0;if(workspace.offsetParent===null){if(active){active=false;workspace.classList.remove('results-reading-mode');}return;}const should=card.getBoundingClientRect().top<=72;if(should===active)return;active=should;workspace.classList.toggle('results-reading-mode',active);if(active&&main&&!main.paused)main.pause();};
+  const schedule=()=>{if(!raf)raf=requestAnimationFrame(tick);};window.addEventListener('scroll',schedule,{passive:true});window.addEventListener('resize',schedule,{passive:true});document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>setTimeout(schedule,0)));schedule();
+}
+for(const prefix of ['start','sprint']){v31InstallMainTap(prefix);v31InstallEvaluationReview(prefix);v31InstallReadingMode(prefix);}
+
 })();
 </script>\n</body>
 </html>
