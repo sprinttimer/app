@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="sprint-timer-version" content="2026.09.07.33">
+<meta name="sprint-timer-build" content="20260907-1800">
+<script>
+window.SPRINT_TIMER_VERSION = "2026.09.07.33";
+window.SPRINT_TIMER_BUILD = "20260907-1800";
+</script>
 <title>Sprint Timer Pro</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#111">
@@ -213,6 +219,22 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 .start-angle-scale span:nth-child(2){text-align:center}.start-angle-scale span:last-child{text-align:right}
 #start-offline-ground-confirm:disabled{opacity:.48}
 @media (max-width:520px){#start-offline-ground-control .button-row{grid-template-columns:1fr!important}#start-offline-ground-control .button-row button{margin:0}}
+</style>
+
+<style id="app-version-ui-style">
+#app-version-footer{max-width:720px;margin:8px auto 18px;padding:12px 15px;text-align:center;color:#64748b;font-size:11px;line-height:1.55}
+#app-version-footer .app-version-main{font-weight:800;color:#475569;margin-bottom:6px}
+#app-version-footer .app-version-build{font-variant-numeric:tabular-nums;color:#94a3b8}
+#app-version-check-btn{width:auto;min-width:150px;padding:9px 14px;margin:8px 0 4px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-size:12px;font-weight:800;cursor:pointer}
+#app-version-check-btn:active{transform:scale(.98)}
+#app-version-check-btn:disabled{opacity:.55;cursor:wait}
+#app-version-status{min-height:18px;font-size:11px;color:#64748b}
+#app-version-status.ok{color:#15803d;font-weight:700}
+#app-version-status.update{color:#b45309;font-weight:800}
+#app-version-status.error{color:#b91c1c;font-weight:700}
+#app-update-banner{display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:10050;max-width:680px;margin:auto;padding:11px 13px;border:1px solid #f59e0b;border-radius:11px;background:#fffbeb;color:#92400e;box-shadow:0 8px 28px rgba(0,0,0,.22);font-size:12px;font-weight:800;line-height:1.5}
+#app-update-banner.active{display:block}
+@media(max-width:480px){#app-version-footer{padding:10px 12px 14px}#app-update-banner{left:8px;right:8px;bottom:8px}}
 </style>
 </head>
 <body>
@@ -1405,6 +1427,15 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 </div>
 
 </div>
+
+
+<div id="app-version-footer" aria-label="アプリのバージョン情報">
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.07.33</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260907-1800</span></div>
+  <button type="button" id="app-version-check-btn">最新版を確認</button>
+  <div id="app-version-status" aria-live="polite">起動時に最新版を自動確認します。</div>
+</div>
+<div id="app-update-banner" role="status" aria-live="polite"></div>
 
 <!-- MediaPipe：既存ライブラリを維持 -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
@@ -7474,7 +7505,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register("sw.js",{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.07.33")}`,{
                 updateViaCache:"none"
             });
 
@@ -9262,6 +9293,135 @@ if(typeof mandatoryRenderSprintSequence==='function'){
 for(const id of ['sprint-offline-manual-contact','sprint-offline-manual-liftoff','sprint-offline-manual-undo','sprint-offline-manual-clear','sprint-offline-sequence-confirm'])document.getElementById(id)?.addEventListener('click',()=>setTimeout(v32RefreshSprintUi,30));
 
 for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32EnsureQualityCard();v32RefreshSprintUi();
+})();
+</script>
+
+
+<script id="app-version-manager-v33">
+(() => {
+  "use strict";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.07.33";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260907-1800";
+  const CHECK_INTERVAL_MS = 60 * 1000;
+  let checking = false;
+  let lastCheckAt = 0;
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = () => $("app-version-status");
+  const bannerEl = () => $("app-update-banner");
+  const buttonEl = () => $("app-version-check-btn");
+
+  function setStatus(text, cls="") {
+    const el = statusEl();
+    if (!el) return;
+    el.textContent = text;
+    el.className = cls;
+  }
+  function showBanner(text) {
+    const el = bannerEl();
+    if (!el) return;
+    el.textContent = text;
+    el.classList.add("active");
+  }
+  function hideBanner() { bannerEl()?.classList.remove("active"); }
+
+  function extractServerVersion(text) {
+    if (!text) return null;
+    const meta = text.match(/<meta\s+name=["']sprint-timer-version["']\s+content=["']([^"']+)["']/i)
+      || text.match(/<meta\s+content=["']([^"']+)["']\s+name=["']sprint-timer-version["']/i);
+    if (meta?.[1]) return meta[1].trim();
+    const js = text.match(/SPRINT_TIMER_VERSION\s*=\s*["']([^"']+)["']/);
+    return js?.[1]?.trim() || null;
+  }
+
+  async function fetchServerVersion() {
+    const url = new URL("index.html", document.baseURI);
+    url.searchParams.set("__version_check", Date.now().toString());
+    const response = await fetch(url.href, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    return extractServerVersion(text);
+  }
+
+  async function updateServiceWorker() {
+    if (!("serviceWorker" in navigator)) return null;
+    let registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      registration = await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(CURRENT_VERSION)}`, { updateViaCache: "none" });
+    }
+    try { await registration.update(); } catch (_) {}
+    if (registration.waiting) {
+      try { registration.waiting.postMessage({ type: "SKIP_WAITING" }); } catch (_) {}
+    }
+    return registration;
+  }
+
+  function reloadForVersion(serverVersion) {
+    const key = `sprint-timer-reload-${serverVersion}`;
+    if (sessionStorage.getItem(key)) {
+      setStatus(`更新版 ${serverVersion} を検出しましたが、自動更新後も現在版 ${CURRENT_VERSION} が表示されています。「最新版を確認」をもう一度押してください。`, "error");
+      showBanner(`更新版 ${serverVersion} を検出。現在表示は ${CURRENT_VERSION}。`);
+      return false;
+    }
+    sessionStorage.setItem(key, "1");
+    const u = new URL(location.href);
+    u.searchParams.set("__app_version", serverVersion);
+    u.searchParams.set("__reload", Date.now().toString());
+    showBanner(`新しいバージョン ${serverVersion} を検出しました。更新しています…`);
+    setTimeout(() => location.replace(u.href), 180);
+    return true;
+  }
+
+  async function checkForUpdate({ manual=false, autoReload=true }={}) {
+    if (checking) return;
+    if (!manual && Date.now() - lastCheckAt < CHECK_INTERVAL_MS) return;
+    checking = true;
+    lastCheckAt = Date.now();
+    const btn = buttonEl();
+    if (btn) btn.disabled = true;
+    if (manual) setStatus("最新版を確認しています…");
+    try {
+      await updateServiceWorker();
+      const serverVersion = await fetchServerVersion();
+      if (!serverVersion) {
+        setStatus(`Version ${CURRENT_VERSION} ／ サーバー版を判定できませんでした。`, "error");
+        return;
+      }
+      if (serverVersion === CURRENT_VERSION) {
+        hideBanner();
+        setStatus(`✓ 最新版です（Version ${CURRENT_VERSION}）`, "ok");
+        try { sessionStorage.removeItem(`sprint-timer-reload-${CURRENT_VERSION}`); } catch (_) {}
+        return;
+      }
+      setStatus(`更新版 ${serverVersion} を検出（現在 ${CURRENT_VERSION}）`, "update");
+      showBanner(`新しいバージョン ${serverVersion} があります。`);
+      if (autoReload) reloadForVersion(serverVersion);
+    } catch (err) {
+      setStatus(`更新確認に失敗しました。現在 Version ${CURRENT_VERSION} を使用中。`, "error");
+      if (manual) console.warn("Sprint Timer Pro version check failed", err);
+    } finally {
+      checking = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  window.SprintTimerUpdate = {
+    currentVersion: CURRENT_VERSION,
+    currentBuild: CURRENT_BUILD,
+    check: (options={}) => checkForUpdate({manual:true, autoReload:true, ...options})
+  };
+
+  window.addEventListener("DOMContentLoaded", () => {
+    if ($("app-version-text")) $("app-version-text").textContent = CURRENT_VERSION;
+    if ($("app-build-text")) $("app-build-text").textContent = CURRENT_BUILD;
+    buttonEl()?.addEventListener("click", () => checkForUpdate({manual:true, autoReload:true}));
+    setTimeout(() => checkForUpdate({manual:false, autoReload:true}), 900);
+  });
+  window.addEventListener("focus", () => checkForUpdate({manual:false, autoReload:true}));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate({manual:false, autoReload:true}); });
 })();
 </script>
 

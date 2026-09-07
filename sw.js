@@ -1,4 +1,5 @@
-const CACHE_NAME = 'sprint-timer-pro-v4-20260904-local-video';
+const APP_VERSION = '2026.09.07.33';
+const CACHE_NAME = `sprint-timer-pro-${APP_VERSION}`;
 const ASSETS = ['./index.html', './manifest.json'];
 const LOCAL_VIDEO_DB = 'SprintTimerLocalVideoTransport';
 const LOCAL_VIDEO_DB_VERSION = 1;
@@ -205,8 +206,30 @@ self.addEventListener('message', (event) => {
     return;
   }
 
+  if (data.type === 'GET_APP_VERSION') {
+    replyMessage(event, { ok: true, appVersion: APP_VERSION, cacheName: CACHE_NAME });
+    return;
+  }
+
+  if (data.type === 'REFRESH_APP_SHELL') {
+    event.waitUntil((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        for (const asset of ASSETS) {
+          const req = new Request(asset, { cache: 'reload' });
+          const res = await fetch(req, { cache: 'no-store' });
+          if (res && res.ok) await cache.put(req, res.clone());
+        }
+        replyMessage(event, { ok: true, appVersion: APP_VERSION });
+      } catch (e) {
+        replyMessage(event, { ok: false, appVersion: APP_VERSION, error: e && e.message ? e.message : String(e) });
+      }
+    })());
+    return;
+  }
+
   if (data.type === 'LOCAL_VIDEO_CAPABILITIES') {
-    replyMessage(event, { ok: true, localVideoRange: true, version: 1, prefix: LOCAL_VIDEO_PREFIX });
+    replyMessage(event, { ok: true, localVideoRange: true, version: 1, appVersion: APP_VERSION, prefix: LOCAL_VIDEO_PREFIX });
     return;
   }
 
@@ -251,6 +274,7 @@ self.addEventListener('fetch', (event) => {
   const token = localVideoTokenFromUrl(url);
 
   // Local video transport must run before generic app caching.
+  // App shell version: 2026.09.07.33. Navigation/index/manifest are always Network First + cache:no-store.
   if (token && (event.request.method === 'GET' || event.request.method === 'HEAD')) {
     event.respondWith(serveLocalVideo(event.request, token).catch(() => new Response('Local video transport error', { status: 500 })));
     return;
