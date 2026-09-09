@@ -1,4 +1,4 @@
-const APP_VERSION = '2026.09.07.33';
+const APP_VERSION = '2026.09.09.34';
 const CACHE_NAME = `sprint-timer-pro-${APP_VERSION}`;
 const ASSETS = ['./index.html', './manifest.json'];
 const LOCAL_VIDEO_DB = 'SprintTimerLocalVideoTransport';
@@ -274,7 +274,7 @@ self.addEventListener('fetch', (event) => {
   const token = localVideoTokenFromUrl(url);
 
   // Local video transport must run before generic app caching.
-  // App shell version: 2026.09.07.33. Navigation/index/manifest are always Network First + cache:no-store.
+  // App shell version: 2026.09.09.34. Navigation/index/manifest are always Network First + cache:no-store.
   if (token && (event.request.method === 'GET' || event.request.method === 'HEAD')) {
     event.respondWith(serveLocalVideo(event.request, token).catch(() => new Response('Local video transport error', { status: 500 })));
     return;

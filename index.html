@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.07.33">
-<meta name="sprint-timer-build" content="20260907-1800">
+<meta name="sprint-timer-version" content="2026.09.09.34">
+<meta name="sprint-timer-build" content="20260909-2300">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.07.33";
-window.SPRINT_TIMER_BUILD = "20260907-1800";
+window.SPRINT_TIMER_VERSION = "2026.09.09.34";
+window.SPRINT_TIMER_BUILD = "20260909-2300";
 </script>
 <title>Sprint Timer Pro</title>
 <link rel="manifest" href="manifest.json">
@@ -1430,8 +1430,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.07.33</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260907-1800</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.09.34</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260909-2300</span></div>
   <button type="button" id="app-version-check-btn">最新版を確認</button>
   <div id="app-version-status" aria-live="polite">起動時に最新版を自動確認します。</div>
 </div>
@@ -7505,7 +7505,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.07.33")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.09.34")}`,{
                 updateViaCache:"none"
             });
 
@@ -9297,11 +9297,11 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 </script>
 
 
-<script id="app-version-manager-v33">
+<script id="app-version-manager-v34">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.07.33";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260907-1800";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.09.34";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260909-2300";
   const CHECK_INTERVAL_MS = 60 * 1000;
   let checking = false;
   let lastCheckAt = 0;
@@ -9422,6 +9422,392 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
   });
   window.addEventListener("focus", () => checkForUpdate({manual:false, autoReload:true}));
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate({manual:false, autoReload:true}); });
+})();
+</script>
+
+<style id="performance-vbt-ux-v34-style">
+/* 2026-09-09 v34: active-module resource control + VBT mobile UX */
+#tab-vbt .vbt-primary-control-row{margin:10px 0 12px;}
+#tab-vbt .vbt-primary-control-row .action-btn{min-height:48px;font-size:16px;font-weight:700;}
+#vbt-settings-details{margin-top:10px;}
+#vbt-settings-details>summary{
+    cursor:pointer;list-style:none;padding:12px 14px;border-radius:10px;background:#f7f9fc;
+    border:1px solid #dfe6ee;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+#vbt-settings-details>summary::-webkit-details-marker{display:none;}
+#vbt-settings-details>summary::after{content:"▼";font-size:12px;color:#667085;transition:transform .18s ease;}
+#vbt-settings-details[open]>summary::after{transform:rotate(180deg);}
+#vbt-settings-summary-values{font-size:12px;font-weight:600;color:#667085;text-align:right;}
+#vbt-settings-details .vbt-settings-body{padding-top:10px;}
+#vbt-settings-details .vbt-settings-note{margin-top:8px;color:#667085;font-size:12px;}
+#tab-vbt.vbt-measuring #vbt-settings-details,
+#tab-vbt.vbt-measuring #vbt-science-card{display:none!important;}
+#tab-vbt.vbt-measuring #vbt-camera-toggle,
+#tab-vbt.vbt-measuring #vbt-focus-btn{opacity:.55;pointer-events:none;}
+#vbt-performance-mode{font-size:12px;color:#667085;margin-top:6px;}
+#vbt-review-area .vbt-frame-step-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
+#vbt-review-area .vbt-frame-step-row .action-btn{padding-left:6px;padding-right:6px;white-space:nowrap;}
+@media(max-width:480px){
+  #vbt-settings-details>summary{align-items:flex-start;flex-direction:column;}
+  #vbt-settings-summary-values{text-align:left;}
+}
+</style>
+<script id="performance-vbt-ux-v34-script">
+(() => {
+  "use strict";
+
+  const MODULES=["camera-analysis","vbt","myjump","sprintpeak"];
+  const VBT_IDLE_TRACK_FPS=20;
+  const VBT_OVERLAY_MAX_FPS=30;
+  let v34SprintLoopRunning=false;
+  let v34VbtLastIdleTrackAt=0;
+  let v34VbtLastOverlayAt=0;
+
+  function activeTabName(){
+    const el=document.querySelector(".tab-content.active");
+    return el?.id?.startsWith("tab-") ? el.id.slice(4) : "sound-only";
+  }
+  function moduleActive(name){ return activeTabName()===name; }
+
+  function moduleBusy(name){
+    try{
+      if(name==="camera-analysis") return !!(startRecordingActive||startOfflineAnalyzing);
+      if(name==="vbt") return !!(vbtRunning||vbtReviewBusy);
+      if(name==="myjump") return !!(myRecording||myAnalysisRunning);
+      if(name==="sprintpeak") return !!(sprintRunning||sprintOfflineAnalyzing);
+    }catch(_){ }
+    return false;
+  }
+
+  function stopTracks(stream){
+    try{stream?.getTracks?.().forEach(t=>{try{t.stop();}catch(_){}});}catch(_){ }
+  }
+
+  function suspendVbtCamera(){
+    if(typeof vbtRunning!=="undefined"&&vbtRunning)return false;
+    try{
+      vbtLoopStarted=false;
+      if(vbtRaf!=null){
+        try{if(typeof vbtVideo.cancelVideoFrameCallback==="function")vbtVideo.cancelVideoFrameCallback(vbtRaf);}catch(_){ }
+        try{cancelAnimationFrame(vbtRaf);}catch(_){ }
+      }
+      vbtRaf=null;
+      const stream=vbtVideo?.srcObject||vbtStream;
+      stopTracks(stream);
+      if(vbtVideo)vbtVideo.srcObject=null;
+      vbtStream=null;
+      if(typeof cameraStreams!=="undefined"&&vbtVideo)cameraStreams[vbtVideo.id]=null;
+      const info=document.getElementById("vbt-camera-info");
+      if(info)info.innerText="カメラ：停止（VBTを開くと再起動） ／ 他機能のカメラ・解析は停止中";
+      return true;
+    }catch(_){return false;}
+  }
+
+  function suspendMyJumpCamera(){
+    if(typeof myRecording!=="undefined"&&(myRecording||myAnalysisRunning))return false;
+    try{
+      if(typeof myJumpStopCaptureClock==="function")myJumpStopCaptureClock();
+      const stream=myLive?.srcObject||myStream;
+      stopTracks(stream);
+      if(myLive)myLive.srcObject=null;
+      myStream=null;
+      if(typeof cameraStreams!=="undefined"&&myLive)cameraStreams[myLive.id]=null;
+      const info=document.getElementById("myjump-camera-info");
+      if(info)info.innerText="カメラ：停止（MyJumpを開くと再起動） ／ バックグラウンド処理なし";
+      return true;
+    }catch(_){return false;}
+  }
+
+  function suspendStartCamera(){
+    try{
+      if(startRecordingActive||startOfflineAnalyzing)return false;
+      if(typeof startOfflineSuspendLiveCamera==="function")return startOfflineSuspendLiveCamera();
+    }catch(_){ }
+    return false;
+  }
+
+  function suspendSprintCamera(){
+    try{
+      if(sprintRunning||sprintOfflineAnalyzing)return false;
+      if(typeof sprintOfflineSuspendLiveCamera==="function")sprintOfflineSuspendLiveCamera();
+      v34SprintLoopRunning=false;
+      return true;
+    }catch(_){return false;}
+  }
+
+  function suspendModule(name){
+    if(moduleBusy(name))return false;
+    if(name==="camera-analysis")return suspendStartCamera();
+    if(name==="vbt")return suspendVbtCamera();
+    if(name==="myjump")return suspendMyJumpCamera();
+    if(name==="sprintpeak")return suspendSprintCamera();
+    return true;
+  }
+
+  function suspendInactiveModules(target){
+    for(const name of MODULES){if(name!==target)suspendModule(name);}
+  }
+
+  /* タブ切替時、現在の計測・高精度解析を誤ってバックグラウンド化しない。 */
+  const previousSwitchTab=window.switchTab;
+  window.switchTab=function(name){
+    const current=activeTabName();
+    if(current!==name&&moduleBusy(current)){
+      alert("現在の計測・解析を終了してから別の項目へ切り替えてください。バックグラウンドで解析は継続しません。");
+      return;
+    }
+    suspendInactiveModules(name);
+    previousSwitchTab(name);
+  };
+
+  /* SPRINTPEAK Poseは非選択時に完全停止。再び開いた時だけ再開する。 */
+  sprintPoseLoop=async function(){
+    if(!moduleActive("sprintpeak")){
+      v34SprintLoopRunning=false;
+      return;
+    }
+    v34SprintLoopRunning=true;
+    if(sprintVideo.readyState>=2&&sprintPose){
+      try{await sprintPose.send({image:sprintVideo});}catch(_){ }
+    }
+    if(moduleActive("sprintpeak"))requestAnimationFrame(sprintPoseLoop);
+    else v34SprintLoopRunning=false;
+  };
+  const previousStartSprintCamera=startSprintCamera;
+  startSprintCamera=async function(){
+    await previousStartSprintCamera();
+    if(moduleActive("sprintpeak")&&sprintPose&&!v34SprintLoopRunning){
+      v34SprintLoopRunning=true;
+      requestAnimationFrame(sprintPoseLoop);
+    }
+  };
+
+  /* VBTは待機中だけ追跡を20fpsへ抑え、計測中は映像フレームを優先して全フレーム追跡する。 */
+  requestVbtFrame=function(videoCallbackNow,videoMetadata){
+    if(!moduleActive("vbt")){
+      vbtLoopStarted=false;
+      vbtRaf=null;
+      return;
+    }
+    const callbackNow=Number.isFinite(videoCallbackNow)?videoCallbackNow:performance.now();
+    recordVbtVideoFrame(callbackNow,videoMetadata);
+
+    const idleInterval=1000/VBT_IDLE_TRACK_FPS;
+    const shouldProcess=vbtRunning || (vbtFocus&&callbackNow-v34VbtLastIdleTrackAt>=idleInterval);
+    if(!shouldProcess){
+      updateVbtCameraTelemetry(false);
+      scheduleNextVbtFrame();
+      return;
+    }
+    if(!vbtRunning)v34VbtLastIdleTrackAt=callbackNow;
+
+    const processStart=performance.now();
+    if(!vbtVideo.videoWidth||!ensureVbtAnalysisCanvas()){
+      scheduleNextVbtFrame();
+      return;
+    }
+
+    /* 録画映像は元解像度のまま。解析Canvasだけ最大960pxを維持。 */
+    vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
+    vbtTrackAcceptedThisFrame=false;
+
+    if(vbtFocus&&vbtTemplate){
+      const now=performance.now();
+      recordVbtTrackingFrame(now);
+      const tracked=trackVbtTemplateAdvanced(now);
+      if(tracked){
+        const wasLost=vbtLostFrames>=8;
+        const previousLost=vbtLostFrames;
+        vbtFocus={x:tracked.x,y:tracked.y};
+        vbtTrackConfidence=tracked.confidence;
+        vbtTrackMode=tracked.mode;
+        vbtLostFrames=0;
+        vbtTrackAcceptedThisFrame=true;
+        vbtLastTrackPerf=now;
+        vbtAcceptedTimes.push(now);
+        trimVbtFpsTimes(vbtAcceptedTimes,now);
+        vbtAcceptedHistory.push({
+          x:tracked.measurementX,y:tracked.measurementY,perf:now,
+          mediaTime:Number.isFinite(vbtCurrentMediaTime)?vbtCurrentMediaTime:null,
+          confidence:tracked.confidence
+        });
+        if(vbtAcceptedHistory.length>8)vbtAcceptedHistory.shift();
+
+        if(vbtTrackConfidence>=.88&&tracked.centerFixedConfidence>=.72&&tracked.shapeConfidence>=.55&&vbtFrameCounter%7===0){
+          updateVbtAdaptiveTemplate(vbtCtx,vbtCanvas.width,vbtCanvas.height,tracked.measurementX,tracked.measurementY);
+          updateVbtCenterAdaptiveTemplate(vbtCtx,vbtCanvas.width,vbtCanvas.height,tracked.measurementX,tracked.measurementY);
+        }
+        if(vbtTrackConfidence>=.82&&tracked.centerFixedConfidence>=.62){
+          updateVbtRecentCenterTemplate(vbtCtx,vbtCanvas.width,vbtCanvas.height,tracked.measurementX,tracked.measurementY);
+        }
+        if(wasLost||previousLost>=3){
+          setVbtTargetUiState("tracking");
+          document.getElementById("vbt-status").innerText=vbtRunning?"計測中・対象物を再捕捉しました。":"対象物を再捕捉しました。";
+        }
+      }else{
+        vbtLostFrames++;
+        vbtTrackConfidence=Math.max(0,vbtTrackConfidence*.68);
+        vbtTrackMode=vbtLostFrames>=3?"recovery":"expanded";
+        if(vbtLostFrames===8){
+          vbtUp=false;vbtUpStartSample=null;vbtUpTopSample=null;vbtStableEndFrames=0;vbtMotionWindow=[];vbtLastTracked=null;
+          setVbtTargetUiState("lost");
+          document.getElementById("vbt-status").innerText="対象物を見失いました。固定テンプレートとプレート外周を使って広域再探索中です。再捕捉できない場合は中心を再指定してください。";
+        }
+      }
+    }
+
+    if(vbtRunning&&vbtFocus&&vbtTrackAcceptedThisFrame&&vbtLostFrames<8){
+      analyzeVbtMotion(callbackNow,videoMetadata);
+    }
+
+    if(callbackNow-v34VbtLastOverlayAt>=1000/VBT_OVERLAY_MAX_FPS){
+      v34VbtLastOverlayAt=callbackNow;
+      drawVbtOverlay();
+    }
+
+    const processMs=performance.now()-processStart;
+    vbtProcessingTimes.push({t:performance.now(),ms:processMs});
+    const cutoff=performance.now()-1600;
+    while(vbtProcessingTimes.length&&vbtProcessingTimes[0].t<cutoff)vbtProcessingTimes.shift();
+    if(vbtProcessingTimes.length){
+      vbtAverageProcessingMs=vbtProcessingTimes.reduce((a,b)=>a+b.ms,0)/vbtProcessingTimes.length;
+    }
+    updateVbtCameraTelemetry(false);
+    scheduleNextVbtFrame();
+  };
+
+  /* 表示を「実映像 / 追跡 / 処理率 / 採用 / 平均処理時間」に整理。待機中の20fps制御は異常扱いしない。 */
+  updateVbtCameraTelemetry=function(force){
+    const now=performance.now();
+    if(!force&&now-vbtLastTelemetryUpdate<350)return;
+    vbtLastTelemetryUpdate=now;
+    const info=document.getElementById("vbt-camera-info");
+    if(!info)return;
+    const track=vbtVideo.srcObject&&vbtVideo.srcObject.getVideoTracks?vbtVideo.srcObject.getVideoTracks()[0]:null;
+    const settings=track&&track.getSettings?track.getSettings():{};
+    const facing=settings.facingMode||vbtFacingMode;
+    const cameraLabel=facing==="environment"?"アウト":facing==="user"?"イン":"不明";
+    const vf=vbtMeasuredVideoFps>0?vbtMeasuredVideoFps:(settings.frameRate||0);
+    const tf=vbtMeasuredTrackingFps||0;
+    const acceptedFps=fpsFromTimes(vbtAcceptedTimes);
+    const processRate=(vf>0&&tf>0)?clamp(tf/vf,0,1):0;
+    vbtSkippedFrameRatio=processRate?1-processRate:0;
+    const resolution=settings.width&&settings.height?`${settings.width}×${settings.height}`:(vbtVideo.videoWidth?`${vbtVideo.videoWidth}×${vbtVideo.videoHeight}`:"--");
+    const mode=vbtRunning?"計測優先":"待機省負荷";
+    let warning="";
+    if(cameraLabel==="イン")warning+=" ／ ⚠ インカメラ：アウト推奨";
+    if(vf>0&&vf<45)warning+=` ／ ⚠ 映像${vf.toFixed(1)}FPS`;
+    if(vbtRunning&&vf>=35&&tf>0&&tf<vf*.85)warning+=" ／ ⚠ 解析が映像に追いついていません";
+    if(vbtRunning&&vbtAverageProcessingMs>0&&vf>0&&vbtAverageProcessingMs>(1000/vf)*.82)warning+=" ／ ⚠ 処理負荷高";
+    info.innerText=`カメラ：${cameraLabel} ${resolution} ／ 実映像FPS：${vf?vf.toFixed(1):"--"} ／ 追跡FPS：${tf?tf.toFixed(1):"--"} ／ 処理率：${processRate?Math.round(processRate*100)+"%":"--"} ／ 採用FPS：${acceptedFps?acceptedFps.toFixed(1):"--"} ／ 平均処理：${vbtAverageProcessingMs?vbtAverageProcessingMs.toFixed(1)+"ms":"--"} ／ ${mode}${warning}`;
+    const modeEl=document.getElementById("vbt-performance-mode");
+    if(modeEl)modeEl.textContent=vbtRunning?"計測中：映像フレームを優先して最大頻度で追跡します。":"待機中：対象確認は約20fpsに抑え、計測開始後は自動的に最大頻度へ戻ります。";
+  };
+
+  function setupVbtUi(){
+    const tab=document.getElementById("tab-vbt");
+    const focusBtn=document.getElementById("vbt-focus-btn");
+    const cameraBtn=document.getElementById("vbt-camera-toggle");
+    const startBtn=document.getElementById("vbt-start");
+    const stopBtn=document.getElementById("vbt-stop");
+    if(!tab||!focusBtn||!startBtn||!stopBtn)return;
+
+    /* 計測開始/終了を対象物設定の直下へ移動。 */
+    const primaryRow=startBtn.parentElement;
+    primaryRow?.classList.add("vbt-primary-control-row");
+    const targetRow=focusBtn.parentElement;
+    if(primaryRow&&targetRow&&targetRow.nextElementSibling!==primaryRow){
+      targetRow.insertAdjacentElement("afterend",primaryRow);
+    }
+    if(!document.getElementById("vbt-performance-mode")){
+      const perf=document.createElement("div");
+      perf.id="vbt-performance-mode";
+      perf.textContent="待機中：対象確認は約20fpsに抑え、計測開始後は自動的に最大頻度へ戻ります。";
+      primaryRow.insertAdjacentElement("afterend",perf);
+    }
+
+    /* VBT設定カードを折りたたみ化。既存inputノードを移動するためイベントは保持される。 */
+    const weight=document.getElementById("vbt-weight");
+    const oldCard=weight?.closest(".settings-card");
+    if(oldCard&&!document.getElementById("vbt-settings-details")){
+      const details=document.createElement("details");
+      details.id="vbt-settings-details";
+      details.className="settings-card";
+      const summary=document.createElement("summary");
+      summary.innerHTML='<span>VBT設定</span><span id="vbt-settings-summary-values"></span>';
+      const body=document.createElement("div");
+      body.className="vbt-settings-body";
+      Array.from(oldCard.childNodes).forEach(node=>{
+        if(node.nodeType===1&&node.tagName==="H3")return;
+        body.appendChild(node);
+      });
+      const note=document.createElement("div");
+      note.className="vbt-settings-note";
+      note.textContent="一度設定した後は折りたたんだまま計測できます。プレート径を変更した場合は対象物を再指定してください。";
+      body.appendChild(note);
+      details.append(summary,body);
+      oldCard.replaceWith(details);
+      details.open=false;
+    }
+
+    const details=document.getElementById("vbt-settings-details");
+    const plate=document.getElementById("vbt-plate-diameter");
+    const height=document.getElementById("vbt-height");
+    const prefsKey="sprintTimerVbtPrefsV1";
+    try{
+      const saved=JSON.parse(localStorage.getItem(prefsKey)||"{}");
+      if(saved.weight!==undefined&&weight&&!weight.value)weight.value=saved.weight;
+      if(saved.plate!==undefined&&plate)plate.value=saved.plate;
+    }catch(_){ }
+
+    function updateSummary(){
+      const el=document.getElementById("vbt-settings-summary-values");
+      if(!el)return;
+      const w=weight?.value?`${weight.value}kg`:"重量--";
+      const h=height?.value?`${height.value}cm`:"身長--";
+      const p=plate?.value?`φ${plate.value}cm`:"プレート--";
+      el.textContent=`${w} / ${h} / ${p}`;
+    }
+    function savePrefs(){
+      try{localStorage.setItem(prefsKey,JSON.stringify({weight:weight?.value||"",plate:plate?.value||"45"}));}catch(_){ }
+      updateSummary();
+    }
+    [weight,height,plate].forEach(el=>el?.addEventListener("input",()=>{savePrefs();}));
+    updateSummary();
+
+    /* レビュー移動：5Fで粗調整、1Fで微調整。 */
+    const prev1=document.getElementById("vbt-prev-frame");
+    const next1=document.getElementById("vbt-next-frame");
+    const stepRow=prev1?.parentElement;
+    if(stepRow&&prev1&&next1&&!document.getElementById("vbt-prev-5-frame")){
+      stepRow.classList.add("vbt-frame-step-row");
+      prev1.textContent="◀ 1F";
+      next1.textContent="1F ▶";
+      const prev5=document.createElement("button");
+      prev5.type="button";prev5.id="vbt-prev-5-frame";prev5.className="action-btn btn-gray";prev5.textContent="◀ 5F";
+      const next5=document.createElement("button");
+      next5.type="button";next5.id="vbt-next-5-frame";next5.className="action-btn btn-gray";next5.textContent="5F ▶";
+      prev5.addEventListener("click",()=>vbtStepFrame(-5));
+      next5.addEventListener("click",()=>vbtStepFrame(5));
+      stepRow.insertBefore(prev5,prev1);
+      stepRow.appendChild(next5);
+    }
+
+    function setMeasuringUi(measuring){
+      tab.classList.toggle("vbt-measuring",!!measuring);
+      if(cameraBtn)cameraBtn.disabled=!!measuring;
+      if(focusBtn)focusBtn.disabled=!!measuring;
+      if(details&&measuring)details.open=false;
+    }
+    startBtn.addEventListener("click",()=>setTimeout(()=>setMeasuringUi(!!vbtRunning),0));
+    stopBtn.addEventListener("click",()=>setTimeout(()=>setMeasuringUi(false),0));
+    setMeasuringUi(!!vbtRunning);
+  }
+
+  document.addEventListener("DOMContentLoaded",()=>{
+    setupVbtUi();
+    suspendInactiveModules(activeTabName());
+  });
 })();
 </script>
 
