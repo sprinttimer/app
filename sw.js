@@ -1,4 +1,4 @@
-const APP_VERSION = '2026.09.09.34';
+const APP_VERSION = '2026.09.11.36';
 const CACHE_NAME = `sprint-timer-pro-${APP_VERSION}`;
 const ASSETS = ['./index.html', './manifest.json'];
 const LOCAL_VIDEO_DB = 'SprintTimerLocalVideoTransport';
@@ -195,6 +195,13 @@ self.addEventListener('activate', (event) => {
       .map((key) => caches.delete(key)));
     await pruneLocalVideos();
     await self.clients.claim();
+
+    // Tell every open browser/PWA window that this exact version has become active.
+    // A window still running older HTML can then reload itself immediately.
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      try { client.postMessage({ type: 'APP_VERSION_ACTIVATED', appVersion: APP_VERSION, cacheName: CACHE_NAME }); } catch (_) {}
+    }
   })());
 });
 
@@ -274,7 +281,7 @@ self.addEventListener('fetch', (event) => {
   const token = localVideoTokenFromUrl(url);
 
   // Local video transport must run before generic app caching.
-  // App shell version: 2026.09.09.34. Navigation/index/manifest are always Network First + cache:no-store.
+  // App shell version: 2026.09.11.36. Navigation/index/manifest are always Network First + cache:no-store.
   if (token && (event.request.method === 'GET' || event.request.method === 'HEAD')) {
     event.respondWith(serveLocalVideo(event.request, token).catch(() => new Response('Local video transport error', { status: 500 })));
     return;
@@ -286,6 +293,13 @@ self.addEventListener('fetch', (event) => {
   const isNavigation = event.request.mode === 'navigate';
   const isIndex = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
   const isManifest = url.pathname.endsWith('/manifest.json');
+  const isServiceWorkerScript = url.pathname.endsWith('/sw.js');
+
+  // Version checks must reach the network. If offline, fail and let the page retry on reconnect.
+  if (isServiceWorkerScript) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
 
   if (isNavigation || isIndex || isManifest) {
     event.respondWith(

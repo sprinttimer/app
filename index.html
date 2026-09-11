@@ -3,11 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.09.34">
-<meta name="sprint-timer-build" content="20260909-2300">
+<meta name="sprint-timer-version" content="2026.09.11.36">
+<meta name="sprint-timer-build" content="20260911-2000">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.09.34";
-window.SPRINT_TIMER_BUILD = "20260909-2300";
+window.SPRINT_TIMER_VERSION = "2026.09.11.36";
+window.SPRINT_TIMER_BUILD = "20260911-2000";
+/* PWA install prompt is captured as early as possible so the in-app button can use it. */
+window.__sprintDeferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    window.__sprintDeferredInstallPrompt = event;
+    window.dispatchEvent(new Event("sprint-install-ready"));
+});
 </script>
 <title>Sprint Timer Pro</title>
 <link rel="manifest" href="manifest.json">
@@ -234,6 +241,14 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 #app-version-status.error{color:#b91c1c;font-weight:700}
 #app-update-banner{display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:10050;max-width:680px;margin:auto;padding:11px 13px;border:1px solid #f59e0b;border-radius:11px;background:#fffbeb;color:#92400e;box-shadow:0 8px 28px rgba(0,0,0,.22);font-size:12px;font-weight:800;line-height:1.5}
 #app-update-banner.active{display:block}
+#app-install-area{max-width:420px;margin:10px auto 4px}
+#app-install-btn{width:100%;padding:12px 14px;border:1px solid #16a34a;border-radius:11px;background:#16a34a;color:#fff;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+#app-install-btn:active{transform:scale(.985)}
+#app-install-btn[hidden]{display:none!important}
+#app-install-status{margin-top:7px;min-height:1.4em;color:#64748b;font-size:11px;line-height:1.5}
+#app-install-status.ok{color:#15803d;font-weight:700}
+#app-install-status.help{color:#475569}
+#app-install-status.error{color:#b91c1c}
 @media(max-width:480px){#app-version-footer{padding:10px 12px 14px}#app-update-banner{left:8px;right:8px;bottom:8px}}
 </style>
 </head>
@@ -285,7 +300,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
     <div class="results-grid">
         <div class="data-card"><div class="data-label">リアクションタイム</div><div class="data-value" id="reaction-time-display">0.000 <span class="unit">s</span></div><div class="small" id="start-reaction-source">採用：自動解析</div></div>
         <div class="data-card"><div class="data-label">飛び出し角度 A</div><div class="data-value" id="start-angle-display">-- <span class="unit">°</span></div><div class="small" id="start-angle-source">自動：ブロッククリアランス待ち</div></div>
-        <div class="data-card"><div class="data-label">1歩目の接地時間</div><div class="data-value" id="contact-time-display">0.000 <span class="unit">s</span></div><div class="small">距離は基準点が曖昧なため表示しません</div></div>
+        <div class="data-card"><div class="data-label">1歩目の接地時間</div><div class="data-value" id="contact-time-display">-- <span class="unit">s</span></div><div class="small">詳細接地は録画動画解析を使用してください</div></div>
     </div>
     <div class="settings-card">
         <h3>ステップ長（捕捉できた歩のみ）</h3>
@@ -1136,7 +1151,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             @media(max-width:600px){#sprint-offline-required-details>summary{padding:10px 9px}.sprint-offline-required-title{font-size:14px}#sprint-offline-required-summary-status{font-size:11px}.sprint-offline-subdetails>summary{font-size:14px;padding:9px}}
         </style>
         <h3>動画からSPRINTPEAK高精度解析 <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="overview" aria-label="動画解析の説明">?</button></h3>
-        <div class="notice"><b>練習中は撮影だけ、分析は後から：</b>スマホ標準カメラや外部カメラで撮りためた中間走動画を読み込み、リアルタイム処理速度に制限されずフレーム単位で解析します。上のリアルタイム計測はそのまま残しているため、単発計測と事後分析を使い分けられます。</div>
+        <div class="notice"><b>練習中は撮影だけ、分析は後から：</b>スマホ標準カメラや外部カメラで撮りためた中間走動画を読み込み、リアルタイム処理速度に制限されずフレーム単位で解析します。SPRINTPEAKは録画動画解析専用とし、撮影時のFPS確保を最優先にします。</div>
         <div class="notice" style="border-left-color:#e53e3e;background:#fff5f5;"><b>撮影条件：</b>最低60fps、<b>推奨120fps</b>。十分な明るさ・解像度を確保できる場合は240fpsも有効です。三脚で固定し、30〜60m付近の中間走をできるだけ真横から撮影してください。高FPSで画質が大きく落ちる場合は240fpsより120fpsを優先してください。</div>
 
         <div class="setting-item">
@@ -1430,8 +1445,12 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.09.34</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260909-2300</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.11.36</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260911-2000</span></div>
+  <div id="app-install-area">
+    <button type="button" id="app-install-btn">ホーム画面に追加</button>
+    <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
+  </div>
   <button type="button" id="app-version-check-btn">最新版を確認</button>
   <div id="app-version-status" aria-live="polite">起動時に最新版を自動確認します。</div>
 </div>
@@ -2515,8 +2534,8 @@ function onResults(results){
     const captureT=Number.isFinite(meta.captureT)?meta.captureT:startCaptureTimeFromPerf(meta.perf||resultPerf);
 
     canvasCtx.save();
-    canvasElement.width=videoElement.videoWidth||canvasElement.width;
-    canvasElement.height=videoElement.videoHeight||canvasElement.height;
+    const liveW=videoElement.videoWidth||canvasElement.width,liveH=videoElement.videoHeight||canvasElement.height;
+    if(liveW&&liveH&&(canvasElement.width!==liveW||canvasElement.height!==liveH)){canvasElement.width=liveW;canvasElement.height=liveH;}
     canvasCtx.clearRect(0,0,canvasElement.width,canvasElement.height);
     if(!results.poseLandmarks){sceneDrawOverlay("start",canvasCtx,canvasElement);canvasCtx.restore();return;}
 
@@ -2564,9 +2583,11 @@ function onResults(results){
 
                 if(startMovementCounter>=2){
                     sprintDetected=true;
-                    startAutoReaction=Math.max(0,elapsed);
-                    startAutoMovementCaptureTime=captureT;
-                    startAutoMovementFrameIndex=meta.frameIndex??startNearestFrameByCaptureTime(captureT)?.index??null;
+                    const lite=window.__startLiteMotionCandidate;
+                    const useLite=lite&&Number.isFinite(lite.reaction)&&lite.reaction>=0&&lite.reaction<Math.max(.8,elapsed+.25);
+                    startAutoReaction=useLite?lite.reaction:Math.max(0,elapsed);
+                    startAutoMovementCaptureTime=useLite?lite.captureT:captureT;
+                    startAutoMovementFrameIndex=useLite?(lite.frameIndex??meta.frameIndex??startNearestFrameByCaptureTime(lite.captureT)?.index??null):(meta.frameIndex??startNearestFrameByCaptureTime(captureT)?.index??null);
                     document.getElementById("reaction-time-display").innerHTML=startAutoReaction.toFixed(3)+' <span class="unit">s</span>';
 
                     const delta=hipX-startBaselineHipX;
@@ -2675,7 +2696,7 @@ function resetStartTrialState(){
     const dirSelect=document.getElementById("start-direction-select");if(dirSelect)dirSelect.value="auto";
     document.getElementById("reaction-time-display").innerHTML="0.000 <span class='unit'>s</span>";
     document.getElementById("start-angle-display").innerHTML="-- <span class='unit'>°</span>";
-    document.getElementById("contact-time-display").innerHTML="0.000 <span class='unit'>s</span>";
+    document.getElementById("contact-time-display").innerHTML="-- <span class='unit'>s</span>";
     renderStartStepLengths();bodyRenderCalibrationStatus("start",null);sceneRenderStatus("start",null);
     enableStartAngleControls(false);document.getElementById("start-goto-auto-angle").disabled=true;
     updateStartDirectionInfo();updateStartMainResultSources();renderStartReviewValues();
@@ -2780,7 +2801,7 @@ function fmtStartDiff(v,unit){return v===null||!Number.isFinite(v)?"--":`${v>=0?
 function updateStartMainResultSources(){
     const finalReaction=startManualReaction!==null?startManualReaction:startAutoReaction;
     if(finalReaction!==null)document.getElementById("reaction-time-display").innerHTML=finalReaction.toFixed(3)+' <span class="unit">s</span>';
-    document.getElementById("start-reaction-source").innerText=startManualReaction!==null?"採用：手動補正":"採用：自動解析";
+    document.getElementById("start-reaction-source").innerText=startManualReaction!==null?"採用：手動補正":(window.__startLiteMotionCandidate?"採用：高FPS軽量動体検出＋Pose確認":"採用：Pose自動解析");
 
     const autoCompare=startAngleFrameCaptureTime!==null?startAngleReviewAuto:startAutoAngleOriginal;
     const finalAngle=startManualAngle!==null?startManualAngle:autoCompare;
@@ -7377,7 +7398,7 @@ function sprintOfflineCaptureTrackingPoint(p){if(!sprintOfflineTrackingActive)re
 function sprintOfflineResetTracking(){sprintOfflineTrackingSeed=offlineTrackEmptySeed();sprintOfflineTrackingActive=null;sprintOfflineTrackingResolvedSeed=null;sprintOfflineInferredKnees=new Map();sprintOfflinePatchTracks=new Map();sprintOfflinePatchStats={enabled:false,points:0,frames:0,reanchored:0,failed:0,forward:0,backward:0};sprintOfflineTrackingStats={left:0,right:0,total:0,bidirectional:0,supportInterpolated:0,rejectedLongGap:0};if(sprintOfflinePoseFrames.length)sprintOfflineRecomputeDerived();else{sprintOfflineRenderTrackingUi();sprintOfflineDrawOverlay();}}
 function sprintOfflineDrawTrackingSeed(){if(sprintOfflineTrackingSeed.frameIndex===null||Math.abs(sprintOfflineCurrentFrameIndex()-sprintOfflineTrackingSeed.frameIndex)>1)return;const w=sprintOfflineCanvas.width,h=sprintOfflineCanvas.height,colors={near:"#ff9500",far:"#7c3aed"},jl={hip:"腰",knee:"膝",ankle:"足首",heel:"踵",toe:"つま先"};sprintOfflineCtx.save();sprintOfflineCtx.font=`bold ${Math.max(14,w/70)}px sans-serif`;for(const leg of ["near","far"]){for(const joint of OFFLINE_TRACK_JOINTS){const q=sprintOfflineTrackingSeed.points?.[leg]?.[joint];if(!q)continue;const x=q.x*w,y=q.y*h;sprintOfflineCtx.fillStyle=colors[leg];sprintOfflineCtx.strokeStyle="#fff";sprintOfflineCtx.lineWidth=2;sprintOfflineCtx.beginPath();sprintOfflineCtx.arc(x,y,Math.max(7,w/150),0,Math.PI*2);sprintOfflineCtx.fill();sprintOfflineCtx.stroke();sprintOfflineCtx.fillStyle="#fff";sprintOfflineCtx.strokeStyle="#000";const label=(leg==="near"?"手前":"奥")+jl[joint];sprintOfflineCtx.strokeText(label,x+9,y-7);sprintOfflineCtx.fillText(label,x+9,y-7);}}sprintOfflineCtx.restore();}
 const sprintOfflineHelpContent={
-    overview:{title:"SPRINTPEAK動画解析",body:"練習中はスマホ標準カメラ等で中間走を複数本撮影し、後から動画をまとめて解析するモードです。リアルタイム計測は上部にそのまま残っています。動画解析ではリアルタイム処理速度に縛られず、高精度Poseを順番に処理します。"},
+    overview:{title:"SPRINTPEAK動画解析",body:"練習中はスマホ標準カメラ等で中間走を60fps以上（推奨120fps）で撮影し、後から動画をまとめて解析する専用モードです。リアルタイム解析は行わず、撮影FPSと画質を優先し、高精度Poseを順番に処理します。"},
     tracking:{title:"任意：脚の初期追跡補助",body:"必須ではありません。両脚がはっきり見えるフレームを基準にし、手前脚・奥脚の腰（股関節）・膝・足首・踵・つま先から必要な点をタップします。タップ待ちはオレンジ、指定済みは緑＋✓になります。指定点は脚ID固定と画像パッチ追跡の初期値になり、MediaPipeが一瞬座標を落としても周囲の画素パターンと前後軌道から短時間追跡を継続します。膝は前後双方の軌道と人体リンク長が整合する場合だけ補完します。"},
     range:{title:"解析範囲",body:"選手が画面に入り、最高速度付近を通過する区間だけに絞ると解析時間を短縮できます。開始位置で『現在を解析開始』、終了位置で『現在を解析終了』を押してください。選択済みボタンは色が変わり、✓と時刻が表示されます。"},
     calibration:{title:"距離キャリブレーション",body:"身体寸法は上のSPRINTPEAK設定と共通です。通常モードは身長比率、高精度モードは実測身体寸法を優先します。高精度モードでは28〜30cmのバトンを走行方向と平行に置き、映像上で両端を指定すると距離換算を補助できます。2本モードでは解析区間の前後へ離して置くと位置別縮尺補正を行います。"},
@@ -7505,7 +7526,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.09.34")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.11.36")}`,{
                 updateViaCache:"none"
             });
 
@@ -9076,7 +9097,7 @@ function v31InstallReadingMode(prefix){
 for(const prefix of ['start','sprint']){v31InstallMainTap(prefix);v31InstallEvaluationReview(prefix);v31InstallReadingMode(prefix);}
 
 })();
-</script>\n
+</script>
 <style id="validation-ux-v32-style">
 /* =====================================================================
    v32 Validation UX (2026-09-07)
@@ -9297,19 +9318,24 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 </script>
 
 
-<script id="app-version-manager-v34">
+<script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.09.34";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260909-2300";
-  const CHECK_INTERVAL_MS = 60 * 1000;
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.11.36";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260911-2000";
+  const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
+  const PERIODIC_CHECK_MS = 3 * 60 * 1000;
+  const MAX_AUTO_RELOAD_ATTEMPTS = 3;
   let checking = false;
   let lastCheckAt = 0;
+  let deferredInstallPrompt = window.__sprintDeferredInstallPrompt || null;
 
   const $ = (id) => document.getElementById(id);
   const statusEl = () => $("app-version-status");
   const bannerEl = () => $("app-update-banner");
   const buttonEl = () => $("app-version-check-btn");
+  const installButtonEl = () => $("app-install-btn");
+  const installStatusEl = () => $("app-install-status");
 
   function setStatus(text, cls="") {
     const el = statusEl();
@@ -9325,25 +9351,81 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
   }
   function hideBanner() { bannerEl()?.classList.remove("active"); }
 
-  function extractServerVersion(text) {
+  function isStandalone() {
+    return window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
+      window.matchMedia?.("(display-mode: fullscreen)")?.matches === true ||
+      window.navigator.standalone === true;
+  }
+
+  function setInstallStatus(text, cls="") {
+    const el = installStatusEl();
+    if (!el) return;
+    el.textContent = text;
+    el.className = cls;
+  }
+
+  function refreshInstallUi() {
+    const btn = installButtonEl();
+    if (!btn) return;
+    if (isStandalone()) {
+      btn.hidden = true;
+      setInstallStatus("✓ ホーム画面からアプリとして起動中です。起動時に最新版を自動確認します。", "ok");
+      return;
+    }
+    btn.hidden = false;
+    btn.textContent = deferredInstallPrompt ? "ホーム画面に追加" : "ホーム画面に追加";
+    if (deferredInstallPrompt) {
+      setInstallStatus("タップするとブラウザの正式なインストール画面を開きます。", "ok");
+    } else {
+      setInstallStatus("ボタンが直接インストールを開けない場合は、ブラウザのメニューから「ホーム画面に追加」または「アプリをインストール」を選択してください。", "help");
+    }
+  }
+
+  async function requestInstall() {
+    if (isStandalone()) {
+      refreshInstallUi();
+      return;
+    }
+    if (!deferredInstallPrompt) {
+      setInstallStatus("このブラウザでは直接インストール画面を呼び出せません。右上のメニューから「ホーム画面に追加」または「アプリをインストール」を選択してください。", "help");
+      return;
+    }
+    const promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    window.__sprintDeferredInstallPrompt = null;
+    try {
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      if (choice?.outcome === "accepted") {
+        setInstallStatus("ホーム画面への追加を受け付けました。", "ok");
+      } else {
+        setInstallStatus("ホーム画面への追加はキャンセルされました。必要なときにもう一度押せます。", "help");
+      }
+    } catch (err) {
+      console.warn("PWA install prompt failed", err);
+      setInstallStatus("インストール画面を開けませんでした。ブラウザのメニューから追加してください。", "error");
+    }
+    refreshInstallUi();
+  }
+
+  function extractServerVersionFromSw(text) {
     if (!text) return null;
-    const meta = text.match(/<meta\s+name=["']sprint-timer-version["']\s+content=["']([^"']+)["']/i)
-      || text.match(/<meta\s+content=["']([^"']+)["']\s+name=["']sprint-timer-version["']/i);
-    if (meta?.[1]) return meta[1].trim();
-    const js = text.match(/SPRINT_TIMER_VERSION\s*=\s*["']([^"']+)["']/);
-    return js?.[1]?.trim() || null;
+    const m = text.match(/const\s+APP_VERSION\s*=\s*["']([^"']+)["']/);
+    return m?.[1]?.trim() || null;
   }
 
   async function fetchServerVersion() {
-    const url = new URL("index.html", document.baseURI);
+    /* sw.js is small, so checking it avoids downloading the ~1 MB index.html every time. */
+    const url = new URL("sw.js", document.baseURI);
     url.searchParams.set("__version_check", Date.now().toString());
     const response = await fetch(url.href, {
       cache: "no-store",
-      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }
+      headers: { "Cache-Control": "no-cache, no-store, max-age=0", "Pragma": "no-cache" }
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
-    return extractServerVersion(text);
+    const version = extractServerVersionFromSw(await response.text());
+    if (!version) throw new Error("APP_VERSION not found");
+    return version;
   }
 
   async function updateServiceWorker() {
@@ -9359,48 +9441,59 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
     return registration;
   }
 
+  function clearReloadAttempt(version) {
+    try { sessionStorage.removeItem(`sprint-timer-update-attempt-${version}`); } catch (_) {}
+  }
+
   function reloadForVersion(serverVersion) {
-    const key = `sprint-timer-reload-${serverVersion}`;
-    if (sessionStorage.getItem(key)) {
-      setStatus(`更新版 ${serverVersion} を検出しましたが、自動更新後も現在版 ${CURRENT_VERSION} が表示されています。「最新版を確認」をもう一度押してください。`, "error");
-      showBanner(`更新版 ${serverVersion} を検出。現在表示は ${CURRENT_VERSION}。`);
+    const key = `sprint-timer-update-attempt-${serverVersion}`;
+    let attempts = 0;
+    try { attempts = Number(sessionStorage.getItem(key) || 0); } catch (_) {}
+    if (attempts >= MAX_AUTO_RELOAD_ATTEMPTS) {
+      setStatus(`更新版 ${serverVersion} を検出しました。自動更新を複数回試行したため、通信状態を確認して「最新版を確認」を押してください。`, "error");
+      showBanner(`更新版 ${serverVersion} を検出。自動更新の再試行上限に達しました。`);
       return false;
     }
-    sessionStorage.setItem(key, "1");
+    try { sessionStorage.setItem(key, String(attempts + 1)); } catch (_) {}
     const u = new URL(location.href);
     u.searchParams.set("__app_version", serverVersion);
     u.searchParams.set("__reload", Date.now().toString());
-    showBanner(`新しいバージョン ${serverVersion} を検出しました。更新しています…`);
-    setTimeout(() => location.replace(u.href), 180);
+    showBanner(`新しいバージョン ${serverVersion} を検出しました。自動更新しています…`);
+    setStatus(`更新版 ${serverVersion} へ自動更新しています…`, "update");
+    setTimeout(() => location.replace(u.href), 220);
     return true;
   }
 
-  async function checkForUpdate({ manual=false, autoReload=true }={}) {
+  async function checkForUpdate({ manual=false, autoReload=true, force=false }={}) {
     if (checking) return;
-    if (!manual && Date.now() - lastCheckAt < CHECK_INTERVAL_MS) return;
+    if (!force && !manual && Date.now() - lastCheckAt < EVENT_CHECK_INTERVAL_MS) return;
     checking = true;
     lastCheckAt = Date.now();
     const btn = buttonEl();
     if (btn) btn.disabled = true;
     if (manual) setStatus("最新版を確認しています…");
     try {
-      await updateServiceWorker();
-      const serverVersion = await fetchServerVersion();
-      if (!serverVersion) {
-        setStatus(`Version ${CURRENT_VERSION} ／ サーバー版を判定できませんでした。`, "error");
-        return;
-      }
+      const [serverVersion] = await Promise.all([
+        fetchServerVersion(),
+        updateServiceWorker()
+      ]);
       if (serverVersion === CURRENT_VERSION) {
         hideBanner();
         setStatus(`✓ 最新版です（Version ${CURRENT_VERSION}）`, "ok");
-        try { sessionStorage.removeItem(`sprint-timer-reload-${CURRENT_VERSION}`); } catch (_) {}
+        clearReloadAttempt(CURRENT_VERSION);
         return;
       }
       setStatus(`更新版 ${serverVersion} を検出（現在 ${CURRENT_VERSION}）`, "update");
       showBanner(`新しいバージョン ${serverVersion} があります。`);
+      /* Ensure a newly downloaded SW is allowed to activate before navigation. */
+      try {
+        const registration = await navigator.serviceWorker?.getRegistration?.();
+        if (registration?.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      } catch (_) {}
       if (autoReload) reloadForVersion(serverVersion);
     } catch (err) {
-      setStatus(`更新確認に失敗しました。現在 Version ${CURRENT_VERSION} を使用中。`, "error");
+      /* Offline launch cannot become newer than the last installed cache; retry automatically when online. */
+      setStatus(`更新確認待ち：通信できません。現在 Version ${CURRENT_VERSION} を使用中。オンライン復帰時に自動確認します。`, "error");
       if (manual) console.warn("Sprint Timer Pro version check failed", err);
     } finally {
       checking = false;
@@ -9408,20 +9501,61 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
     }
   }
 
+  function installRuntimeListeners() {
+    window.addEventListener("sprint-install-ready", () => {
+      deferredInstallPrompt = window.__sprintDeferredInstallPrompt || deferredInstallPrompt;
+      refreshInstallUi();
+    });
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      window.__sprintDeferredInstallPrompt = event;
+      refreshInstallUi();
+    });
+    window.addEventListener("appinstalled", () => {
+      deferredInstallPrompt = null;
+      window.__sprintDeferredInstallPrompt = null;
+      refreshInstallUi();
+    });
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        const data = event.data || {};
+        if (data.type === "APP_VERSION_ACTIVATED" && data.appVersion && data.appVersion !== CURRENT_VERSION) {
+          reloadForVersion(String(data.appVersion));
+        }
+      });
+    }
+  }
+
   window.SprintTimerUpdate = {
     currentVersion: CURRENT_VERSION,
     currentBuild: CURRENT_BUILD,
-    check: (options={}) => checkForUpdate({manual:true, autoReload:true, ...options})
+    check: (options={}) => checkForUpdate({manual:true, autoReload:true, force:true, ...options}),
+    install: requestInstall
   };
+
+  installRuntimeListeners();
 
   window.addEventListener("DOMContentLoaded", () => {
     if ($("app-version-text")) $("app-version-text").textContent = CURRENT_VERSION;
     if ($("app-build-text")) $("app-build-text").textContent = CURRENT_BUILD;
-    buttonEl()?.addEventListener("click", () => checkForUpdate({manual:true, autoReload:true}));
-    setTimeout(() => checkForUpdate({manual:false, autoReload:true}), 900);
+    buttonEl()?.addEventListener("click", () => checkForUpdate({manual:true, autoReload:true, force:true}));
+    installButtonEl()?.addEventListener("click", requestInstall);
+    refreshInstallUi();
+    /* Installed PWA and browser launches both check immediately, not after user interaction. */
+    checkForUpdate({manual:false, autoReload:true, force:true});
   });
+
+  window.addEventListener("pageshow", () => checkForUpdate({manual:false, autoReload:true}));
   window.addEventListener("focus", () => checkForUpdate({manual:false, autoReload:true}));
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate({manual:false, autoReload:true}); });
+  window.addEventListener("online", () => checkForUpdate({manual:false, autoReload:true, force:true}));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) checkForUpdate({manual:false, autoReload:true});
+  });
+  setInterval(() => {
+    if (!document.hidden && navigator.onLine !== false) checkForUpdate({manual:false, autoReload:true, force:true});
+  }, PERIODIC_CHECK_MS);
 })();
 </script>
 
@@ -9807,6 +9941,188 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
   document.addEventListener("DOMContentLoaded",()=>{
     setupVbtUi();
     suspendInactiveModules(activeTabName());
+  });
+})();
+</script>
+
+<style id="start-sprint-video-first-v36-style">
+/* 2026-09-11 v36: Start/SprintPeak video-first workflow + analysis guidance */
+.analysis-mode-details{margin:12px 0;border:1px solid #d7dee8;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.analysis-mode-details>summary{cursor:pointer;list-style:none;padding:14px 15px;font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f8fafc;text-align:left}
+.analysis-mode-details>summary::-webkit-details-marker{display:none}.analysis-mode-details>summary:after{content:"▼";font-size:12px;color:#64748b}.analysis-mode-details:not([open])>summary:after{transform:rotate(-90deg)}
+.analysis-mode-body{padding:12px}.mode-recommended{font-size:11px;border-radius:999px;padding:3px 8px;background:#e8f7ee;color:#18743b;white-space:nowrap}.mode-simple{font-size:11px;border-radius:999px;padding:3px 8px;background:#eef2f7;color:#475569;white-space:nowrap}
+.analysis-flow-card{margin:10px 0 14px;padding:12px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:12px;text-align:left}.analysis-flow-title{font-weight:800;margin-bottom:8px}.analysis-flow-steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}.analysis-flow-step{padding:7px 5px;border-radius:8px;border:1px solid #dbe3ec;background:#fff;font-size:11px;text-align:center;line-height:1.35;color:#64748b}.analysis-flow-step.done{background:#eefbf3;border-color:#9bd6ad;color:#166534;font-weight:700}.analysis-flow-step.current{background:#fff7e8;border-color:#f3b457;color:#92400e;font-weight:800}.analysis-flow-next{margin-top:9px;padding:9px 10px;border-radius:8px;background:#eef6ff;color:#174f87;font-size:13px;font-weight:700}.analysis-flow-next button{margin-top:7px;width:100%}
+.v36-video-diagnostic{margin:9px 0;padding:10px;border-radius:9px;border:1px solid #d7dee8;background:#fff;text-align:left;font-size:12px;line-height:1.55}.v36-grade{display:inline-flex;min-width:28px;height:28px;align-items:center;justify-content:center;border-radius:7px;font-size:17px;font-weight:900;margin-right:6px}.v36-grade-a{background:#dcfce7;color:#166534}.v36-grade-b{background:#fef3c7;color:#92400e}.v36-grade-c{background:#fee2e2;color:#991b1b}.v36-diag-muted{color:#64748b}
+.v36-live-note{margin:8px 0 12px;padding:10px;border-radius:9px;background:#f0f7ff;border:1px solid #bfdbfe;color:#1e4f84;text-align:left;font-size:12px;line-height:1.55}.v36-hidden-live-metric{display:none!important}.v36-sprint-live-hidden{display:none!important}
+.v36-contact-warning{display:block;margin-top:3px;font-size:11px;color:#b42318;font-weight:700}.v36-contact-ok{display:block;margin-top:3px;font-size:11px;color:#18743b;font-weight:700}.v36-angle-stability{margin-top:5px;font-size:11px;color:#5d6673}.v36-angle-stability.warn{color:#b42318;font-weight:700}
+.evaluation-lock .v36-goto-sequence{display:block;width:100%;margin-top:9px;border:0;border-radius:8px;padding:10px 12px;background:#f59e0b;color:#fff;font-weight:800;cursor:pointer}
+#sprint-offline-analysis-area .v36-body-settings-moved{margin:10px 0;box-shadow:none;border:1px solid #d7dee8}
+@media(max-width:600px){.analysis-flow-steps{grid-template-columns:repeat(3,minmax(0,1fr))}.analysis-mode-details>summary{padding:12px}.analysis-mode-body{padding:9px}}
+</style>
+<script id="start-sprint-video-first-v36-script">
+(() => {
+  "use strict";
+  const LIVE_POSE_FPS=10;
+  const LITE_W=160,LITE_H=90;
+  const liteCanvas=document.createElement("canvas"),liteCtx=liteCanvas.getContext("2d",{alpha:false,willReadFrequently:true});
+  liteCanvas.width=LITE_W;liteCanvas.height=LITE_H;
+  let litePrev=null,liteScores=[],liteAbove=0,liteFirstT=null,liteLoopGeneration=-1;
+
+  const median=a=>{const b=a.filter(Number.isFinite).slice().sort((x,y)=>x-y);if(!b.length)return 0;const m=Math.floor(b.length/2);return b.length%2?b[m]:(b[m-1]+b[m])/2;};
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function liteReset(){litePrev=null;liteScores=[];liteAbove=0;liteFirstT=null;window.__startLiteMotionCandidate=null;}
+  function liteFrameScore(){
+    if(!videoElement?.videoWidth||videoElement.readyState<2)return null;
+    const vw=videoElement.videoWidth,vh=videoElement.videoHeight;
+    liteCtx.drawImage(videoElement,vw*.08,vh*.06,vw*.84,vh*.88,0,0,LITE_W,LITE_H);
+    const d=liteCtx.getImageData(0,0,LITE_W,LITE_H).data,gray=new Uint8Array(LITE_W*LITE_H);
+    let k=0;for(let i=0;i<d.length;i+=4)gray[k++]=(d[i]*77+d[i+1]*150+d[i+2]*29)>>8;
+    if(!litePrev){litePrev=gray;return null;}
+    let sum=0,changed=0;for(let i=0;i<gray.length;i+=2){const q=Math.abs(gray[i]-litePrev[i]);sum+=q;if(q>=18)changed++;}
+    litePrev=gray;const n=Math.ceil(gray.length/2),mean=sum/n,ratio=changed/n;return mean+ratio*30;
+  }
+  function liteCaptureTime(now,metadata){
+    if(startRecordingActive&&metadata&&startFrameClockBaseMediaTime!==null&&Number.isFinite(metadata.mediaTime))return Math.max(0,metadata.mediaTime-startFrameClockBaseMediaTime);
+    return startCaptureTimeFromPerf(now);
+  }
+  function startLiteMotionLoop(generation){
+    if(liteLoopGeneration===generation)return;liteLoopGeneration=generation;litePrev=null;liteAbove=0;liteFirstT=null;
+    const loop=(now,metadata)=>{
+      if(generation!==startCameraGeneration||!videoElement?.srcObject){liteLoopGeneration=-1;return;}
+      if(document.getElementById("start-live-mode-details")?.open){
+        const score=liteFrameScore();const t=liteCaptureTime(now,metadata);
+        if(Number.isFinite(score)&&startRecordingActive){
+          if(startGunCaptureTime===null||t<startGunCaptureTime){liteScores.push(score);if(liteScores.length>120)liteScores.shift();liteAbove=0;liteFirstT=null;}
+          else if(!window.__startLiteMotionCandidate&&t>=startGunCaptureTime+.025){
+            const base=median(liteScores),dev=median(liteScores.map(v=>Math.abs(v-base))),threshold=Math.max(6.0,base+Math.max(2.0,dev*4.5));
+            if(score>=threshold){if(liteAbove===0)liteFirstT=t;liteAbove++;}else{liteAbove=Math.max(0,liteAbove-1);if(!liteAbove)liteFirstT=null;}
+            if(liteAbove>=2&&Number.isFinite(liteFirstT)){
+              const frame=startNearestFrameByCaptureTime(liteFirstT);
+              window.__startLiteMotionCandidate={captureT:liteFirstT,reaction:Math.max(0,liteFirstT-startGunCaptureTime),frameIndex:frame?.index??null,score,threshold};
+              startAutoReaction=window.__startLiteMotionCandidate.reaction;startAutoMovementCaptureTime=liteFirstT;startAutoMovementFrameIndex=frame?.index??null;
+              const out=document.getElementById("reaction-time-display");if(out)out.innerHTML=startAutoReaction.toFixed(3)+' <span class="unit">s</span>';
+              const src=document.getElementById("start-reaction-source");if(src)src.innerText="候補：高FPS軽量動体検出（Poseで方向・角度確認中）";
+            }
+          }
+        }
+      }
+      if(typeof videoElement.requestVideoFrameCallback==="function")videoElement.requestVideoFrameCallback(loop);else requestAnimationFrame(t=>loop(t,null));
+    };
+    if(typeof videoElement.requestVideoFrameCallback==="function")videoElement.requestVideoFrameCallback(loop);else requestAnimationFrame(t=>loop(t,null));
+  }
+
+  /* リアルタイムはカメラFPSを優先。Poseは角度/方向確認用に10fpsへ抑える。 */
+  startPoseAnalysisLoop=function(generation){
+    const minInterval=1000/LIVE_POSE_FPS;
+    const submit=(now,metadata)=>{
+      if(generation!==startCameraGeneration||startPoseBusy||videoElement.readyState<2)return;
+      if(now-startLastPoseSubmitPerf<minInterval)return;startLastPoseSubmitPerf=now;
+      let captureT=startCaptureTimeFromPerf(now);
+      if(startRecordingActive&&metadata&&startFrameClockBaseMediaTime!==null&&Number.isFinite(metadata.mediaTime))captureT=Math.max(0,metadata.mediaTime-startFrameClockBaseMediaTime);
+      const frame=startNearestFrameByCaptureTime(captureT);startPoseSubmitMeta={perf:now,captureT,frameIndex:frame?.index??null,mediaTime:metadata?.mediaTime??null};startPoseBusy=true;
+      Promise.resolve().then(()=>pose.send({image:videoElement})).catch(e=>console.error("Start Pose error",e)).finally(()=>{startPoseBusy=false;});
+    };
+    const loop=(now,metadata)=>{if(generation!==startCameraGeneration)return;submit(now,metadata);if(typeof videoElement.requestVideoFrameCallback==="function")videoElement.requestVideoFrameCallback(loop);else requestAnimationFrame(t=>loop(t,null));};
+    if(typeof videoElement.requestVideoFrameCallback==="function")videoElement.requestVideoFrameCallback(loop);else requestAnimationFrame(t=>loop(t,null));
+  };
+  const baseStartLegacyCamera=startLegacyCamera;
+  startLegacyCamera=async function(){
+    const d=document.getElementById("start-live-mode-details");if(d&&!d.open)return;
+    await baseStartLegacyCamera();startLiteMotionLoop(startCameraGeneration);
+  };
+  const baseToggleStartCamera=toggleStartCamera;
+  toggleStartCamera=async function(){await baseToggleStartCamera();if(videoElement?.srcObject)startLiteMotionLoop(startCameraGeneration);};
+  const baseResetStartTrialState=resetStartTrialState;
+  resetStartTrialState=function(){liteReset();baseResetStartTrialState();};
+
+  /* SPRINTPEAKは録画動画解析専用。旧リアルタイム関数は互換性のため残すが起動しない。 */
+  startSprintCamera=async function(){
+    try{const stream=sprintVideo?.srcObject||sprintStream;stream?.getTracks?.().forEach(t=>t.stop());if(sprintVideo)sprintVideo.srcObject=null;sprintStream=null;if(typeof cameraStreams!=="undefined"&&sprintVideo)cameraStreams[sprintVideo.id]=null;}catch(_){ }
+  };
+  sprintPoseLoop=async function(){return;};
+
+  function makeDetails(id,title,badge,badgeClass,open=false){const d=document.createElement("details");d.id=id;d.className="analysis-mode-details";d.open=open;const s=document.createElement("summary");s.innerHTML=`<span>${title}</span><span class="${badgeClass}">${badge}</span>`;const b=document.createElement("div");b.className="analysis-mode-body";d.append(s,b);return {details:d,body:b};}
+  function setupStartModes(){
+    const tab=document.getElementById("tab-camera-analysis"),offline=document.getElementById("start-offline-analysis-area"),review=document.getElementById("start-review-area");if(!tab||!offline||document.getElementById("start-offline-mode-details"))return;
+    const before=[];for(let n=tab.firstElementChild;n&&n!==offline;n=n.nextElementSibling)before.push(n);
+    const flow=document.createElement("div");flow.id="start-analysis-flow";flow.className="analysis-flow-card";tab.insertBefore(flow,tab.firstChild);
+    const hi=makeDetails("start-offline-mode-details","録画動画を高精度解析","推奨：60fps以上 / 120fps推奨","mode-recommended",true);
+    const live=makeDetails("start-live-mode-details","リアルタイム簡易計測","リアクション＋飛び出し角度","mode-simple",false);
+    tab.insertBefore(hi.details,flow.nextSibling);tab.insertBefore(live.details,hi.details.nextSibling);
+    hi.body.appendChild(offline);before.forEach(n=>live.body.appendChild(n));if(review)live.body.appendChild(review);
+    const oldNotice=before.find(n=>n.classList?.contains("notice"));if(oldNotice)oldNotice.innerHTML="<b>リアルタイム簡易計測：</b>三脚・真横撮影を推奨します。カメラFPSを優先し、リアクションタイムと飛び出し角度の確認に用途を絞ります。接地時間・ステップ長などは録画動画の高精度解析を使用してください。";
+    const note=document.createElement("div");note.className="v36-live-note";note.innerHTML="<b>処理方式：</b>リアクションは軽量動体検出を高い頻度で行い、MediaPipe Poseは約10fpsに抑えて方向・飛び出し角度の確認へ使用します。カメラ映像の60fps維持を優先する設計です。";live.body.insertBefore(note,live.body.firstChild);
+    document.getElementById("contact-time-display")?.closest(".data-card")?.classList.add("v36-hidden-live-metric");document.getElementById("start-step-length-results")?.closest(".settings-card")?.classList.add("v36-hidden-live-metric");
+    live.details.addEventListener("toggle",async()=>{if(live.details.open){try{await baseStartLegacyCamera();startLiteMotionLoop(startCameraGeneration);}catch(_){}}else{try{startOfflineSuspendLiveCamera();}catch(_){}}});
+  }
+  function setupSprintVideoOnly(){
+    const tab=document.getElementById("tab-sprintpeak"),offline=document.getElementById("sprint-offline-analysis-area");if(!tab||!offline||document.getElementById("sprint-video-only-banner"))return;
+    const banner=document.createElement("div");banner.id="sprint-video-only-banner";banner.className="notice";banner.style.borderLeftColor="#2563eb";banner.style.background="#eff6ff";banner.innerHTML="<b>SPRINTPEAKは録画動画解析専用です。</b> 最高速度付近の接地時間・ピッチ・ストライドは高い時間分解能が必要なため、標準カメラ等で<b>最低60fps、推奨120fps</b>で撮影してから読み込んでください。解析中は人物周辺を内部Crop・拡大してPoseへ入力できます。";tab.insertBefore(banner,tab.firstChild);
+    const liveVideo=document.getElementById("sprint-video")?.closest(".feature-video"),liveButtons=document.getElementById("sprint-start")?.closest(".button-row"),liveStatus=document.getElementById("sprint-status"),liveResults=document.getElementById("sprint-vmax")?.closest(".results-grid");[liveVideo,liveButtons,liveStatus,liveResults].forEach(el=>el?.classList.add("v36-sprint-live-hidden"));
+    const firstNotice=[...tab.children].find(el=>el.classList?.contains("notice")&&el!==banner&&!offline.contains(el));if(firstNotice)firstNotice.classList.add("v36-sprint-live-hidden");
+    const cal=document.getElementById("sprint-calibration-mode")?.closest(".settings-card");if(cal&&!offline.contains(cal)){cal.classList.add("v36-body-settings-moved");const h=cal.querySelector(":scope>h3");if(h)h.textContent="身体寸法設定（録画動画解析用）";offline.insertBefore(cal,offline.querySelector(".setting-item")||offline.firstChild);const sceneRow=document.getElementById("sprint-scene-mode")?.closest(".setting-item");if(sceneRow)sceneRow.style.setProperty("display","none","important");document.getElementById("sprint-scene-controls")?.style.setProperty("display","none","important");}
+    try{startSprintCamera();}catch(_){ }
+  }
+
+  function athleteSpan(frames,video){
+    if(!frames?.length||!video?.videoWidth)return null;const ids=[11,12,23,24,25,26,27,28,29,30,31,32],vals=[];const step=Math.max(1,Math.floor(frames.length/24));for(let i=0;i<frames.length;i+=step){const l=frames[i]?.landmarks;if(!l)continue;const pts=ids.map(j=>l[j]).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&(p.visibility??1)>.20);if(pts.length<7)continue;const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),span=Math.max((Math.max(...xs)-Math.min(...xs))*video.videoWidth,(Math.max(...ys)-Math.min(...ys))*video.videoHeight);if(span>0)vals.push(span);}return vals.length?median(vals):null;
+  }
+  function ensureDiag(prefix){
+    const q=document.getElementById(prefix==="start"?"start-offline-quality-warning":"sprint-offline-quality-warning");if(!q)return null;const id=prefix+"-v36-video-diagnostic";let el=document.getElementById(id);if(!el){el=document.createElement("div");el.id=id;el.className="v36-video-diagnostic";q.insertAdjacentElement("afterend",el);}return el;
+  }
+  function updateDiag(prefix){
+    const start=prefix==="start",video=start?startOfflineVideo:sprintOfflineVideo,frames=start?startOfflinePoseFrames:sprintOfflinePoseFrames,el=ensureDiag(prefix);if(!el||!video?.videoWidth){if(el)el.innerHTML="<span class='v36-diag-muted'>動画読込後にFPS・解像度・人物サイズ・内部拡大の診断を表示します。</span>";return;}
+    const fi=start?startOfflineSelectedFpsForQuality():sprintOfflineSelectedFpsForQuality(),fps=fi?.known?fi.fps:0,w=video.videoWidth,h=video.videoHeight,span=athleteSpan(frames,video),label=document.getElementById(start?"start-athlete-track-label":"sprint-offline-roi-label")?.textContent||"",cropOn=label&&!/全画面/.test(label),score=(fps>=100?3:fps>=60?2:fps>=45?1:0)+(Math.min(w,h)>=1080?2:Math.min(w,h)>=720?1:0)+(span===null?0:span>=300?2:span>=180?1:0);const grade=span===null?"--":score>=6?"A":score>=4?"B":"C",gClass=grade==="A"?"v36-grade-a":grade==="B"?"v36-grade-b":"v36-grade-c";
+    const small=span!==null&&span<180;el.innerHTML=`${grade!=="--"?`<span class="v36-grade ${gClass}">${grade}</span><b>解析適性 ${grade}</b>`:"<b>解析前診断</b>"}<br>元動画：${w}×${h} ／ FPS：${fps?fps.toFixed(2):"自動取得不可"}${span!==null?` ／ 選手サイズ：約${Math.round(span)}px`:" ／ 選手サイズ：解析後に判定"}<br>内部拡大：${cropOn?"ON（選手周辺を内部Crop・最大約1280px級へ拡大）":"OFF（全画面解析）"}${small&&!cropOn?"<br><b style='color:#b42318'>⚠ 選手が小さいため「選手を囲って追跡」を推奨します。</b>":""}<br><span class="v36-diag-muted">絶対距離を重視する場合は身体寸法だけでなく、バトン等の実物距離校正を併用してください。</span>`;
+  }
+
+  function setupFlow(prefix){
+    const host=document.getElementById(prefix==="start"?"start-analysis-flow":"sprint-analysis-flow");if(!host)return;const labels=prefix==="start"?["①動画","②選手/地面/距離","③自動解析","④接地確認","⑤系列確定","⑥日本語評価"]:["①動画","②選手/距離","③自動解析","④接地確認","⑤系列確定","⑥日本語評価"];host.innerHTML=`<div class="analysis-flow-title">${prefix==="start"?"録画動画・高精度解析の手順":"SPRINTPEAK動画解析の手順"}</div><div class="analysis-flow-steps">${labels.map((x,i)=>`<div class="analysis-flow-step" data-flow-step="${i+1}">${x}</div>`).join("")}</div><div class="analysis-flow-next"></div>`;updateFlow(prefix);
+  }
+  function currentFlowStep(prefix){
+    const start=prefix==="start",video=start?startOfflineVideo:sprintOfflineVideo,frames=start?startOfflinePoseFrames:sprintOfflinePoseFrames,status=document.getElementById(start?"start-offline-analysis-status":"sprint-offline-analysis-status")?.textContent||"",panel=document.getElementById(start?"start-offline-sequence-panel":"sprint-offline-sequence-panel");if(!video?.src||!video.duration)return 1;if(/解析中|高精度解析中/.test(status))return 3;if(!frames?.length)return 2;if(panel?.classList.contains("sequence-confirmed"))return 6;return 4;
+  }
+  function updateFlow(prefix){
+    const host=document.getElementById(prefix==="start"?"start-analysis-flow":"sprint-analysis-flow");if(!host)return;const step=currentFlowStep(prefix);host.querySelectorAll("[data-flow-step]").forEach(el=>{const n=+el.dataset.flowStep;el.classList.toggle("done",n<step);el.classList.toggle("current",n===step);});const next=host.querySelector(".analysis-flow-next");if(!next)return;let text="";if(step===1)text="次に行うこと：高FPSで撮影した動画を選択してください。";else if(step===2)text="次に行うこと：選手が小さい場合は囲って追跡し、地面・距離校正を確認して解析を開始してください。";else if(step===3)text="高精度解析中です。完了までそのままお待ちください。";else if(step===4)text="次に行うこと：接地系列を映像と照合してください。怪しい接地だけを優先して確認・補正します。";else text="接地系列は確定済みです。日本語評価と解析根拠を確認できます。";next.innerHTML=text+(step===4?`<button type="button" class="action-btn btn-orange" data-v36-goto-sequence="${prefix}">接地系列の確認へ移動</button>`:"");
+  }
+  function setupSprintFlow(){const area=document.getElementById("sprint-offline-analysis-area");if(!area||document.getElementById("sprint-analysis-flow"))return;const f=document.createElement("div");f.id="sprint-analysis-flow";f.className="analysis-flow-card";area.insertBefore(f,area.firstChild);setupFlow("sprint");}
+
+  function contactEdgeInfo(c,prefix){
+    const start=prefix==="start",canvas=start?startOfflineCanvas:sprintOfflineCanvas,w=canvas?.width||1;let x=Number(c?.x);if(!Number.isFinite(x)){try{const frame=start?(startOfflineFrameRecord(c.index??c.frame)||startOfflineFrameRecord(startOfflineNearestPoseIndexByTime(c.t,.12))):sprintOfflineNearestPoseFrameByMs(c.t,120),l=frame?(start?startOfflineCorrectedLandmarks(frame):sprintOfflineTrackedLandmarks(frame)):null,side=c.side,p=start?startOfflineFootPoint(l,side):sprintOfflineFootPoint?.(l,side);if(p)x=p.x;}catch(_){ }}const nx=Number.isFinite(x)?x/w:null;return nx!==null&&(nx<.065||nx>.935);
+  }
+  function annotateContacts(arr,prefix){
+    if(!Array.isArray(arr))return arr;const start=prefix==="start";for(let i=0;i<arr.length;i++){const c=arr[i],edge=contactEdgeInfo(c,prefix),prev=arr[i-1],dt=prev?(start?(c.t-prev.t)*1000:(c.t-prev.t)):Infinity,repeated=!!(prev&&prev.side===c.side&&dt<300);c.v36EdgeWarning=edge;c.v36RepeatedSideWarning=repeated;c.v36QualityReason=edge?"画面端に近く足部追跡が不安定":repeated?"同一脚の近接連続検出を要確認":"";if((edge||repeated)&&!c.manualAnchor&&!String(c.source||"").includes("manual"))c.confidence=clamp((Number(c.confidence)||0)*(edge?.64:.74),0,1);const dur=start?(Number.isFinite(c.duration)?c.duration*1000:null):(Number.isFinite(c.duration)?c.duration:null);if(Number.isFinite(dur)&&dur<95&&(edge||repeated||(Number(c.confidence)||0)<.58))c.v36ShortWarning=true;}
+    return arr;
+  }
+  const baseStartDetect=startOfflineDetectContacts;startOfflineDetectContacts=function(...args){return annotateContacts(baseStartDetect(...args),"start");};
+  const baseSprintDetect=sprintOfflineDetectContacts;sprintOfflineDetectContacts=function(...args){const r=baseSprintDetect(...args);annotateContacts(sprintOfflineContacts,"sprint");for(const d of sprintOfflineContactDurations||[]){const c=(sprintOfflineContacts||[]).find(x=>x.side===d.side&&Math.abs(x.t-d.start)<35);if(c)d.confidence=Math.min(d.confidence??1,c.confidence??1);}return r;};
+
+  function enhanceSequence(prefix){
+    const start=prefix==="start",table=document.getElementById(start?"start-offline-sequence-table":"sprint-offline-sequence-table"),arr=start?startOfflineContacts:sprintOfflineContacts;if(!table||!Array.isArray(arr))return;const rows=[...table.querySelectorAll("table tr")].slice(1);rows.forEach((tr,i)=>{const c=arr[i];if(!c)return;const cell=tr.children[4];if(!cell)return;if(cell.querySelector(".v36-contact-warning,.v36-contact-ok"))return;let msg="",cls="v36-contact-ok";if(c.v36EdgeWarning){msg="⚠ 画面端・参考値";cls="v36-contact-warning";}else if(c.v36RepeatedSideWarning){msg="⚠ 同一脚連続・要確認";cls="v36-contact-warning";}else if(c.v36ShortWarning){msg="⚠ 短い接地・要確認";cls="v36-contact-warning";}else if((Number(c.confidence)||0)>=.65)msg="✓ 高信頼";else{msg="△ 確認推奨";cls="v36-contact-warning";}const s=document.createElement("span");s.className=cls;s.textContent=msg;cell.appendChild(s);});
+  }
+  function installTableObserver(prefix){const id=prefix==="start"?"start-offline-sequence-table":"sprint-offline-sequence-table",el=document.getElementById(id);if(!el)return;new MutationObserver(()=>enhanceSequence(prefix)).observe(el,{childList:true,subtree:true});enhanceSequence(prefix);}
+
+  function updateAngleStability(){
+    const source=document.getElementById("start-offline-angle-source");if(!source)return;let el=document.getElementById("start-v36-angle-stability");if(!el){el=document.createElement("div");el.id="start-v36-angle-stability";el.className="v36-angle-stability";source.insertAdjacentElement("afterend",el);}if(startOfflineAngleManual!==null){el.textContent="手動設定を採用中（自動候補の周辺安定性は参考のみ）";el.classList.remove("warn");return;}if(startOfflineAngleIndex===null){el.textContent="周辺フレーム安定性：未判定";return;}const vals=[];for(let d=-3;d<=3;d++){const i=startOfflineAngleIndex+d;if(i<0||i>=startOfflineFrameTimes.length)continue;const r=startOfflineProjectionAt(i);if(r?.valid&&Number.isFinite(r.angle))vals.push(r.angle);}if(vals.length<3){el.textContent="周辺フレーム安定性：Pose不足のため参考値";el.classList.add("warn");return;}const lo=Math.min(...vals),hi=Math.max(...vals),spread=hi-lo;el.textContent=`周辺±3F：${lo.toFixed(1)}〜${hi.toFixed(1)}° ／ 変動 ${spread.toFixed(1)}°${startOfflineGroundModel?.valid?" ／ 地面基準あり":" ／ ⚠ 地面基準の確認推奨"}`;el.classList.toggle("warn",spread>4||!startOfflineGroundModel?.valid);
+  }
+
+  function enhanceLock(prefix){
+    const id=prefix==="start"?"start-offline-evaluation-lock":"sprint-offline-evaluation-lock",lock=document.getElementById(id);if(!lock||!lock.classList.contains("active")||lock.querySelector(".v36-goto-sequence"))return;const b=document.createElement("button");b.type="button";b.className="v36-goto-sequence";b.textContent="接地系列の確認へ移動";b.addEventListener("click",()=>document.getElementById(prefix==="start"?"start-offline-sequence-panel":"sprint-offline-sequence-panel")?.scrollIntoView({behavior:"smooth",block:"center"}));lock.appendChild(b);
+  }
+  function installLockObserver(prefix){const lock=document.getElementById(prefix==="start"?"start-offline-evaluation-lock":"sprint-offline-evaluation-lock");if(!lock)return;new MutationObserver(()=>enhanceLock(prefix)).observe(lock,{childList:true,attributes:true,attributeFilter:["class"]});enhanceLock(prefix);}
+
+  const baseStartQuality=startOfflineUpdateQualityWarning;startOfflineUpdateQualityWarning=function(){baseStartQuality();updateDiag("start");updateFlow("start");};
+  const baseSprintQuality=sprintOfflineUpdateQualityWarning;sprintOfflineUpdateQualityWarning=function(){baseSprintQuality();updateDiag("sprint");updateFlow("sprint");};
+  const baseStartRender=startOfflineRenderResults;startOfflineRenderResults=function(...args){const r=baseStartRender(...args);updateDiag("start");updateFlow("start");updateAngleStability();setTimeout(()=>enhanceSequence("start"),0);return r;};
+  const baseSprintRender=sprintOfflineRenderResults;sprintOfflineRenderResults=function(...args){const r=baseSprintRender(...args);updateDiag("sprint");updateFlow("sprint");setTimeout(()=>enhanceSequence("sprint"),0);return r;};
+
+  document.addEventListener("click",e=>{const b=e.target.closest("[data-v36-goto-sequence]");if(!b)return;const p=b.dataset.v36GotoSequence;document.getElementById(p==="start"?"start-offline-sequence-panel":"sprint-offline-sequence-panel")?.scrollIntoView({behavior:"smooth",block:"center"});});
+  document.getElementById("start-offline-sequence-confirm")?.addEventListener("click",()=>setTimeout(()=>{updateFlow("start");document.getElementById("start-offline-evaluation-summary")?.scrollIntoView({behavior:"smooth",block:"center"});},50));
+  document.getElementById("sprint-offline-sequence-confirm")?.addEventListener("click",()=>setTimeout(()=>{updateFlow("sprint");document.getElementById("sprint-offline-evaluation-summary")?.scrollIntoView({behavior:"smooth",block:"center"});},50));
+
+  document.addEventListener("DOMContentLoaded",()=>{
+    setupStartModes();setupFlow("start");setupSprintVideoOnly();setupSprintFlow();ensureDiag("start");ensureDiag("sprint");updateDiag("start");updateDiag("sprint");installTableObserver("start");installTableObserver("sprint");installLockObserver("start");installLockObserver("sprint");
+    ["start-offline-analysis-status","sprint-offline-analysis-status"].forEach((id,i)=>{const el=document.getElementById(id);if(el)new MutationObserver(()=>updateFlow(i?"sprint":"start")).observe(el,{childList:true,subtree:true,characterData:true});});
   });
 })();
 </script>
