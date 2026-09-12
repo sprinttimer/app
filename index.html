@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.11.37">
-<meta name="sprint-timer-build" content="20260911-2300">
+<meta name="sprint-timer-version" content="2026.09.11.38">
+<meta name="sprint-timer-build" content="20260911-2345">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.11.37";
-window.SPRINT_TIMER_BUILD = "20260911-2300";
+window.SPRINT_TIMER_VERSION = "2026.09.11.38";
+window.SPRINT_TIMER_BUILD = "20260911-2345";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1457,8 +1457,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.11.37</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260911-2300</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.11.38</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260911-2345</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -7538,7 +7538,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.11.37")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.11.38")}`,{
                 updateViaCache:"none"
             });
 
@@ -9358,8 +9358,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.11.37";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260911-2300";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.11.38";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260911-2345";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -9388,10 +9388,19 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
   }
   function hideBanner() { bannerEl()?.classList.remove("active"); }
 
+  const INSTALL_CONFIRMED_KEY = "sprint-timer-install-confirmed";
+  function installConfirmed() {
+    try { return localStorage.getItem(INSTALL_CONFIRMED_KEY) === "1"; } catch (_) { return false; }
+  }
+  function markInstallConfirmed() {
+    try { localStorage.setItem(INSTALL_CONFIRMED_KEY, "1"); } catch (_) {}
+  }
   function isStandalone() {
-    return window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
-      window.matchMedia?.("(display-mode: fullscreen)")?.matches === true ||
-      window.navigator.standalone === true;
+    /* v38: display-mode alone is not treated as proof of installation.
+       Some Android/browser combinations can report an app-like display state even when
+       the user cannot find a home-screen icon. Only a confirmed install event hides
+       the install action. */
+    return installConfirmed();
   }
 
   function setInstallStatus(text, cls="") {
@@ -9550,6 +9559,7 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
       refreshInstallUi();
     });
     window.addEventListener("appinstalled", () => {
+      markInstallConfirmed();
       deferredInstallPrompt = null;
       window.__sprintDeferredInstallPrompt = null;
       refreshInstallUi();
@@ -10225,12 +10235,124 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
   const sprintHub=document.getElementById('sprint-offline-evidence-hub');sprintHub?.addEventListener('click',e=>{const b=e.target.closest('[data-sprint-evidence]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();openSprintInline(b.dataset.sprintEvidence,Number.isFinite(+b.dataset.sprintEventIndex)?+b.dataset.sprintEventIndex:null);},{capture:true});
 
   /* ③④: top install control stays discoverable; unsupported direct prompt shows device-specific steps, plus bookmark fallback. */
-  function standalone37(){return window.matchMedia?.('(display-mode: standalone)')?.matches||navigator.standalone===true;}
+  function standalone37(){try{return localStorage.getItem('sprint-timer-install-confirmed')==='1';}catch(_){return false;}}
   function installHelpText(){const ua=navigator.userAgent||'',ios=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),android=/Android/i.test(ua);if(ios)return '<b>iPhone / iPad：</b>Safariで開き、共有ボタン（□↑）→「ホーム画面に追加」を選択してください。<br><b>ブックマーク：</b>共有メニュー→「ブックマークを追加」。';if(android)return '<b>Android：</b>ブラウザ右上の︙→「アプリをインストール」または「ホーム画面に追加」を選択してください。<br><b>ブックマーク：</b>☆または︙→「ブックマーク」を選択してください。';return '<b>ホーム画面／アプリ化：</b>ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選択してください。<br><b>ブックマーク：</b>☆またはブラウザのブックマークメニューを使用してください。';}
   function refreshTopInstall(){const bar=document.getElementById('app-install-topbar'),btn=document.getElementById('app-install-top-btn'),st=document.getElementById('app-install-top-status'),help=document.getElementById('app-install-top-help');if(!bar||!btn)return;if(standalone37()){bar.classList.add('standalone');return;}bar.classList.remove('standalone');const direct=!!window.__sprintDeferredInstallPrompt;btn.textContent=direct?'1タップでホーム画面に追加':'ホーム画面に追加する';st.textContent=direct?'この端末では直接インストールできます。':'直接追加できない場合も、端末別の手順を表示します。';if(help&&!help.innerHTML)help.innerHTML=installHelpText();}
   document.getElementById('app-install-top-btn')?.addEventListener('click',async()=>{if(standalone37()){refreshTopInstall();return;}if(window.__sprintDeferredInstallPrompt&&window.SprintTimerUpdate?.install){await window.SprintTimerUpdate.install();setTimeout(refreshTopInstall,150);return;}const h=document.getElementById('app-install-top-help');if(h){h.innerHTML=installHelpText();h.hidden=false;}const st=document.getElementById('app-install-top-status');if(st)st.textContent='このブラウザでは直接起動できないため、下の手順で追加してください。';});
   document.getElementById('app-install-top-help-btn')?.addEventListener('click',()=>{const h=document.getElementById('app-install-top-help');if(!h)return;h.innerHTML=installHelpText();h.hidden=!h.hidden;});
   window.addEventListener('sprint-install-ready',refreshTopInstall);window.addEventListener('appinstalled',refreshTopInstall);window.addEventListener('DOMContentLoaded',()=>{refreshTopInstall();ensureViewer('start');ensureViewer('sprint');});
+})();
+</script>
+
+
+<style id="manual-priority-inline-review-pwa-v38-style">
+/* v38: only the requested follow-up fixes. */
+.v38-manual-replace-note{margin:7px 0 0;padding:7px 9px;border-left:3px solid #16a34a;background:#f0fdf4;color:#166534;font-size:11px;line-height:1.55;font-weight:700}
+.evaluation-video-panel.v38-local-review{display:block!important}
+.evaluation-video-panel.v38-local-review[hidden]{display:block!important}
+.evaluation-video-panel.v38-local-review .evaluation-video-note:after{content:" 角度・接地などの測定線は、下の『根拠フレームを見る』から同じ位置で確認できます。"}
+#app-install-topbar.v38-install-unconfirmed{display:grid!important}
+#app-install-topbar.v38-install-unconfirmed .app-install-topbar-copy b:after{content:"（未確認）";font-size:11px;font-weight:700;color:#64748b;margin-left:5px}
+@media(max-width:600px){.evaluation-video-panel.v38-local-review video{max-height:30vh}}
+</style>
+<script id="manual-priority-inline-review-pwa-v38-script">
+(() => {
+  'use strict';
+  const V38_FRAME_TOL=5;
+  const INSTALL_KEY='sprint-timer-install-confirmed';
+  const v38Finite=Number.isFinite;
+  const v38Manual=c=>!!(c&&(c.manualAnchor||c.timingOnly||c.manual||String(c.source||'').includes('manual')));
+
+  /* -------------------------------------------------------------
+     1) Manual contact is authoritative within ±5 frames.
+        Any automatic candidate in that window is discarded.
+     ------------------------------------------------------------- */
+  function eventFrame(c,prefix){
+    const f=Number(c?.frame ?? c?.index);if(Number.isFinite(f))return Math.round(f);
+    if(prefix==='start'){
+      const t=Number(c?.t);if(!Number.isFinite(t))return null;
+      if(Array.isArray(startOfflineFrameTimes)&&startOfflineFrameTimes.length){let bi=0,bd=Infinity;for(let i=0;i<startOfflineFrameTimes.length;i++){const d=Math.abs(startOfflineFrameTimes[i]-t);if(d<bd){bd=d;bi=i;}}return bi;}
+      return Math.round(t*Math.max(1,startOfflineEffectiveFps?.()||30));
+    }
+    const ms=Number(c?.t);if(!Number.isFinite(ms))return null;
+    if(Array.isArray(sprintOfflineFrameTimes)&&sprintOfflineFrameTimes.length){const t=ms/1000;let bi=0,bd=Infinity;for(let i=0;i<sprintOfflineFrameTimes.length;i++){const d=Math.abs(sprintOfflineFrameTimes[i]-t);if(d<bd){bd=d;bi=i;}}return bi;}
+    return Math.round(ms/1000*Math.max(1,sprintOfflineEffectiveFps?.()||30));
+  }
+  function manualPriority(arr,prefix){
+    if(!Array.isArray(arr)||!arr.length)return arr||[];
+    const manual=arr.filter(v38Manual),mFrames=manual.map(m=>({m,f:eventFrame(m,prefix)})).filter(x=>Number.isFinite(x.f));
+    let replaced=0;
+    const out=arr.filter(c=>{
+      if(v38Manual(c))return true;
+      const cf=eventFrame(c,prefix);if(!Number.isFinite(cf))return true;
+      const near=mFrames.find(x=>Math.abs(cf-x.f)<=V38_FRAME_TOL);
+      if(near){replaced++;return false;}
+      return true;
+    }).sort((a,b)=>Number(a?.t||0)-Number(b?.t||0));
+    if(prefix==='start')window.__v38StartManualReplaced=replaced;else window.__v38SprintManualReplaced=replaced;
+    return out;
+  }
+  function showReplaceNote(prefix){
+    const n=prefix==='start'?(window.__v38StartManualReplaced||0):(window.__v38SprintManualReplaced||0),panel=document.getElementById(prefix==='start'?'start-offline-sequence-panel':'sprint-offline-sequence-panel');
+    if(!panel)return;let el=panel.querySelector('.v38-manual-replace-note');if(!n){el?.remove();return;}if(!el){el=document.createElement('div');el.className='v38-manual-replace-note';panel.appendChild(el);}el.textContent=`✓ 手動接地を優先し、±${V38_FRAME_TOL}フレーム以内の自動候補 ${n}件を自動で置き換えました。`;
+  }
+
+  if(typeof window.startOfflineMergeManualContactsIntoFinal==='function'){
+    const base=window.startOfflineMergeManualContactsIntoFinal;
+    window.startOfflineMergeManualContactsIntoFinal=function(autoEvents,manualEvents){const r=manualPriority(base(autoEvents,manualEvents),'start');queueMicrotask(()=>showReplaceNote('start'));return r;};
+  }
+  if(typeof startOfflineMergeManualContacts==='function'){
+    const base=startOfflineMergeManualContacts;
+    startOfflineMergeManualContacts=function(autoContacts){const r=manualPriority(base(autoContacts),'start');queueMicrotask(()=>showReplaceNote('start'));return r;};
+  }
+  if(typeof startOfflineDetectContacts==='function'){
+    const base=startOfflineDetectContacts;
+    startOfflineDetectContacts=function(...args){const r=manualPriority(base(...args)||[],'start');queueMicrotask(()=>showReplaceNote('start'));return r;};
+  }
+  if(typeof sprintOfflineDetectContacts==='function'){
+    const base=sprintOfflineDetectContacts;
+    sprintOfflineDetectContacts=function(...args){const ret=base(...args);if(Array.isArray(sprintOfflineContacts))sprintOfflineContacts=manualPriority(sprintOfflineContacts,'sprint');queueMicrotask(()=>showReplaceNote('sprint'));return ret;};
+  }
+
+  /* -------------------------------------------------------------
+     2) Evaluation video must live beside the advice, never require
+        scrolling back to the large preview. The existing lower review
+        video is made authoritative and opened after sequence confirm.
+     ------------------------------------------------------------- */
+  function localIds(prefix){const base=prefix==='start'?'start-offline':'sprint-offline';return {base,main:prefix==='start'?startOfflineVideo:sprintOfflineVideo,toggle:document.getElementById(`${base}-evaluation-video-toggle`),panel:document.getElementById(`${base}-evaluation-video-panel`),review:document.getElementById(`${base}-evaluation-video`),close:document.getElementById(`${base}-evaluation-video-close`)}};
+  function syncLocalReview(prefix){
+    const {main,review}=localIds(prefix);if(!main||!review)return false;const src=main.currentSrc||main.src;if(!src)return false;
+    const apply=()=>{try{review.currentTime=Math.min(Math.max(0,main.currentTime||0),Number.isFinite(review.duration)?review.duration:1e9);}catch(_){}review.playbackRate=main.playbackRate||1;};
+    if(review.src!==src){review.pause();review.src=src;review.load();review.addEventListener('loadedmetadata',apply,{once:true});}else apply();return true;
+  }
+  function openLocalReview(prefix){
+    const {main,toggle,panel,review}=localIds(prefix);if(!main||!toggle||!panel||!review)return;main.pause();if(!syncLocalReview(prefix)){alert('先に動画を読み込んでください。');return;}panel.hidden=false;panel.classList.add('v38-local-review');toggle.textContent='▲ 下の動画を閉じる';review.pause();
+  }
+  function closeLocalReview(prefix){const {toggle,panel,review,main}=localIds(prefix);if(!panel||!review||!toggle)return;if(!review.paused)review.pause();try{if(main&&Number.isFinite(review.currentTime))main.currentTime=review.currentTime;}catch(_){}panel.classList.remove('v38-local-review');panel.hidden=true;toggle.textContent='▶ この下に動画を表示';}
+  function installLocalReview(prefix){
+    const {toggle,panel,close}=localIds(prefix);if(!toggle||!panel)return;toggle.textContent='▶ この下に動画を表示';
+    toggle.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(panel.hidden)openLocalReview(prefix);else closeLocalReview(prefix);},{capture:true});
+    close?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();closeLocalReview(prefix);},{capture:true});
+    const confirm=document.getElementById(prefix==='start'?'start-offline-sequence-confirm':'sprint-offline-sequence-confirm');confirm?.addEventListener('click',()=>setTimeout(()=>openLocalReview(prefix),90));
+  }
+
+  /* -------------------------------------------------------------
+     3) PWA bug fix. Do not hide the install control merely because
+        display-mode says standalone/fullscreen. Only appinstalled is
+        persisted as confirmed. Ambiguous states keep the button visible.
+     ------------------------------------------------------------- */
+  function confirmed(){try{return localStorage.getItem(INSTALL_KEY)==='1';}catch(_){return false;}}
+  function markConfirmed(){try{localStorage.setItem(INSTALL_KEY,'1');}catch(_){}}
+  function refreshInstallVisible(){
+    const bar=document.getElementById('app-install-topbar'),btn=document.getElementById('app-install-top-btn'),st=document.getElementById('app-install-top-status'),footerBtn=document.getElementById('app-install-btn');if(!bar||!btn)return;
+    if(confirmed()){bar.classList.remove('v38-install-unconfirmed');bar.classList.add('standalone');if(footerBtn)footerBtn.hidden=true;if(st)st.textContent='✓ ホーム画面への追加を確認済みです。';return;}
+    bar.classList.remove('standalone');bar.classList.add('v38-install-unconfirmed');if(footerBtn)footerBtn.hidden=false;
+    const direct=!!window.__sprintDeferredInstallPrompt;btn.textContent=direct?'1タップでホーム画面に追加':'ホーム画面に追加';if(st)st.textContent=direct?'この端末では直接追加できます。':'追加済みとは断定しません。ボタンを押すと追加方法を表示します。';
+  }
+  window.addEventListener('appinstalled',()=>{markConfirmed();setTimeout(refreshInstallVisible,0);});
+  window.addEventListener('sprint-install-ready',refreshInstallVisible);
+  window.addEventListener('DOMContentLoaded',()=>{installLocalReview('start');installLocalReview('sprint');refreshInstallVisible();});
+  window.addEventListener('pageshow',refreshInstallVisible);
 })();
 </script>
 
