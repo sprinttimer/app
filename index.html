@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.11.38">
-<meta name="sprint-timer-build" content="20260911-2345">
+<meta name="sprint-timer-version" content="2026.09.13.39">
+<meta name="sprint-timer-build" content="20260913-1130">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.11.38";
-window.SPRINT_TIMER_BUILD = "20260911-2345";
+window.SPRINT_TIMER_VERSION = "2026.09.13.39";
+window.SPRINT_TIMER_BUILD = "20260913-1130";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1457,8 +1457,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.11.38</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260911-2345</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.13.39</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260913-1130</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -3285,7 +3285,7 @@ function startOfflineRecoverContactSequence(contacts,series,anchorEvents,stats){
 }
 
 const startOfflinePose=new Pose({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-startOfflinePose.setOptions({modelComplexity:2,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.72,minTrackingConfidence:.72});
+startOfflinePose.setOptions({modelComplexity:2,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.55,minTrackingConfidence:.60});
 startOfflinePose.onResults(results=>{
     const resolve=startOfflinePoseResolve;startOfflinePoseResolve=null;startOfflinePoseReject=null;
     if(resolve)resolve(results);
@@ -3729,7 +3729,7 @@ async function startOfflineAnalyze(){
         }
         if(startOfflineCancelRequested)document.getElementById("start-offline-analysis-status").innerText=`解析を中止しました。有効Pose ${startOfflinePoseFrames.length}フレーム。取得済み範囲だけで確認できます。`;
         startOfflineRecomputeDerived(false);document.getElementById("start-offline-progress").style.width=startOfflineCancelRequested?document.getElementById("start-offline-progress").style.width:"100%";
-        if(!startOfflineCancelRequested){const clearance=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex,patchInfo=startOfflinePatchStats.enabled?` ／ 画像追跡 ${startOfflinePatchStats.frames}フレーム`:"",groundInfo=startOfflineGroundModel?.valid?` ／ 地面モデル ${Math.round(startOfflineGroundModel.confidence*100)}%`:"",st=document.getElementById("start-offline-analysis-status");if(!startOfflinePoseFrames.length){st.innerText=startOfflineContacts.length?`⚠ 人体Poseを検出できませんでした（0/${indices.length}フレーム）。ただし手動指定 ${startOfflineContacts.length}接地は接地タイミング系列として結果へ反映しました。位置・姿勢・ステップ長・自動離地などPoseが必要な項目は算出できません。`:`⚠ 人体Poseを検出できませんでした（0/${indices.length}フレーム）。接地も未検出です。動画をコマ送りし「接地を手動で修正」から接地フレームを追加すると、接地時刻・接地間隔など算出可能な項目は結果へ反映できます。`; }else if(clearance===null)st.innerText=`解析完了：有効Pose ${startOfflinePoseFrames.length}/${indices.length}フレーム${patchInfo}${groundInfo}。ブロッククリアランスは自動確定できませんでしたが、接地解析は独立して継続しました（接地 ${startOfflineContacts.length}件）。必要なら手動でブロッククリアランスを指定してください。`;else st.innerText=`解析完了：有効Pose ${startOfflinePoseFrames.length}/${indices.length}フレーム${patchInfo}${groundInfo}。自動候補を計算しました。`;}
+        if(!startOfflineCancelRequested){const clearance=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex,patchInfo=startOfflinePatchStats.enabled?` ／ 画像追跡 ${startOfflinePatchStats.frames}フレーム`:"",groundInfo=startOfflineGroundModel?.valid?` ／ 地面モデル ${Math.round(startOfflineGroundModel.confidence*100)}%`:"",st=document.getElementById("start-offline-analysis-status");if(!startOfflinePoseFrames.length){st.innerText=startOfflineContacts.length?`⚠ 人体Poseを検出できませんでした（0/${indices.length}フレーム）。自動の分割Crop探索でも人物を確定できませんでした。手動指定 ${startOfflineContacts.length}接地はタイミング系列として反映済みですが、距離・角度・姿勢はPoseが必要です。上の「選手を囲って追跡」で頭から足先まで囲って再解析してください。`:`⚠ 人体Poseを検出できませんでした（0/${indices.length}フレーム）。自動の分割Crop探索でも人物を確定できませんでした。上の「選手を囲って追跡」で頭から足先まで囲って再解析してください。接地時刻だけ必要な場合は手動接地も使用できます。`; }else if(clearance===null)st.innerText=`解析完了：有効Pose ${startOfflinePoseFrames.length}/${indices.length}フレーム${patchInfo}${groundInfo}。ブロッククリアランスは自動確定できませんでしたが、接地解析は独立して継続しました（接地 ${startOfflineContacts.length}件）。必要なら手動でブロッククリアランスを指定してください。`;else st.innerText=`解析完了：有効Pose ${startOfflinePoseFrames.length}/${indices.length}フレーム${patchInfo}${groundInfo}。自動候補を計算しました。`;}
         sceneRenderStatus("offline",startOfflineScaleSummary);await startOfflineSeekTime(from);
     }finally{startOfflineAnalyzing=false;document.getElementById("start-offline-analyze").disabled=false;document.getElementById("start-offline-cancel").disabled=true;}
 }
@@ -7538,7 +7538,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.11.38")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.13.39")}`,{
                 updateViaCache:"none"
             });
 
@@ -8909,8 +8909,8 @@ function ui(prefix){return {card:document.getElementById(prefix==='start'?'start
 function statusHtml(prefix){
   const st=ATS[prefix],sel=st.selected,run=st.run;
   if(st.selecting)return '<b>選手を囲ってください：</b>頭から足先まで入るように、選手の外側から反対側へ指をドラッグしてください。';
-  if(!sel)return '未指定でも全画面解析できます。選手が約320px以下でPoseを取得できた場合は、<b>内部ROI拡大を自動ON</b>にします。自動化できない場合だけ手動で選手を囲ってください。';
-  if(!run)return sel.auto?`✓ 自動ROI拡大：選手約${Math.round(sel.athletePx||0)}px。画面表示は変えず、内部だけ拡大してPoseへ入力します。`:`✓ 選手を指定しました（Frame ${sel.frame} / ${sel.time.toFixed(3)}s）。解析時はこの選手を内部で追跡し、Cropを拡大してPoseへ入力します。`;
+  if(!sel){const d=st.discovery||{};if(d.phase==='searching')return `<b>人物を自動探索中：</b>全画面でPoseが見つからないため、画面を分割して内部拡大しながら探索しています（${d.tested||0}/${d.total||'--'}）。`;if(d.phase==='failed')return '<b>自動人物探索でも検出できませんでした。</b> 「選手を囲って追跡」で頭から足先まで囲ってから再解析してください。';return '未指定でも解析できます。全画面Poseが失敗した場合は、<b>内部で画面を分割・拡大して人物を自動探索</b>します。自動探索でも見つからない場合だけ手動で選手を囲ってください。';}
+  if(!run)return sel.auto?`✓ 自動ROI拡大：${sel.discovery?'分割Crop探索で人物を発見 ／ ':''}選手約${Math.round(sel.athletePx||0)}px。画面表示は変えず、内部だけ拡大して高精度Poseへ入力します。`:`✓ 選手を指定しました（Frame ${sel.frame} / ${sel.time.toFixed(3)}s）。解析時はこの選手を内部で追跡し、Cropを拡大してPoseへ入力します。`;
   const rate=run.attempts?Math.round(run.hits/run.attempts*100):0;
   return `追跡解析：Pose ${run.hits}/${run.attempts}F（${rate}%） ／ 予測追跡 ${run.predicted}F ／ 再捕捉 ${run.reacquired}回 ／ 最大見失い ${run.maxLost}F`;
 }
@@ -8925,9 +8925,9 @@ function diag(prefix,forceMsg=''){
   const st=ATS[prefix],e=ui(prefix);if(!e.diag)return;const run=st.run,poses=AT[prefix].poseFrames().length,contacts=AT[prefix].contacts().length,manual=AT[prefix].manual().length;
   if(forceMsg){e.diag.innerHTML=forceMsg;return;}
   if(!run&&!poses&&!contacts){e.diag.innerHTML='<b>解析診断：</b>解析後にPose取得率・人物追跡・接地数をここへ表示します。';return;}
-  const attempts=run?.attempts||poses,rate=attempts?Math.round(poses/attempts*100):0,mode=st.selected?(st.selected.auto?'自動ROI拡大':'選手追跡Crop'):'全画面';
-  const chips=[`解析方式 ${mode}`,`Pose ${poses}/${attempts||'--'}F (${rate}%)`,`接地 ${contacts}件`,manual?`手動接地 ${manual}件`:null,run?`予測 ${run.predicted}F`:null,run?`再捕捉 ${run.reacquired}回`:null].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
-  let note='';if(!poses&&manual)note='<div class="small" style="margin-top:6px;"><b>Pose未取得：</b>手動で指定した接地時刻から算出できるタイミング系指標だけを使用します。位置・姿勢・ステップ長などは推定しません。</div>';else if(!poses)note='<div class="small" style="margin-top:6px;color:#b42318;">Poseを取得できませんでした。選手指定位置と解析開始フレームを確認してください。</div>';else if(rate<50)note='<div class="small" style="margin-top:6px;color:#9c4221;">Pose取得率が低めです。選手を少し余裕を持って囲い直すと改善する場合があります。</div>';
+  const attempts=run?.attempts||poses,rate=attempts?Math.round(poses/attempts*100):0,mode=st.selected?(st.selected.auto?(st.selected.discovery?'自動Crop探索→ROI':'自動ROI拡大'):'選手追跡Crop'):'全画面';
+  const d=st.discovery||{},chips=[`解析方式 ${mode}`,`Pose ${poses}/${attempts||'--'}F (${rate}%)`,d.tested?`人物探索 ${d.tested}領域${d.phase==='found'?' ✓':''}`:null,`接地 ${contacts}件`,manual?`手動接地 ${manual}件`:null,run?`予測 ${run.predicted}F`:null,run?`再捕捉 ${run.reacquired}回`:null].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
+  let note='';if(!poses&&manual)note='<div class="small" style="margin-top:6px;"><b>Pose未取得：</b>手動で指定した接地時刻から算出できるタイミング系指標だけを使用します。位置・姿勢・ステップ長などは推定しません。<br><b>改善：</b>「選手を囲って追跡」で選手を指定して再解析すると、距離・角度・姿勢を復元できる可能性があります。</div>';else if(!poses)note='<div class="small" style="margin-top:6px;color:#b42318;"><b>人体Poseを取得できませんでした。</b> 自動Crop探索でも見つからない場合は「選手を囲って追跡」で頭から足先まで囲い、再解析してください。</div>';else if(rate<50)note='<div class="small" style="margin-top:6px;color:#9c4221;">Pose取得率が低めです。選手を少し余裕を持って囲い直すと改善する場合があります。</div>';
   e.diag.innerHTML=`<b>解析診断</b><div class="athlete-track-diag-chips">${chips}</div>${note}`;
 }
 function resetRun(prefix){
@@ -8935,7 +8935,7 @@ function resetRun(prefix){
   st.run={roi:init,lastGoodRoi:init,center:c,lastGoodCenter:c,velocity:{x:0,y:0},lost:0,maxLost:0,attempts:0,hits:0,predicted:0,reacquired:0,rejectedJump:0,history:new Map(),baseW:init.w,baseH:init.h};
   render(prefix);diag(prefix);
 }
-function clearSelection(prefix){const st=ATS[prefix];st.selected=null;st.selecting=false;st.drag=null;st.draft=null;st.run=null;if(prefix==='sprint'){window.__sprintOfflineRoi=null;window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;}render(prefix);diag(prefix);AT[prefix].draw();}
+function clearSelection(prefix){const st=ATS[prefix];st.selected=null;st.selecting=false;st.drag=null;st.draft=null;st.run=null;st.discovery=null;st.discoveryFrameAttempts=0;if(prefix==='sprint'){window.__sprintOfflineRoi=null;window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;}render(prefix);diag(prefix);AT[prefix].draw();}
 async function beginSelection(prefix){
   const cfg=AT[prefix],v=cfg.video(),c=cfg.canvas();if(!v?.src||!c)return;v.pause();manualViewOff(prefix,true);offlineZoomReset(cfg.zoomKey);
   const rs=cfg.rangeStart();if(Number.isFinite(rs)&&Math.abs((v.currentTime||0)-rs)>.03){try{await cfg.seek(rs);}catch(_){}}
@@ -8970,6 +8970,59 @@ function prepareInput(prefix,crop){
   const long=Math.max(dw,dh);if(long>1536){const k=1536/long;dw=Math.round(dw*k);dh=Math.round(dh*k);}cv.width=Math.max(320,dw);cv.height=Math.max(320,dh);cx.imageSmoothingEnabled=true;try{cx.imageSmoothingQuality='high'}catch(_){}cx.fillStyle='#000';cx.fillRect(0,0,cv.width,cv.height);cx.drawImage(v,sx,sy,sw,sh,0,0,cv.width,cv.height);return cv;
 }
 function mappedLandmarks(lm,crop){return lm.map(p=>({...p,x:crop.x+p.x*crop.w,y:crop.y+p.y*crop.h,z:Number.isFinite(p.z)?p.z*crop.w:p.z}));}
+
+
+/* v39: Pose discovery stage.
+   The search-only Pose uses a lower threshold only to locate the athlete.
+   Measurement values continue to use the high-precision Pose above. */
+let athleteDiscoveryPose=null,athleteDiscoveryResolve=null;
+async function ensureAthleteDiscoveryPose(){
+  if(athleteDiscoveryPose)return athleteDiscoveryPose;
+  athleteDiscoveryPose=new Pose({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+  athleteDiscoveryPose.setOptions({modelComplexity:1,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.45,minTrackingConfidence:.45});
+  athleteDiscoveryPose.onResults(r=>{const fn=athleteDiscoveryResolve;athleteDiscoveryResolve=null;if(fn)fn(r);});
+  return athleteDiscoveryPose;
+}
+async function athleteDiscoverySend(image){
+  const pose=await ensureAthleteDiscoveryPose();
+  return new Promise(async resolve=>{
+    let done=false;const finish=r=>{if(done)return;done=true;clearTimeout(timer);if(athleteDiscoveryResolve===finish)athleteDiscoveryResolve=null;resolve(r||null);};
+    const timer=setTimeout(()=>finish(null),6500);athleteDiscoveryResolve=finish;
+    try{await pose.send({image});}catch(_){finish(null);}
+  });
+}
+function athleteDiscoveryCrops(prefix){
+  const v=AT[prefix].video(),vw=v?.videoWidth||1280,vh=v?.videoHeight||720,landscape=vw>=vh;
+  const raw=landscape?[
+    {x:0.00,y:.04,w:.55,h:.92},{x:.225,y:.04,w:.55,h:.92},{x:.45,y:.04,w:.55,h:.92},
+    {x:0.00,y:.22,w:.68,h:.76},{x:.32,y:.22,w:.68,h:.76}
+  ]:[
+    {x:.04,y:0.00,w:.92,h:.55},{x:.04,y:.225,w:.92,h:.55},{x:.04,y:.45,w:.92,h:.55},
+    {x:.12,y:0.00,w:.76,h:.68},{x:.12,y:.32,w:.76,h:.68}
+  ];
+  return raw.map(rectClamp);
+}
+async function discoverAthleteByCrop(prefix){
+  const cfg=AT[prefix],st=ATS[prefix],v=cfg.video(),crops=athleteDiscoveryCrops(prefix);let best=null;
+  st.discovery={phase:'searching',tested:0,total:crops.length,found:false};render(prefix);diag(prefix);
+  for(const crop of crops){
+    st.discovery.tested++;render(prefix);
+    let r=null;try{r=await athleteDiscoverySend(prepareInput(prefix,crop));}catch(_){}
+    if(!r?.poseLandmarks)continue;
+    const mapped=mappedLandmarks(r.poseLandmarks,crop),g=bodyGeometry(mapped);if(!g||g.points<9)continue;
+    const vh=v.videoHeight||cfg.canvas().height||720,athletePx=g.bbox.h*vh,q=startOfflinePoseQuality(mapped);
+    if(!Number.isFinite(athletePx)||athletePx<55)continue;
+    const score=(q||0)*2.2+Math.min(1.2,athletePx/320)+Math.min(1,g.points/20);
+    if(!best||score>best.score)best={mapped,g,athletePx,score,crop,q};
+    if(q>=.28&&athletePx>=90)break;
+  }
+  if(!best){st.discovery.phase='failed';st.discovery.found=false;render(prefix);diag(prefix);return null;}
+  const autoBox=padRect(best.g.bbox,.16,.12);
+  st.selected={...autoBox,frame:cfg.frame(),time:cfg.time(),auto:true,athletePx:best.athletePx,discovery:true};
+  st.discovery.phase='found';st.discovery.found=true;resetRun(prefix);st.run=null;render(prefix);diag(prefix);AT[prefix].draw();
+  return st.selected;
+}
+window.v39AthleteSearchSummary=prefix=>{const st=ATS[prefix];return {selected:!!st.selected,discovery:st.discovery?{...st.discovery}:null,auto:!!st.selected?.auto};};
 function updateRunWithPose(prefix,mapped,crop){
   const st=ATS[prefix],run=st.run,g=bodyGeometry(mapped);if(!run||!g)return false;
   if(run.lastGoodCenter){const d=Math.hypot(g.center.x-run.lastGoodCenter.x,g.center.y-run.lastGoodCenter.y),lim=Math.max(.055,Math.hypot(crop.w,crop.h)*.68);if(run.lost<3&&d>lim){run.rejectedJump++;return false;}}
@@ -8984,33 +9037,48 @@ function updateRunLost(prefix){
 }
 async function adaptive(prefix){
   const cfg=AT[prefix],st=ATS[prefix],v=cfg.video();
-  /* v37: when a single athlete is detected at roughly <=320 px height, automatically
-     create an internal ROI and re-run the same frame upscaled. Display remains unchanged. */
+  /* v39: full-frame high-precision Pose -> automatic split/crop discovery ->
+     high-precision ROI Pose. Search-only low-threshold landmarks are never used
+     directly for measurement values. */
   if(!st.selected){
     const first=await cfg.baseSend(v);
     if(first?.poseLandmarks){
       const g=bodyGeometry(first.poseLandmarks),vh=v.videoHeight||cfg.canvas().height||720,athletePx=g?.bbox?.h*vh;
-      if(g&&g.points>=10&&Number.isFinite(athletePx)&&athletePx>=70&&athletePx<=320){
-        const autoBox=padRect(g.bbox,.20,.14);
-        st.selected={...autoBox,frame:cfg.frame(),time:cfg.time(),auto:true,athletePx};
+      st.discovery={phase:'full-pose',tested:0,total:0,found:true};
+      if(g&&g.points>=10&&Number.isFinite(athletePx)&&athletePx>=60&&athletePx<=420){
+        const autoBox=padRect(g.bbox,.16,.12);
+        st.selected={...autoBox,frame:cfg.frame(),time:cfg.time(),auto:true,athletePx,discovery:false};
         resetRun(prefix);
         if(st.run){
           const run=st.run,crop=rectClamp(run.roi);run.attempts++;run.history.set(cfg.frame(),{...crop});
           try{
             const refined=await cfg.baseSend(prepareInput(prefix,crop));
-            if(refined?.poseLandmarks){
-              const mapped=mappedLandmarks(refined.poseLandmarks,crop);
-              if(updateRunWithPose(prefix,mapped,crop)){render(prefix);return {...refined,poseLandmarks:mapped};}
-            }
+            if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}
           }catch(e){updateRunLost(prefix);}
         }
       }
+      render(prefix);diag(prefix);return first;
     }
-    render(prefix);return first;
+    st.discoveryFrameAttempts=(st.discoveryFrameAttempts||0)+1;
+    if(st.discoveryFrameAttempts<=3){
+      const found=await discoverAthleteByCrop(prefix);
+      if(found){
+        resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;run.history.set(cfg.frame(),{...crop});
+        try{
+          const refined=await cfg.baseSend(prepareInput(prefix,crop));
+          if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}
+        }catch(e){updateRunLost(prefix);}
+        /* Keep the discovered ROI even if this exact frame misses high-precision Pose;
+           following frames continue within the tracked crop. */
+        render(prefix);diag(prefix);return null;
+      }
+    }
+    if(st.discoveryFrameAttempts>=3&&st.discovery?.phase!=='found'){st.discovery={...(st.discovery||{}),phase:'failed',found:false};}
+    render(prefix);diag(prefix);return first;
   }
   if(!st.run)resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;const idx=cfg.frame();run.history.set(idx,{...crop});let out;try{out=await cfg.baseSend(prepareInput(prefix,crop));}catch(e){updateRunLost(prefix);throw e;}
-  if(out?.poseLandmarks){const mapped=mappedLandmarks(out.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);return {...out,poseLandmarks:mapped};}}
-  updateRunLost(prefix);render(prefix);return out?{...out,poseLandmarks:null}:out;
+  if(out?.poseLandmarks){const mapped=mappedLandmarks(out.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...out,poseLandmarks:mapped};}}
+  updateRunLost(prefix);render(prefix);diag(prefix);return out?{...out,poseLandmarks:null}:out;
 }
 window.startOfflinePoseSendDynamic=()=>adaptive('start');
 window.sprintOfflinePoseSendAdaptive=()=>adaptive('sprint');
@@ -9019,9 +9087,9 @@ function insertUi(){
   /* Hide old zoom explanatory lines, but retain hidden IDs because legacy transforms are reused for correction-only viewing. */
   for(const prefix of ['start','sprint']){const area=document.getElementById(prefix==='start'?'start-offline-analysis-area':'sprint-offline-analysis-area'),tb=area?.querySelector('.offline-zoom-toolbar');if(tb?.nextElementSibling?.classList.contains('small'))tb.nextElementSibling.style.display='none';}
   /* Start: add target-selection card directly below video. */
-  const sw=document.getElementById('start-offline-video-wrap');if(sw&&!document.getElementById('start-athlete-track-card')){const d=document.createElement('div');d.id='start-athlete-track-card';d.className='athlete-track-card';d.innerHTML=`<div class="setting-header"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="start-athlete-track-label">全画面解析</span></div><div class="small">Poseが不安定な場合は、<b>解析開始付近のフレームで選手を一度だけ囲ってください。</b> 画面はそのまま表示し、内部だけで選手を追跡・拡大して解析します。</div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="start-athlete-track-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="start-athlete-track-reset">追跡解除</button></div><div class="athlete-track-status" id="start-athlete-track-status"></div><div class="athlete-track-diagnostics" id="start-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div>`;sw.insertAdjacentElement('afterend',d);}
+  const sw=document.getElementById('start-offline-video-wrap');if(sw&&!document.getElementById('start-athlete-track-card')){const d=document.createElement('div');d.id='start-athlete-track-card';d.className='athlete-track-card';d.innerHTML=`<div class="setting-header"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="start-athlete-track-label">全画面解析</span></div><div class="small">まず全画面でPoseを試し、見つからなければ<b>画面を分割して内部拡大し、自動で人物を探索</b>します。それでも検出できない場合だけ、解析開始付近で選手を一度囲ってください。画面表示は変えず内部だけで追跡・拡大します。</div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="start-athlete-track-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="start-athlete-track-reset">追跡解除</button></div><div class="athlete-track-status" id="start-athlete-track-status"></div><div class="athlete-track-diagnostics" id="start-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div>`;sw.insertAdjacentElement('afterend',d);}
   /* SPRINTPEAK: replace the old static-ROI card; replacing nodes also removes old ROI button listeners. */
-  const sc=document.getElementById('sprint-offline-roi-card');if(sc){sc.className='athlete-track-card';sc.innerHTML=`<div class="setting-header"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="sprint-offline-roi-label">全画面解析</span></div><div class="small">Poseが不安定な場合は、<b>解析開始付近のフレームで選手を一度だけ囲ってください。</b> 解析中は身体中心を追ってCropを自動移動し、内部だけで拡大してMediaPipeへ入力します。走行中に画面表示を追いかける必要はありません。</div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="sprint-offline-roi-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="sprint-offline-roi-reset">追跡解除</button></div><div class="athlete-track-status" id="sprint-offline-roi-status"></div><div class="athlete-track-diagnostics" id="sprint-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div>`;}
+  const sc=document.getElementById('sprint-offline-roi-card');if(sc){sc.className='athlete-track-card';sc.innerHTML=`<div class="setting-header"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="sprint-offline-roi-label">全画面解析</span></div><div class="small">全画面Poseが失敗した場合は<b>分割Cropで人物を自動探索</b>します。自動探索でも不安定な場合だけ、解析開始付近で選手を一度囲ってください。解析中は身体中心を追ってCropを自動移動し、内部だけで拡大してMediaPipeへ入力します。</div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="sprint-offline-roi-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="sprint-offline-roi-reset">追跡解除</button></div><div class="athlete-track-status" id="sprint-offline-roi-status"></div><div class="athlete-track-diagnostics" id="sprint-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div>`;}
   /* Move SPRINTPEAK range/analyze controls directly under the video frame controls. */
   if(!document.getElementById('sprint-offline-quick-analysis-card')){const rangeStart=document.getElementById('sprint-offline-range-start'),oldCard=rangeStart?.closest('.settings-card'),frameButtons=document.getElementById('sprint-offline-play')?.closest('.button-row');if(rangeStart&&oldCard&&frameButtons){const q=document.createElement('div');q.className='settings-card';q.id='sprint-offline-quick-analysis-card';q.innerHTML='<div class="setting-header" style="margin-bottom:6px;"><span><b>解析範囲・解析開始</b></span><span class="setting-value">動画を見ながら設定</span></div><div class="small" style="margin-bottom:7px;">開始・終了フレームを決め、そのまま解析できます。</div>';const rows=[rangeStart.closest('.button-row'),document.getElementById('sprint-offline-range-info'),document.getElementById('sprint-offline-analyze')?.closest('.button-row'),document.getElementById('sprint-offline-analysis-status'),document.getElementById('sprint-offline-progress')?.parentElement].filter(Boolean);rows.forEach(x=>q.appendChild(x));frameButtons.insertAdjacentElement('afterend',q);const h=oldCard.querySelector('h3');if(h)h.innerHTML='解析設定（FPS・解析密度） <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="range" aria-label="動画フレームと解析範囲の説明">?</button>';const info=document.createElement('div');info.className='small';info.style.marginBottom='8px';info.textContent='解析範囲と解析開始は動画直下に移動しました。ここでは元動画FPSとMediaPipe解析密度だけを設定します。';h?.insertAdjacentElement('afterend',info);}}
   /* Correction-only zoom controls. */
@@ -9358,8 +9426,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.11.38";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260911-2345";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.13.39";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260913-1130";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -10353,6 +10421,68 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
   window.addEventListener('sprint-install-ready',refreshInstallVisible);
   window.addEventListener('DOMContentLoaded',()=>{installLocalReview('start');installLocalReview('sprint');refreshInstallVisible();});
   window.addEventListener('pageshow',refreshInstallVisible);
+})();
+</script>
+
+
+
+<style id="pwa-browser-escape-v39-style">
+#app-browser-escape-v39{max-width:720px;margin:0 auto;padding:8px 12px 10px;background:#f8fafc;border-bottom:1px solid #d8e2ec;text-align:left}
+#app-browser-escape-v39 .v39-browser-note{font-size:12px;line-height:1.5;color:#475569;margin-bottom:7px}
+#app-browser-escape-v39 .v39-browser-actions{display:grid;grid-template-columns:2fr 1fr;gap:7px}
+#app-browser-escape-v39 button{margin:0;border-radius:9px;min-height:40px;padding:8px 10px;font-size:13px;font-weight:800;cursor:pointer}
+#app-browser-open-v39{border:0;background:#2563eb;color:#fff}#app-url-copy-v39{border:1px solid #94a3b8;background:#fff;color:#334155}
+#app-browser-diag-v39{margin-top:7px;padding:7px 9px;border:1px solid #d8e2ec;border-radius:8px;background:#fff;color:#64748b;font-size:10px;line-height:1.55}
+#app-browser-escape-v39.v39-direct-ready .v39-browser-note{color:#166534}
+@media(max-width:520px){#app-browser-escape-v39 .v39-browser-actions{grid-template-columns:1fr 1fr}#app-browser-escape-v39 button{font-size:12px;padding:8px 6px}}
+</style>
+<script id="pwa-browser-escape-v39-script">
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+function canonicalUrl(){const u=new URL(location.href);['__version_check','__app_version','__reload','v'].forEach(k=>u.searchParams.delete(k));u.hash='';return u.href;}
+function actualStandalone(){try{return window.matchMedia?.('(display-mode: standalone)')?.matches===true||navigator.standalone===true;}catch(_){return false;}}
+function isAndroid(){return /Android/i.test(navigator.userAgent||'');}
+function isIOS(){return /iPad|iPhone|iPod/i.test(navigator.userAgent||'')||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
+function isLikelyWebView(){const ua=navigator.userAgent||'';return /;\s*wv\)|\bwv\b|FBAN|FBAV|Instagram|Line\//i.test(ua)||(!window.__sprintDeferredInstallPrompt&&!window.matchMedia?.('(display-mode: browser)')?.matches&&!actualStandalone());}
+function openExternalBrowser(){
+  const url=canonicalUrl();
+  if(isAndroid()){
+    const u=new URL(url),path=(u.host+u.pathname+u.search).replace(/^\/+/,''),intent=`intent://${path}#Intent;scheme=${u.protocol.replace(':','')};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+    location.href=intent;return;
+  }
+  if(isIOS()){
+    /* iOS does not provide a dependable web-page API that forces Safari. Copy first,
+       then open a new browser context when allowed. */
+    copyUrl(false);try{window.open(url,'_blank','noopener');}catch(_){location.href=url;}return;
+  }
+  try{window.open(url,'_blank','noopener');}catch(_){location.href=url;}
+}
+async function copyUrl(show=true){const url=canonicalUrl();let ok=false;try{await navigator.clipboard.writeText(url);ok=true;}catch(_){try{const ta=document.createElement('textarea');ta.value=url;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');ta.remove();}catch(__){}}
+  if(show){const b=$('app-url-copy-v39');if(b){const old=b.textContent;b.textContent=ok?'✓ URLをコピーしました':'URLを選択してコピー';setTimeout(()=>b.textContent=old,1800);}}
+  return ok;
+}
+function ensureUi(){
+  const top=$('app-install-topbar');if(!top||$('app-browser-escape-v39'))return;
+  const box=document.createElement('div');box.id='app-browser-escape-v39';box.innerHTML=`<div class="v39-browser-note" id="app-browser-note-v39"></div><div class="v39-browser-actions"><button type="button" id="app-browser-open-v39">Chromeで開いて追加</button><button type="button" id="app-url-copy-v39">URLをコピー</button></div><div id="app-browser-diag-v39"></div>`;top.insertAdjacentElement('afterend',box);
+  $('app-browser-open-v39')?.addEventListener('click',openExternalBrowser);$('app-url-copy-v39')?.addEventListener('click',()=>copyUrl(true));
+  /* If the in-app install button cannot receive beforeinstallprompt on Android, make
+     that button escape to Chrome instead of merely showing instructions. */
+  $('app-install-top-btn')?.addEventListener('click',e=>{if(window.__sprintDeferredInstallPrompt)return;if(isAndroid()){e.preventDefault();e.stopImmediatePropagation();openExternalBrowser();}},true);
+}
+function render(){
+  ensureUi();const box=$('app-browser-escape-v39'),note=$('app-browser-note-v39'),diag=$('app-browser-diag-v39'),open=$('app-browser-open-v39');if(!box)return;
+  const direct=!!window.__sprintDeferredInstallPrompt,standalone=actualStandalone(),browserMode=window.matchMedia?.('(display-mode: browser)')?.matches===true,webview=isLikelyWebView(),sw=!!navigator.serviceWorker?.controller,topBtn=$('app-install-top-btn'),topStatus=$('app-install-top-status');
+  let confirmed=false;try{confirmed=localStorage.getItem('sprint-timer-install-confirmed')==='1';}catch(_){}
+  if(standalone&&confirmed){box.style.display='none';return;}
+  box.style.display='block';box.classList.toggle('v39-direct-ready',direct);
+  if(isAndroid())open.textContent='Chromeで開いて追加';else if(isIOS())open.textContent='通常ブラウザで開く';else open.textContent='ブラウザで開く';
+  if(direct){note.innerHTML='<b>このブラウザは直接インストール可能です。</b> 上の「ホーム画面に追加」を押してください。';if(topBtn)topBtn.textContent='1タップでホーム画面に追加';if(topStatus)topStatus.textContent='ブラウザの正式なインストール画面を開けます。';}
+  else if(webview||(!browserMode&&!standalone)){note.innerHTML='<b>アドレスバーや☆が見えない場合：</b> アプリ内ブラウザの可能性があります。「Chromeで開いて追加」を押して通常ブラウザへ移動してください。';if(topBtn&&isAndroid())topBtn.textContent='Chromeで開いて追加';if(topStatus)topStatus.textContent='通常ブラウザへ移動するとホーム画面追加・ブックマークを利用できます。';}
+  else{note.innerHTML='<b>直接インストールの準備待ちです。</b> 「Chromeで開いて追加」またはURLコピーを利用できます。';if(topBtn&&isAndroid())topBtn.textContent='Chromeで開いて追加';}
+  const display=standalone?'standalone':browserMode?'browser':'other';diag.textContent=`起動環境：${display}${webview?' / アプリ内ブラウザ候補':''} ／ PWA直接追加：${direct?'利用可':'未取得'} ／ Service Worker：${sw?'制御中':'未制御'} ／ Version ${window.SPRINT_TIMER_VERSION||'--'}`;
+}
+window.addEventListener('sprint-install-ready',render);window.addEventListener('appinstalled',render);window.addEventListener('pageshow',render);window.addEventListener('focus',render);document.addEventListener('DOMContentLoaded',render);
 })();
 </script>
 
