@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.13.40">
-<meta name="sprint-timer-build" content="20260913-2100">
+<meta name="sprint-timer-version" content="2026.09.13.41">
+<meta name="sprint-timer-build" content="20260913-2130">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.13.40";
-window.SPRINT_TIMER_BUILD = "20260913-2100";
+window.SPRINT_TIMER_VERSION = "2026.09.13.41";
+window.SPRINT_TIMER_BUILD = "20260913-2130";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1457,8 +1457,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.13.40</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260913-2100</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.13.41</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260913-2130</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -7538,7 +7538,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.13.40")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.13.41")}`,{
                 updateViaCache:"none"
             });
 
@@ -9426,8 +9426,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.13.40";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260913-2100";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.13.41";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260913-2130";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -10615,6 +10615,121 @@ document.addEventListener('click',e=>{
 },{capture:true});
 /* Show integrity summary after the legacy analysis status finishes updating. */
 const v40Status=document.getElementById('start-offline-analysis-status');if(v40Status)new MutationObserver(()=>{if(!v40Integrity.frames)return;const t=v40Status.textContent||'';if(/解析完了|人体Pose/.test(t)&&!t.includes('人体整合性')){const pct=Math.round(v40Integrity.goodFrames/v40Integrity.frames*100);v40Status.textContent=t+` ／ 人体整合性 ${v40Integrity.goodFrames}/${v40Integrity.frames}F (${pct}%)`;}}).observe(v40Status,{childList:true,subtree:true,characterData:true});
+})();
+</script>
+
+
+<style id="start-stable-pose-compact-v41-style">
+/* v41: START-only stable-pose recovery + compact beginner-friendly contact UI. */
+.v41-sequence-details{margin:10px 0;border:1px solid #d8e2ec;border-radius:12px;background:#fff;overflow:hidden}
+.v41-sequence-details>summary{list-style:none;cursor:pointer;padding:11px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:900;color:#1f2937;background:#f8fafc}
+.v41-sequence-details>summary::-webkit-details-marker{display:none}
+.v41-sequence-details>summary:after{content:'▼';font-size:11px;color:#64748b;transition:transform .15s ease}.v41-sequence-details[open]>summary:after{transform:rotate(180deg)}
+.v41-sequence-summary-status{margin-left:auto;font-size:11px;font-weight:800;color:#475569;text-align:right}.v41-sequence-summary-status.warn{color:#b45309}.v41-sequence-summary-status.ok{color:#15803d}
+.v41-sequence-details #start-offline-sequence-panel{margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding-top:9px}
+.v41-sequence-details #start-offline-sequence-panel>h3{display:none!important}
+.v41-sequence-details .v41-hide-long-help{display:none!important}
+#start-offline-sequence-table .sequence-table th:nth-child(3),#start-offline-sequence-table .sequence-table td:nth-child(3),#start-offline-sequence-table .sequence-table th:nth-child(5),#start-offline-sequence-table .sequence-table td:nth-child(5){display:none}
+#start-offline-step-results table th:nth-child(4),#start-offline-step-results table td:nth-child(4){display:none}
+.v41-sequence-mini-note{font-size:11px;line-height:1.5;color:#64748b;margin:5px 0 0}
+.v41-stable-pose-note{margin-top:7px;padding:7px 9px;border-left:3px solid #22c55e;background:#f0fdf4;color:#166534;font-size:11px;line-height:1.55}
+.v41-stable-pose-note.warn{border-left-color:#f59e0b;background:#fffbeb;color:#854d0e}
+.v41-keyframe-note{margin-top:5px;font-size:11px;line-height:1.45;color:#92400e;font-weight:700}
+.v41-install-steps{margin-top:6px;padding:8px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-size:12px;line-height:1.65;color:#334155}
+@media(max-width:600px){.v41-sequence-details>summary{padding:10px}.v41-sequence-summary-status{font-size:10px;max-width:56%}#start-offline-sequence-table table{font-size:11px}}
+</style>
+<script id="start-stable-pose-compact-v41-script">
+(()=>{
+'use strict';
+/* =====================================================================
+   v41 – START-only requested improvements
+   A) Learn a reliable athlete skeleton from a consecutive normal-Pose run,
+      then use that athlete-specific limb model to reject/repair the earlier
+      starting-block lock-on. Repaired points are low-confidence estimates;
+      uncertain points remain excluded rather than fabricated.
+   B) Auto clearance/projection frames may not use a clearly broken early
+      Pose. Move forward to the first reliable adopted frame when necessary.
+   C) Re-check same-leg consecutive contacts and continue the alternating
+      sequence search without forcing a predetermined number of steps.
+   D) Show contact time in seconds, compact/fold the required sequence UI,
+      and keep only the information a beginner needs in the normal view.
+   E) When direct PWA install is unavailable, explicitly show the tested
+      URL-copy -> Chrome -> paste -> menu installation flow.
+   ===================================================================== */
+const clamp41=(v,a,b)=>Math.max(a,Math.min(b,v));
+const median41=a=>{const b=(a||[]).filter(Number.isFinite).slice().sort((x,y)=>x-y);if(!b.length)return NaN;const m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2;};
+const clone41=lm=>(lm||[]).map(p=>p?{...p}:p);
+const SEG41=[
+  {p:11,c:13,k:'lua',lo:.30,hi:.95},{p:13,c:15,k:'lfa',lo:.28,hi:.95},{p:12,c:14,k:'rua',lo:.30,hi:.95},{p:14,c:16,k:'rfa',lo:.28,hi:.95},
+  {p:23,c:25,k:'lt',lo:.45,hi:1.35},{p:25,c:27,k:'ls',lo:.45,hi:1.35},{p:24,c:26,k:'rt',lo:.45,hi:1.35},{p:26,c:28,k:'rs',lo:.45,hi:1.35},
+  {p:27,c:29,k:'lh',lo:.07,hi:.58},{p:27,c:31,k:'lf',lo:.10,hi:.72},{p:28,c:30,k:'rh',lo:.07,hi:.58},{p:28,c:32,k:'rf',lo:.10,hi:.72}
+];
+const PARENT41={13:11,15:13,14:12,16:14,25:23,27:25,29:27,31:27,26:24,28:26,30:28,32:28};
+const ORDER41=[25,26,27,28,29,30,31,32,13,14,15,16];
+let S41={frames:0,stableStart:null,stableEnd:null,stableScore:0,reference:new Map(),rawGood:new Set(),repairedPoints:0,rejectedPoints:0,pinnedPoints:0,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:0};
+window.__startV41StablePose=S41;
+function xy41(p,w,h){return p&&Number.isFinite(p.x)&&Number.isFinite(p.y)?{x:p.x*w,y:p.y*h}:null;}
+function d41(a,b){return a&&b?Math.hypot(a.x-b.x,a.y-b.y):NaN;}
+function torso41(l,w,h){const a=xy41(l?.[11],w,h),b=xy41(l?.[12],w,h),c=xy41(l?.[23],w,h),d=xy41(l?.[24],w,h);if(!a||!b||!c||!d)return NaN;const sh={x:(a.x+b.x)/2,y:(a.y+b.y)/2},hp={x:(c.x+d.x)/2,y:(c.y+d.y)/2};return d41(sh,hp);}
+function hipCenter41(l,w,h){const a=xy41(l?.[23],w,h),b=xy41(l?.[24],w,h);return a&&b?{x:(a.x+b.x)/2,y:(a.y+b.y)/2}:null;}
+function segRatio41(l,s,w,h,t){const A=xy41(l?.[s.p],w,h),B=xy41(l?.[s.c],w,h);return A&&B&&t>4?d41(A,B)/t:NaN;}
+function anatomy41(l,w,h){const t=torso41(l,w,h);if(!Number.isFinite(t)||t<15)return {score:0,ratios:new Map(),hard:99};let ok=0,seen=0,hard=0,vis=[];const ratios=new Map();for(const s of SEG41){const r=segRatio41(l,s,w,h,t);if(!Number.isFinite(r))continue;seen++;ratios.set(s.k,r);const v=Math.min(l?.[s.p]?.visibility??0,l?.[s.c]?.visibility??0);vis.push(v);if(r>=s.lo&&r<=s.hi)ok++;else if(r>s.hi*1.30||r<s.lo*.62)hard++;}const core=[11,12,23,24,25,26,27,28].map(i=>l?.[i]?.visibility??0);const q=median41([...vis,...core])||0;let score=(seen?ok/seen:0)*.72+clamp41((q-.25)/.65,0,1)*.28-hard*.055;return {score:clamp41(score,0,1),ratios,hard,torso:t};}
+function findStable41(frames,w,h){const stats=frames.map(f=>anatomy41(f._v41RawLandmarks,w,h)),run=5;let best=null,early=null;for(let i=0;i<=frames.length-run;i++){const a=stats.slice(i,i+run);if(a.some(x=>x.score<.62||x.hard>1))continue;const avg=a.reduce((s,x)=>s+x.score,0)/run;if(!early&&avg>=.72)early={i,avg};if(!best||avg>best.avg+.015)best={i,avg};}if(early)best=early;if(!best){let bi=0,bs=-1;for(let i=0;i<stats.length;i++)if(stats[i].score>bs){bs=stats[i].score;bi=i;}best={i:bi,avg:Math.max(0,bs)};}let end=Math.min(frames.length-1,best.i+9);return {start:best.i,end,avg:best.avg,stats};}
+function reference41(frames,st,w,h){const ref=new Map();for(const s of SEG41){const vals=[];for(let i=st.start;i<=st.end;i++){const q=st.stats[i],r=q?.ratios?.get(s.k);if(q?.score>=.60&&Number.isFinite(r))vals.push(r);}const m=median41(vals);if(Number.isFinite(m))ref.set(s.k,m);}return ref;}
+function nearestDirection41(frames,marks,i,j,w,h){const p=PARENT41[j];if(p===undefined)return null;for(let gap=1;gap<=18;gap++){for(const k of [i+gap,i-gap]){if(k<0||k>=frames.length||marks[k]?.has(j)||marks[k]?.has(p))continue;const l=frames[k]._v41RawLandmarks,A=xy41(l?.[p],w,h),B=xy41(l?.[j],w,h);if(!A||!B)continue;const dx=B.x-A.x,dy=B.y-A.y,n=Math.hypot(dx,dy);if(n>2)return {x:dx/n,y:dy/n,gap:Math.abs(frames[k].t-frames[i].t)};}}return null;}
+function prepareStablePose41(){
+  const frames=startOfflinePoseFrames||[];if(frames.length<4)return;const w=startOfflineCanvas.width||startOfflineVideo.videoWidth||1280,h=startOfflineCanvas.height||startOfflineVideo.videoHeight||720;
+  for(const f of frames){if(!f._v41RawLandmarks)f._v41RawLandmarks=clone41(f._v40OriginalLandmarks||f.landmarks);f.landmarks=clone41(f._v41RawLandmarks);}
+  const stable=findStable41(frames,w,h),ref=reference41(frames,stable,w,h),marks=frames.map(()=>new Set()),rawGood=new Set();let pinned=0;
+  for(let i=0;i<frames.length;i++){const l=frames[i]._v41RawLandmarks,an=stable.stats[i],t=an?.torso||torso41(l,w,h);if(an?.score>=.67&&an.hard===0)rawGood.add(frames[i].index);for(const s of SEG41){const r=an?.ratios?.get(s.k),rr=ref.get(s.k);if(!Number.isFinite(r)||!Number.isFinite(rr))continue;const hard=(r>rr*1.52||r<rr*.56||r>s.hi*1.18||r<s.lo*.72);if(hard)marks[i].add(s.c);}
+    if(i>=2&&i+2<frames.length&&Number.isFinite(t)){const P=frames[i-2]._v41RawLandmarks,N=frames[i+2]._v41RawLandmarks,hp=hipCenter41(P,w,h),hn=hipCenter41(N,w,h),bodyMove=d41(hp,hn);if(Number.isFinite(bodyMove)&&bodyMove>Math.max(9,t*.12)){for(const j of [25,26,27,28,29,30,31,32]){const A=xy41(P?.[j],w,h),B=xy41(N?.[j],w,h),move=d41(A,B),par=PARENT41[j],C=xy41(l?.[j],w,h),Q=xy41(l?.[par],w,h),s=SEG41.find(x=>x.c===j),rr=s?ref.get(s.k):NaN,seg=d41(C,Q);if(Number.isFinite(move)&&move<Math.max(3,t*.04)&&Number.isFinite(seg)&&Number.isFinite(rr)&&seg>rr*t*1.18){if(!marks[i].has(j))pinned++;marks[i].add(j);}}}}
+  }
+  let repaired=0,rejected=0;
+  for(let i=0;i<frames.length;i++){const raw=frames[i]._v41RawLandmarks,out=clone41(raw),bad=marks[i],t=torso41(out,w,h);if(!bad.size||!Number.isFinite(t)){frames[i]._v40OriginalLandmarks=out;frames[i]._v41Integrity={rawScore:stable.stats[i]?.score||0,bad:[...bad],repaired:[],rejected:[]};continue;}const rep=[],rej=[];
+    for(const j of ORDER41){if(!bad.has(j))continue;const par=PARENT41[j],s=SEG41.find(x=>x.c===j),rr=s?ref.get(s.k):NaN,A=xy41(out?.[par],w,h),B=xy41(raw?.[j],w,h);if(!A||!Number.isFinite(rr)){if(out[j])out[j]={...out[j],visibility:.01,_v41Rejected:true};rej.push(j);rejected++;continue;}const rawDx=B?B.x-A.x:0,rawDy=B?B.y-A.y:0,rawN=Math.hypot(rawDx,rawDy),near=nearestDirection41(frames,marks,i,j,w,h);let ux=rawN>2?rawDx/rawN:0,uy=rawN>2?rawDy/rawN:0;if(near){const wt=near.gap<=.28?.86:near.gap<=.55?.62:.35;ux=ux*(1-wt)+near.x*wt;uy=uy*(1-wt)+near.y*wt;}const n=Math.hypot(ux,uy);if(!(n>.1)){if(out[j])out[j]={...out[j],visibility:.01,_v41Rejected:true};rej.push(j);rejected++;continue;}ux/=n;uy/=n;const len=rr*t,nx=(A.x+ux*len)/w,ny=(A.y+uy*len)/h,gap=near?.gap??99,vis=gap<=.30?.43:gap<=.55?.36:.24;if(vis<.30){out[j]={...out[j],visibility:.01,_v41Rejected:true,_v41Reason:'正常Poseから遠く、確実な再構築ができない'};rej.push(j);rejected++;}else{out[j]={...out[j],x:nx,y:ny,visibility:vis,_v41Repaired:true,_v41Reason:'正常Poseの骨長＋時系列方向から再構築'};rep.push(j);repaired++;}}
+    frames[i]._v40OriginalLandmarks=out;frames[i]._v41Integrity={rawScore:stable.stats[i]?.score||0,bad:[...bad],repaired:rep,rejected:rej};
+  }
+  S41={frames:frames.length,stableStart:frames[stable.start]?.index??null,stableEnd:frames[stable.end]?.index??null,stableScore:stable.avg,reference:ref,rawGood,repairedPoints:repaired,rejectedPoints:rejected,pinnedPoints:pinned,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:Date.now()};window.__startV41StablePose=S41;
+}
+function goodRaw41(index){return S41.rawGood?.has?.(index)===true;}
+function firstGoodAtOrAfter41(index,maxT=Infinity){let best=null;for(const f of startOfflinePoseFrames||[]){if(f.index<index||f.t>maxT||!goodRaw41(f.index))continue;best=f;break;}return best;}
+function improveGround41(){try{if(startGroundMode==='manual'||startOfflineGroundModel?.manual)return false;}catch(_){}const m=new Map();for(const [idx,rec] of startOfflineFootDetail||[])if(goodRaw41(idx))m.set(idx,rec);if(m.size<5)return false;const gm=offlineBuildFixedGroundModel(m,startOfflineGroundAxis(),startOfflineUpUnit());const old=startOfflineGroundModel?.confidence||0;if(!gm?.valid||gm.points<6||gm.confidence<Math.max(.28,old+.05))return false;startOfflineGroundModel=gm;startOfflineFootSignals=offlineBuildFootSignals(startOfflinePoseFrames,startOfflineCanvas.width,startOfflineCanvas.height,startOfflineFootDetail,startOfflineBodyStateAtFrame,startOfflineSceneScaleAtPoint,startOfflineGroundModel,startOfflineGroundAxis(),startOfflineUpUnit());S41.groundImproved=true;return true;}
+function candidate41(side,lo,hi,expected,min=.27){try{const c=offlineFindSequenceContactCandidate(startOfflineFootSignals?.[side]||[],lo,hi,expected,min);if(c)c.side=side;return c;}catch(_){return null;}}
+function dedupe41(a){const out=[];for(const c of (a||[]).slice().sort((x,y)=>x.t-y.t)){const p=out[out.length-1];if(p&&Math.abs(c.t-p.t)<.050){if(c.manualAnchor&&!p.manualAnchor)out[out.length-1]=c;else if(!p.manualAnchor&&(c.confidence||0)>(p.confidence||0))out[out.length-1]=c;continue;}out.push(c);}return out;}
+function recoverSequence41(input){let out=dedupe41(input);if(out.length<1)return out;let added=0,relabel=0;for(let i=1;i<out.length;i++){const A=out[i-1],B=out[i],gap=B.t-A.t;if(A.side===B.side&&gap>=.095&&gap<=.38&&!B.manualAnchor){const opp=A.side==='left'?'right':'left';if(gap<.18){const alt=candidate41(opp,B.t-.050,B.t+.050,B.t,.23);if(alt){out[i]={...alt,source:'v41-side-relabel',sequenceRecovered:true,confidence:Math.min(.72,alt.confidence||.5)};relabel++;}}else{const mid=(A.t+B.t)/2,alt=candidate41(opp,A.t+.055,B.t-.055,mid,.23);if(alt){out.push({...alt,source:'v41-missing-opposite',sequenceRecovered:true});added++;}}}}
+  out=dedupe41(out);const ints=[];for(let i=1;i<out.length;i++){const d=out[i].t-out[i-1].t;if(d>=.11&&d<=.36&&out[i].side!==out[i-1].side)ints.push(d);}let typical=median41(ints);if(!(typical>=.12&&typical<=.33))typical=.20;const endT=Math.min(startOfflineRangeEnd??startOfflineVideo.duration??Infinity,(out[0]?.t??0)+2.4);let cur=out[out.length-1],miss=0;for(let n=0;n<8&&cur&&cur.t<endT-.10;n++){const side=cur.side==='left'?'right':'left',lo=cur.t+Math.max(.10,typical*.58),hi=Math.min(endT,cur.t+Math.min(.38,typical*1.58)),expected=cur.t+typical;if(!(hi>lo))break;const c=candidate41(side,lo,hi,expected,.24);if(!c){miss++;if(miss>=2)break;typical=Math.min(.30,typical*1.08);continue;}miss=0;if(!out.some(x=>Math.abs(x.t-c.t)<.055)){c.source='v41-sequence-continued';c.sequenceRecovered=true;out.push(c);added++;const d=c.t-cur.t;if(d>=.10&&d<=.38)typical=clamp41(typical*.65+d*.35,.12,.32);}cur=c;}
+  S41.sequenceAdded=added;S41.sequenceRelabeled=relabel;return dedupe41(out).slice(0,12);
+}
+function fixKeyframesAndContacts41(){if(!startOfflinePoseFrames?.length)return;const set=startOfflineManualSetIndex??startOfflineAutoSetIndex;if(set===null)return;let clearance=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex;const stFrame=Number.isFinite(S41.stableStart)?S41.stableStart:set;const setRec=startOfflineFrameRecord(set),maxClearT=(setRec?.t??0)+1.5;
+  if(startOfflineManualClearanceIndex===null&&(clearance===null||clearance<stFrame||!goodRaw41(clearance))){const f=firstGoodAtOrAfter41(Math.max(set,stFrame),maxClearT);if(f){S41.keyframeShift+=Number.isFinite(clearance)?Math.abs(f.index-clearance):0;startOfflineAutoClearanceIndex=f.index;clearance=f.index;}}
+  improveGround41();const anchor=clearance!==null?clearance:set;let auto=[];try{auto=startOfflineDetectContacts(anchor)||[];}catch(e){console.warn('v41 contact redetect',e);}let merged=[];try{merged=startOfflineMergeManualContacts(auto)||auto;}catch(_){merged=auto;}startOfflineContacts=recoverSequence41(merged);
+  if(!startOfflineAngleIndexManual){const firstT=startOfflineContacts?.[0]?.t??Infinity,clearRec=clearance!==null?startOfflineFrameRecord(clearance):null,lo=Math.max(stFrame,clearance??set),hiT=Math.min(firstT-.008,(setRec?.t??0)+.90);let chosen=null,proj=null;for(const f of startOfflinePoseFrames){if(f.index<lo||f.t>hiT||!goodRaw41(f.index))continue;const r=startOfflineProjectionAt(f.index);if(r?.valid&&Number.isFinite(r.angle)){chosen=f;proj=r;break;}}if(chosen&&proj){const old=startOfflineAngleIndex;startOfflineAutoProjectionIndex=chosen.index;startOfflineAngleIndex=chosen.index;startOfflineAngleAuto=proj.angle;startOfflineAngleLineAuto=proj.line?{...proj.line}:null;if(startOfflineAngleManual===null)startOfflineAngleLine=proj.line?{...proj.line}:null;if(Number.isFinite(old)&&old!==chosen.index)S41.keyframeShift+=Math.abs(chosen.index-old);}}
+  try{startOfflineRenderResults();startOfflineRenderMarkerStatus();startOfflineRenderCompare();drawStartOfflineOverlay();sceneRenderStatus('offline',startOfflineScaleSummary);startOfflineRenderQuickContactUi();}catch(e){console.warn('v41 render',e);}
+}
+function stableNote41(){if(!S41.frames)return '';const cls=S41.stableScore>=.72?'':'warn',start=S41.stableStart??'--',end=S41.stableEnd??'--';return `<div class="v41-stable-pose-note ${cls}"><b>正常Pose基準：</b>Frame ${start}〜${end}付近の連続した人体形状を基準に、選手固有の骨長を学習しました。固定物へ張り付いた疑い ${S41.pinnedPoints}点 ／ 再構築 ${S41.repairedPoints}点 ／ 不確実で除外 ${S41.rejectedPoints}点${S41.sequenceAdded?` ／ 接地系列を${S41.sequenceAdded}件補完`:''}${S41.sequenceRelabeled?` ／ 脚判定を${S41.sequenceRelabeled}件再判定`:''}${S41.groundImproved?' ／ 地面モデルを正常Pose区間から再推定':''}。<br>再構築できない点は無理に数値化しません。</div>`;}
+function updateStableUi41(){const el=document.getElementById('start-athlete-track-diagnostics');if(el&&S41.frames){el.querySelector('.v41-stable-pose-note')?.remove();el.insertAdjacentHTML('beforeend',stableNote41());}const src=document.getElementById('start-offline-angle-source');if(src&&S41.keyframeShift>0){let n=document.getElementById('start-v41-keyframe-note');if(!n){n=document.createElement('div');n.id='start-v41-keyframe-note';n.className='v41-keyframe-note';src.insertAdjacentElement('afterend',n);}n.textContent='⚠ 壊れたPoseフレームを角度測定に使わず、直後の人体整合性が高いフレームへ自動補正しています。';}}
+const recompute41Base=startOfflineRecomputeDerived;
+startOfflineRecomputeDerived=function(...args){prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
+document.getElementById('start-offline-analyze')?.addEventListener('click',()=>{S41={frames:0,stableStart:null,stableEnd:null,stableScore:0,reference:new Map(),rawGood:new Set(),repairedPoints:0,rejectedPoints:0,pinnedPoints:0,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:0};window.__startV41StablePose=S41;},{capture:true});
+
+/* ---------- Beginner-friendly contact display ---------- */
+const sec41=v=>Number.isFinite(v)?`${v.toFixed(2)} 秒`:'--';
+function ensureSequenceDetails41(){const panel=document.getElementById('start-offline-sequence-panel');if(!panel)return null;let d=document.getElementById('start-v41-sequence-details');if(d)return d;d=document.createElement('details');d.id='start-v41-sequence-details';d.className='v41-sequence-details';const sum=document.createElement('summary');sum.innerHTML='<span>接地系列の確認</span><span id="start-v41-sequence-summary-status" class="v41-sequence-summary-status">解析後に確認</span>';panel.parentNode.insertBefore(d,panel);d.appendChild(sum);d.appendChild(panel);for(const x of [...panel.children])if(x.classList?.contains('small')&&(/高精度解析後/.test(x.textContent)||/接地の追加・変更/.test(x.textContent)))x.classList.add('v41-hide-long-help');let n=document.createElement('div');n.className='v41-sequence-mini-note';n.textContent='必要な行の「！」だけ映像で確認できます。問題がなければ「この接地系列を確認して確定」を押してください。';panel.querySelector('.sequence-confirm-status')?.insertAdjacentElement('afterend',n);return d;}
+function warningCount41(a){let n=0;for(let i=0;i<a.length;i++){const c=a[i],prev=a[i-1];if((c.confidence||0)<.55||c.durationInvalidReason||c.integrityCaution||(prev&&prev.side===c.side&&c.t-prev.t<.38))n++;}return n;}
+function compactSequence41(){const d=ensureSequenceDetails41(),panel=document.getElementById('start-offline-sequence-panel'),status=document.getElementById('start-offline-sequence-status'),summary=document.getElementById('start-v41-sequence-summary-status'),tbl=document.querySelector('#start-offline-sequence-table .sequence-table'),a=startOfflineContacts||[];if(!d||!panel||!summary)return;const confirmed=panel.classList.contains('sequence-confirmed'),warn=warningCount41(a);summary.classList.toggle('ok',confirmed);summary.classList.toggle('warn',!confirmed&&warn>0);summary.textContent=!a.length?'接地未検出':confirmed?`✓ ${a.length}歩 確認済み`:warn?`${a.length}歩検出 ／ ⚠ ${warn}件だけ要確認`:`${a.length}歩検出 ／ タップして確認`;if(confirmed)d.open=false;else if(warn&&!d.dataset.v41AutoOpened){d.open=true;d.dataset.v41AutoOpened='1';}
+  if(status&&a.length)status.innerHTML=confirmed?`✓ ${a.length}歩の接地系列を確認済みです。`:(warn?`<b>${a.length}歩を検出。</b> ⚠ 印のある ${warn}件を優先して映像確認してください。`:`<b>${a.length}歩を検出。</b> 順番を確認し、問題なければ確定してください。`);
+  if(tbl){const rows=[...tbl.querySelectorAll('tr')].slice(1);rows.forEach((tr,i)=>{const td=tr.children,c=a[i];if(!c||td.length<4)return;td[3].textContent=Number.isFinite(c.duration)?sec41(c.duration):(c.durationInvalidReason?'要確認':'--');});}
+}
+function compactSteps41(){const root=document.getElementById('start-offline-step-results'),tbl=root?.querySelector('table'),a=startOfflineContacts||[];if(!tbl)return;const rows=[...tbl.querySelectorAll('tr')].slice(1);rows.forEach((tr,i)=>{const td=tr.children,c=a[i];if(c&&td.length>1)td[1].textContent=Number.isFinite(c.duration)?sec41(c.duration):(c.durationInvalidReason?'要確認':'--');});}
+const seq41Base=typeof mandatoryRenderStartSequence==='function'?mandatoryRenderStartSequence:null;if(seq41Base)mandatoryRenderStartSequence=function(...args){const r=seq41Base(...args);queueMicrotask(compactSequence41);return r;};
+const render41Base=startOfflineRenderResults;startOfflineRenderResults=function(...args){const r=render41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
+const confirm41=document.getElementById('start-offline-sequence-confirm');confirm41?.addEventListener('click',()=>setTimeout(compactSequence41,30));
+function normalizeMs41(root){if(!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(w.nextNode())nodes.push(w.currentNode);for(const n of nodes){const t=n.nodeValue||'';if(!/\d+(?:\.\d+)?\s*ms/i.test(t))continue;n.nodeValue=t.replace(/(\d+(?:\.\d+)?)\s*ms/gi,(_,x)=>`${(Number(x)/1000).toFixed(3)} 秒`);}}
+function installMsObservers41(){for(const id of ['start-offline-science-status','start-offline-sequence-table','start-v40-evidence-viewer']){const el=document.getElementById(id);if(!el||el.dataset.v41MsObserved)return;el.dataset.v41MsObserved='1';normalizeMs41(el);new MutationObserver(()=>normalizeMs41(el)).observe(el,{subtree:true,childList:true,characterData:true});}}
+
+/* ---------- Explicit tested install flow when direct prompt is unavailable ---------- */
+function installGuide41(){const note=document.getElementById('app-browser-note-v39'),copy=document.getElementById('app-url-copy-v39'),open=document.getElementById('app-browser-open-v39'),topBtn=document.getElementById('app-install-top-btn'),topStatus=document.getElementById('app-install-top-status');if(!note)return;const direct=!!window.__sprintDeferredInstallPrompt;let confirmed=false;try{confirmed=localStorage.getItem('sprint-timer-install-confirmed')==='1';}catch(_){}if(confirmed||direct)return;note.innerHTML='<b>この画面から直接ホーム画面へ追加できない場合があります。</b><div class="v41-install-steps"><b>初回のみ、次の手順が最も確実です。</b><br>①「URLをコピー」<br>② Chromeを開く<br>③ Chromeのアドレス欄へURLを貼り付けて開く<br>④ Chrome右上の︙ →「アプリをインストール」または「ホーム画面に追加」<br><span style="color:#64748b">※ アドレスバーや☆がない画面では、Webページ側からブラウザの☆や︙を強制表示できません。</span></div>';if(copy)copy.textContent='① URLをコピー';if(open)open.textContent='② Chromeを開く（補助）';if(topBtn)topBtn.textContent='追加方法を確認';if(topStatus)topStatus.textContent='直接追加できない場合は、下の4手順でChromeから追加してください。';}
+for(const ev of ['pageshow','focus','sprint-install-ready','appinstalled'])window.addEventListener(ev,()=>setTimeout(installGuide41,40));document.addEventListener('DOMContentLoaded',()=>{ensureSequenceDetails41();compactSequence41();installGuide41();installMsObservers41();});setTimeout(installMsObservers41,0);
 })();
 </script>
 
