@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.13.39">
-<meta name="sprint-timer-build" content="20260913-1130">
+<meta name="sprint-timer-version" content="2026.09.13.40">
+<meta name="sprint-timer-build" content="20260913-2100">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.13.39";
-window.SPRINT_TIMER_BUILD = "20260913-1130";
+window.SPRINT_TIMER_VERSION = "2026.09.13.40";
+window.SPRINT_TIMER_BUILD = "20260913-2100";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1457,8 +1457,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.13.39</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260913-1130</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.13.40</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260913-2100</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -7538,7 +7538,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.13.39")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.13.40")}`,{
                 updateViaCache:"none"
             });
 
@@ -9426,8 +9426,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.13.39";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260913-1130";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.13.40";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260913-2100";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -10483,6 +10483,138 @@ function render(){
   const display=standalone?'standalone':browserMode?'browser':'other';diag.textContent=`起動環境：${display}${webview?' / アプリ内ブラウザ候補':''} ／ PWA直接追加：${direct?'利用可':'未取得'} ／ Service Worker：${sw?'制御中':'未制御'} ／ Version ${window.SPRINT_TIMER_VERSION||'--'}`;
 }
 window.addEventListener('sprint-install-ready',render);window.addEventListener('appinstalled',render);window.addEventListener('pageshow',render);window.addEventListener('focus',render);document.addEventListener('DOMContentLoaded',render);
+})();
+</script>
+
+
+<style id="start-pose-integrity-evidence-v40-style">
+/* v40: START-only pose-integrity guard + evidence navigation. No unrelated feature changes. */
+.v40-integrity-line{margin-top:7px;padding:7px 9px;border-left:3px solid #0ea5e9;background:#f0f9ff;color:#0c4a6e;font-size:11px;line-height:1.55}
+.v40-integrity-line.warn{border-left-color:#f59e0b;background:#fffbeb;color:#854d0e}
+.v40-integrity-line.bad{border-left-color:#ef4444;background:#fef2f2;color:#991b1b}
+.v40-evidence-viewer{margin:9px 0 12px;padding:10px;border:2px solid #facc15;border-radius:11px;background:#fffbea;text-align:left}
+.v40-evidence-viewer[hidden]{display:none!important}.v40-evidence-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}.v40-evidence-title{font-weight:900;color:#713f12}.v40-evidence-close{border:1px solid #d1d5db;background:#fff;border-radius:8px;padding:6px 9px;font-weight:800}.v40-evidence-viewer canvas{width:100%;height:auto;display:block;background:#000;border-radius:9px}.v40-evidence-status{margin-top:7px;font-size:12px;line-height:1.55;color:#475569}.v40-evidence-status b{color:#111827}
+.v40-step-evidence-btn{margin-left:5px}.v40-integrity-badge{display:inline-block;margin-left:5px;padding:2px 6px;border-radius:999px;background:#fff7ed;color:#9a3412;font-size:10px;font-weight:800}
+@media(max-width:600px){.v40-evidence-viewer{padding:8px}.v40-evidence-head{font-size:13px}.v40-evidence-status{font-size:11px}}
+</style>
+<script id="start-pose-integrity-evidence-v40-script">
+(()=>{
+'use strict';
+/* =====================================================================
+   v40 – requested START analysis fixes only
+   1) Reject/repair anatomically implausible Pose points (e.g. block mistaken
+      for ankle/foot) before derived metrics are calculated.
+   2) Keep suspicious auto contact durations from becoming confirmed values.
+   3) Every START [!] opens the exact adopted frame inline. Clearance [!]
+      reuses the existing protractor overlay for the selected angle.
+   ===================================================================== */
+const V40_EDGES=[
+  [11,13,13,'左上腕'],[13,15,15,'左前腕'],[12,14,14,'右上腕'],[14,16,16,'右前腕'],
+  [23,25,25,'左大腿'],[25,27,27,'左下腿'],[27,29,29,'左踵'],[27,31,31,'左つま先'],
+  [24,26,26,'右大腿'],[26,28,28,'右下腿'],[28,30,30,'右踵'],[28,32,32,'右つま先']
+];
+const V40_LOWER=new Set([23,24,25,26,27,28,29,30,31,32]);
+let v40Integrity={frames:0,goodFrames:0,badFrames:0,badPoints:0,repaired:0,rejected:0,edgeRejects:0,jumpRejects:0,staticRejects:0,lastRun:0};
+window.__startV40Integrity=v40Integrity;
+const med=a=>{const b=(a||[]).filter(Number.isFinite).sort((x,y)=>x-y);if(!b.length)return NaN;const m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2;};
+const cloneLm=lm=>(lm||[]).map(p=>p?{...p}:p);
+const pxy=(p,w,h)=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)?{x:p.x*w,y:p.y*h}:null;
+const dist=(a,b)=>a&&b?Math.hypot(a.x-b.x,a.y-b.y):NaN;
+function torsoPx(l,w,h){
+  if(!l)return NaN;const s1=pxy(l[11],w,h),s2=pxy(l[12],w,h),h1=pxy(l[23],w,h),h2=pxy(l[24],w,h);if(!s1||!s2||!h1||!h2)return NaN;
+  const s={x:(s1.x+s2.x)/2,y:(s1.y+s2.y)/2},q={x:(h1.x+h2.x)/2,y:(h1.y+h2.y)/2};return Math.hypot(s.x-q.x,s.y-q.y);
+}
+function edgeBaselines(frames,w,h){
+  const m=new Map();for(const [a,b] of V40_EDGES){const vals=[];for(const f of frames){const l=f._v40OriginalLandmarks||f.landmarks,A=pxy(l?.[a],w,h),B=pxy(l?.[b],w,h);if(!A||!B||(l[a].visibility??0)<.30||(l[b].visibility??0)<.30)continue;const d=dist(A,B);if(Number.isFinite(d)&&d>2)vals.push(d);}m.set(`${a}-${b}`,med(vals));}return m;
+}
+function neighbor(frames,i,j,dir){for(let k=i+dir;k>=0&&k<frames.length&&Math.abs(k-i)<=4;k+=dir){const l=frames[k]._v40OriginalLandmarks||frames[k].landmarks,p=l?.[j];if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&(p.visibility??0)>=.32)return {f:frames[k],p};}return null;}
+function v40SanitizeStartPose(){
+  const frames=startOfflinePoseFrames||[];if(frames.length<3)return;const w=startOfflineCanvas.width||startOfflineVideo.videoWidth||1280,h=startOfflineCanvas.height||startOfflineVideo.videoHeight||720;
+  for(const f of frames){if(!f._v40OriginalLandmarks)f._v40OriginalLandmarks=cloneLm(f.landmarks);f.landmarks=cloneLm(f._v40OriginalLandmarks);delete f._v40Integrity;}
+  const base=edgeBaselines(frames,w,h),marks=frames.map(()=>new Set()),reasons=frames.map(()=>new Map());let edgeRejects=0,jumpRejects=0,staticRejects=0;
+  const mark=(i,j,r)=>{marks[i].add(j);const a=reasons[i].get(j)||[];a.push(r);reasons[i].set(j,a);};
+  /* Segment length consistency: rigid limb lengths should not suddenly stretch toward a starting block. */
+  for(let i=0;i<frames.length;i++){
+    const l=frames[i].landmarks,tp=torsoPx(l,w,h);
+    for(const [a,b,child,name] of V40_EDGES){const A=pxy(l?.[a],w,h),B=pxy(l?.[b],w,h),d=dist(A,B),bm=base.get(`${a}-${b}`);if(!Number.isFinite(d)||!Number.isFinite(bm)||bm<5)continue;
+      const hi=V40_LOWER.has(child)?1.72:1.82,lo=V40_LOWER.has(child)?.46:.42;
+      if(d>bm*hi||d<bm*lo||(Number.isFinite(tp)&&V40_LOWER.has(child)&&d>tp*1.18)){mark(i,child,`${name}長の急変`);edgeRejects++;if(child===27){mark(i,29,'足首連鎖');mark(i,31,'足首連鎖');}if(child===28){mark(i,30,'足首連鎖');mark(i,32,'足首連鎖');}}
+    }
+  }
+  /* One-frame jumps: compare with temporal interpolation, not with screen position alone. */
+  for(let i=0;i<frames.length;i++){
+    const l=frames[i].landmarks,tp=Math.max(28,torsoPx(l,w,h)||70);
+    for(const j of [13,14,15,16,25,26,27,28,29,30,31,32]){const cur=l?.[j];if(!cur||!Number.isFinite(cur.x)||!Number.isFinite(cur.y)||(cur.visibility??0)<.24)continue;const P=neighbor(frames,i,j,-1),N=neighbor(frames,i,j,1);if(!P||!N||N.f.t<=P.f.t)continue;const a=(frames[i].t-P.f.t)/(N.f.t-P.f.t),pred={x:(P.p.x+(N.p.x-P.p.x)*a)*w,y:(P.p.y+(N.p.y-P.p.y)*a)*h},C=pxy(cur,w,h),Pp=pxy(P.p,w,h),Np=pxy(N.p,w,h),err=dist(C,pred),span=dist(Pp,Np);const lim=Math.max(32,tp*.42,span*1.65+12);if(err>lim){mark(i,j,'単発座標ジャンプ');jumpRejects++;}}
+  }
+  /* Fixed-object confusion: a distal foot point that stays pinned while the body moves,
+     and simultaneously stretches the anatomical segment, is more likely the starting block
+     than the athlete's foot. This is intentionally conservative. */
+  const footDefs=[[27,29,'左踵'],[27,31,'左つま先'],[28,30,'右踵'],[28,32,'右つま先']];
+  for(let i=1;i<frames.length-1;i++){const l=frames[i].landmarks,Pf=frames[i-1].landmarks,Nf=frames[i+1].landmarks,tp=Math.max(30,torsoPx(l,w,h)||70);const hip=q=>{const a=pxy(q?.[23],w,h),b=pxy(q?.[24],w,h);return a&&b?{x:(a.x+b.x)/2,y:(a.y+b.y)/2}:null;},hp=hip(Pf),hn=hip(Nf),bodyMove=dist(hp,hn);if(!Number.isFinite(bodyMove)||bodyMove<Math.max(9,tp*.13))continue;
+    for(const [parent,j,name] of footDefs){const C=pxy(l?.[j],w,h),CP=pxy(Pf?.[j],w,h),CN=pxy(Nf?.[j],w,h),A=pxy(l?.[parent],w,h),bm=base.get(`${parent}-${j}`);if(!C||!CP||!CN||!A||!Number.isFinite(bm)||bm<5)continue;const pinned=Math.max(dist(C,CP),dist(C,CN));const seg=dist(A,C);if(pinned<Math.max(3,tp*.035)&&seg>bm*1.28){mark(i,j,`${name}が固定物へ張り付いた疑い`);staticRejects++;}}
+  }
+  let badFrames=0,badPoints=0,repaired=0,rejected=0;
+  for(let i=0;i<frames.length;i++){
+    const f=frames[i],l=f.landmarks,bad=marks[i];if(!bad.size){f._v40Integrity={ok:true,bad:[],repaired:[],rejected:[]};continue;}badFrames++;badPoints+=bad.size;const rep=[],rej=[];
+    for(const j of bad){
+      const P=neighbor(frames,i,j,-1),N=neighbor(frames,i,j,1);let done=false;
+      if(P&&N&&N.f.t>P.f.t&&(N.f.t-P.f.t)<=.22&&!marks[frames.indexOf(P.f)]?.has(j)&&!marks[frames.indexOf(N.f)]?.has(j)){
+        const a=Math.max(0,Math.min(1,(f.t-P.f.t)/(N.f.t-P.f.t)));const z=Number.isFinite(P.p.z)&&Number.isFinite(N.p.z)?P.p.z+(N.p.z-P.p.z)*a:(l[j]?.z||0);l[j]={...l[j],x:P.p.x+(N.p.x-P.p.x)*a,y:P.p.y+(N.p.y-P.p.y)*a,z,visibility:Math.min(.46,Math.max(.31,Math.min(P.p.visibility??.4,N.p.visibility??.4)*.62)),_v40Repaired:true,_v40Reason:(reasons[i].get(j)||[]).join(' / ')};rep.push(j);repaired++;done=true;
+      }
+      if(!done&&l[j]){l[j]={...l[j],visibility:.01,_v40Rejected:true,_v40Reason:(reasons[i].get(j)||[]).join(' / ')};rej.push(j);rejected++;}
+    }
+    const penalty=Math.min(.42,bad.size*.055);try{f.poseQuality=Math.max(0,startOfflinePoseQuality(l)*(1-penalty));}catch(_){}
+    f._v40Integrity={ok:false,bad:[...bad],repaired:rep,rejected:rej,reasons};
+  }
+  v40Integrity={frames:frames.length,goodFrames:frames.length-badFrames,badFrames,badPoints,repaired,rejected,edgeRejects,jumpRejects,staticRejects,lastRun:Date.now()};window.__startV40Integrity=v40Integrity;
+}
+function v40IntegrityHtml(){
+  const s=v40Integrity;if(!s.frames)return '';const pct=Math.round(s.goodFrames/s.frames*100),cls=pct>=90?'':pct>=70?'warn':'bad';return `<div class="v40-integrity-line ${cls}"><b>人体整合性チェック：</b>${s.goodFrames}/${s.frames}F（${pct}%）で大きな骨格破綻なし ／ 異常ポイント ${s.badPoints}点 ／ 前後フレーム補間 ${s.repaired}点 ／ 計算から除外 ${s.rejected}点 ／ 固定物誤認疑い ${s.staticRejects||0}点。<br>スターティングブロック等へ関節点が飛んだ場合は、その点をそのまま距離・角度・接地計算に使いません。</div>`;
+}
+function v40UpdateIntegrityUi(){
+  const el=document.getElementById('start-athlete-track-diagnostics');if(el&&v40Integrity.frames){el.querySelector('.v40-integrity-line')?.remove();el.insertAdjacentHTML('beforeend',v40IntegrityHtml());}
+  const q=document.getElementById('start-offline-evaluation-quality');if(q&&v40Integrity.frames&&!q.querySelector('.v40-integrity-line'))q.insertAdjacentHTML('beforeend',v40IntegrityHtml());
+}
+/* Run integrity validation before every derived-value recomputation. */
+const v40RecomputeBase=startOfflineRecomputeDerived;
+startOfflineRecomputeDerived=function(...args){v40SanitizeStartPose();const r=v40RecomputeBase(...args);v40UpdateIntegrityUi();v40EnhanceStepEvidence();return r;};
+/* Auto contact duration sanity: keep the landing event, but do not present a 0.4–0.5 s auto duration as a valid sprint contact time. Manual liftoff remains authoritative. */
+const v40DetectBase=startOfflineDetectContacts;
+startOfflineDetectContacts=function(...args){const out=v40DetectBase(...args)||[];for(const c of out){const manual=!!(c.manualAnchor||c.manualLiftoff||String(c.source||'').includes('manual'));if(!manual&&Number.isFinite(c.duration)&&c.duration>.32){c.durationRaw=c.duration;c.duration=null;c.liftoffRaw=c.liftoff;c.liftoff=null;c.durationInvalid=true;c.durationInvalidReason='320ms超のため自動離地を異常値扱い（骨格/離地追跡を確認）';c.confidence=Math.max(.18,(c.confidence||0)*.62);c.source=String(c.source||'auto')+'-duration-caution';}const f=startOfflinePoseMap?.get?.(c.index??c.frame),bad=f?._v40Integrity?.bad||[];if(bad.length){const relevant=c.side==='left'?[25,27,29,31]:c.side==='right'?[26,28,30,32]:[];if(relevant.some(j=>bad.includes(j))){c.confidence=Math.max(.15,(c.confidence||0)*.68);c.integrityCaution=true;}}}return out;};
+/* Reset integrity counters for a new analysis run. */
+document.getElementById('start-offline-analyze')?.addEventListener('click',()=>{v40Integrity={frames:0,goodFrames:0,badFrames:0,badPoints:0,repaired:0,rejected:0,edgeRejects:0,jumpRejects:0,staticRejects:0,lastRun:0};window.__startV40Integrity=v40Integrity;},{capture:true});
+
+/* ---------- Unified inline [!] evidence ---------- */
+const v40FirstContactBase=startEvidenceFirstContact;
+startEvidenceFirstContact=function(){const i=Number.isInteger(startEvidence?.contactIndex)?startEvidence.contactIndex:null;return i!==null&&startOfflineContacts?.[i]?startOfflineContacts[i]:v40FirstContactBase();};
+function v40Viewer(){let v=document.getElementById('start-v40-evidence-viewer');if(v)return v;v=document.createElement('div');v.id='start-v40-evidence-viewer';v.className='v40-evidence-viewer';v.hidden=true;v.innerHTML='<div class="v40-evidence-head"><div class="v40-evidence-title">測定根拠</div><button type="button" class="v40-evidence-close">閉じる</button></div><canvas></canvas><div class="v40-evidence-status"></div>';v.querySelector('.v40-evidence-close').addEventListener('click',()=>v.hidden=true);document.getElementById('start-offline-analysis-area')?.appendChild(v);return v;}
+function v40ViewerHost(btn){if(btn.closest('#start-offline-sequence-table'))return document.getElementById('start-offline-sequence-table');if(btn.closest('#start-offline-step-results'))return document.getElementById('start-offline-step-results');if(btn.closest('#start-offline-clearance-posture'))return document.getElementById('start-offline-clearance-posture');const card=btn.closest('.data-card');if(card)return card;return document.getElementById('start-offline-evidence-hub')||document.getElementById('start-offline-results-grid');}
+function v40Compose(btn,title,frame,detail=''){
+  const v=v40Viewer(),host=v40ViewerHost(btn);if(host&&v.previousElementSibling!==host)host.insertAdjacentElement('afterend',v);const cv=v.querySelector('canvas'),ctx=cv.getContext('2d'),w=startOfflineCanvas.width||startOfflineVideo.videoWidth||1280,h=startOfflineCanvas.height||startOfflineVideo.videoHeight||720;cv.width=w;cv.height=h;ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);try{ctx.drawImage(startOfflineVideo,0,0,w,h);}catch(_){}try{ctx.drawImage(startOfflineCanvas,0,0,w,h);}catch(_){}v.querySelector('.v40-evidence-title').textContent=title;v.querySelector('.v40-evidence-status').innerHTML=`<b>Frame ${frame} ／ ${startOfflineFrameTime(frame).toFixed(3)} s</b>${detail?`<br>${detail}`:''}<br>黄色の線・円弧・点が、この値に使った測定根拠です。`;v.hidden=false;v.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function v40OpenEvidence(btn,kind,contactIndex=null){
+  if(!startOfflineFrameTimes?.length||!startOfflineVideo?.src)return;let frame=null,title='測定根拠',detail='',contact=null;
+  if(Number.isInteger(contactIndex)){contact=startOfflineContacts?.[contactIndex];frame=contact?.index??contact?.frame??null;title=`${contactIndex+1}歩目 接地`;if(contact){detail=`${contact.side==='left'?'左足':contact.side==='right'?'右足':'脚未判定'} ／ 信頼度 ${Math.round((contact.confidence||0)*100)}%${Number.isFinite(contact.duration)?` ／ 接地時間 ${(contact.duration*1000).toFixed(0)}ms`:contact.durationInvalidReason?` ／ ${contact.durationInvalidReason}`:''}`;}kind='start-step';}
+  else if(kind==='projection'){frame=startOfflineAngleIndex;title='スタート飛び出し角度';}
+  else if(String(kind).startsWith('clearance-')){frame=startEvidenceClearanceFrame();const g=startClearanceEvidenceGeometry(kind);title=g?.label?`ブロッククリアランス：${g.label}`:'ブロッククリアランス姿勢';if(g&&Number.isFinite(g.value))detail=`分度器表示 ${g.value.toFixed(1)}° ／ ${g.names.join('－')}`;}
+  else{contact=startOfflineContacts?.[0];frame=contact?.index??contact?.frame??null;title='1歩目接地';kind='first-contact';}
+  if(!Number.isFinite(frame)){const v=v40Viewer(),host=v40ViewerHost(btn);host?.insertAdjacentElement('afterend',v);v.querySelector('.v40-evidence-title').textContent=title;v.querySelector('.v40-evidence-status').textContent='根拠フレームを確定できません。解析結果または手動補正を確認してください。';v.hidden=false;return;}
+  startOfflineVideo.pause();startEvidence={kind,frame,contactIndex:Number.isInteger(contactIndex)?contactIndex:(contact?0:null)};await startOfflineSeekToFrame(frame);drawStartOfflineOverlay();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));v40Compose(btn,title,frame,detail);
+}
+function v40EnhanceStepEvidence(){
+  const root=document.getElementById('start-offline-step-results'),tbl=root?.querySelector('table');if(!tbl)return;const rows=[...tbl.querySelectorAll('tr')];if(!rows.length)return;const head=rows[0];if(!head.querySelector('.v40-step-head')){const th=document.createElement('th');th.className='v40-step-head';th.textContent='見る';head.appendChild(th);}rows.slice(1).forEach((tr,i)=>{if(tr.querySelector('[data-v40-start-contact-index]'))return;const td=document.createElement('td'),b=document.createElement('button');b.type='button';b.className='analysis-evidence-btn v40-step-evidence-btn';b.textContent='!';b.dataset.v40StartContactIndex=String(i);b.setAttribute('aria-label',`${i+1}歩目の接地フレームを見る`);td.appendChild(b);tr.appendChild(td);});
+}
+const v40RenderResultsBase=startOfflineRenderResults;startOfflineRenderResults=function(...args){const r=v40RenderResultsBase(...args);v40EnhanceStepEvidence();v40UpdateIntegrityUi();return r;};
+/* Capture phase deliberately supersedes the old "scroll to top video" handlers. */
+document.addEventListener('click',e=>{
+  const b=e.target.closest?.('[data-mandatory-start-contact],[data-v40-start-contact-index],.analysis-evidence-btn[data-start-evidence]');if(!b||!b.closest('#start-offline-analysis-area'))return;
+  e.preventDefault();e.stopImmediatePropagation();
+  if(b.hasAttribute('data-mandatory-start-contact'))return void v40OpenEvidence(b,'start-step',parseInt(b.dataset.mandatoryStartContact,10));
+  if(b.hasAttribute('data-v40-start-contact-index'))return void v40OpenEvidence(b,'start-step',parseInt(b.dataset.v40StartContactIndex,10));
+  return void v40OpenEvidence(b,b.dataset.startEvidence,null);
+},{capture:true});
+/* Show integrity summary after the legacy analysis status finishes updating. */
+const v40Status=document.getElementById('start-offline-analysis-status');if(v40Status)new MutationObserver(()=>{if(!v40Integrity.frames)return;const t=v40Status.textContent||'';if(/解析完了|人体Pose/.test(t)&&!t.includes('人体整合性')){const pct=Math.round(v40Integrity.goodFrames/v40Integrity.frames*100);v40Status.textContent=t+` ／ 人体整合性 ${v40Integrity.goodFrames}/${v40Integrity.frames}F (${pct}%)`;}}).observe(v40Status,{childList:true,subtree:true,characterData:true});
 })();
 </script>
 
