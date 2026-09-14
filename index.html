@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.13.41">
-<meta name="sprint-timer-build" content="20260913-2130">
+<meta name="sprint-timer-version" content="2026.09.14.42">
+<meta name="sprint-timer-build" content="20260914-v42-start-sequence">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.13.41";
-window.SPRINT_TIMER_BUILD = "20260913-2130";
+window.SPRINT_TIMER_VERSION = "2026.09.14.42";
+window.SPRINT_TIMER_BUILD = "20260914-v42-start-sequence";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1457,8 +1457,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.13.41</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260913-2130</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.14.42</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260914-v42-start-sequence</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -7538,7 +7538,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.13.41")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.14.42")}`,{
                 updateViaCache:"none"
             });
 
@@ -9426,8 +9426,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.13.41";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260913-2130";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.14.42";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260914-v42-start-sequence";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -10709,7 +10709,7 @@ function fixKeyframesAndContacts41(){if(!startOfflinePoseFrames?.length)return;c
 function stableNote41(){if(!S41.frames)return '';const cls=S41.stableScore>=.72?'':'warn',start=S41.stableStart??'--',end=S41.stableEnd??'--';return `<div class="v41-stable-pose-note ${cls}"><b>正常Pose基準：</b>Frame ${start}〜${end}付近の連続した人体形状を基準に、選手固有の骨長を学習しました。固定物へ張り付いた疑い ${S41.pinnedPoints}点 ／ 再構築 ${S41.repairedPoints}点 ／ 不確実で除外 ${S41.rejectedPoints}点${S41.sequenceAdded?` ／ 接地系列を${S41.sequenceAdded}件補完`:''}${S41.sequenceRelabeled?` ／ 脚判定を${S41.sequenceRelabeled}件再判定`:''}${S41.groundImproved?' ／ 地面モデルを正常Pose区間から再推定':''}。<br>再構築できない点は無理に数値化しません。</div>`;}
 function updateStableUi41(){const el=document.getElementById('start-athlete-track-diagnostics');if(el&&S41.frames){el.querySelector('.v41-stable-pose-note')?.remove();el.insertAdjacentHTML('beforeend',stableNote41());}const src=document.getElementById('start-offline-angle-source');if(src&&S41.keyframeShift>0){let n=document.getElementById('start-v41-keyframe-note');if(!n){n=document.createElement('div');n.id='start-v41-keyframe-note';n.className='v41-keyframe-note';src.insertAdjacentElement('afterend',n);}n.textContent='⚠ 壊れたPoseフレームを角度測定に使わず、直後の人体整合性が高いフレームへ自動補正しています。';}}
 const recompute41Base=startOfflineRecomputeDerived;
-startOfflineRecomputeDerived=function(...args){prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
+startOfflineRecomputeDerived=function(...args){if(window.SPRINT_TIMER_VERSION==="2026.09.14.42"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
 document.getElementById('start-offline-analyze')?.addEventListener('click',()=>{S41={frames:0,stableStart:null,stableEnd:null,stableScore:0,reference:new Map(),rawGood:new Set(),repairedPoints:0,rejectedPoints:0,pinnedPoints:0,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:0};window.__startV41StablePose=S41;},{capture:true});
 
 /* ---------- Beginner-friendly contact display ---------- */
@@ -10730,6 +10730,1052 @@ function installMsObservers41(){for(const id of ['start-offline-science-status',
 /* ---------- Explicit tested install flow when direct prompt is unavailable ---------- */
 function installGuide41(){const note=document.getElementById('app-browser-note-v39'),copy=document.getElementById('app-url-copy-v39'),open=document.getElementById('app-browser-open-v39'),topBtn=document.getElementById('app-install-top-btn'),topStatus=document.getElementById('app-install-top-status');if(!note)return;const direct=!!window.__sprintDeferredInstallPrompt;let confirmed=false;try{confirmed=localStorage.getItem('sprint-timer-install-confirmed')==='1';}catch(_){}if(confirmed||direct)return;note.innerHTML='<b>この画面から直接ホーム画面へ追加できない場合があります。</b><div class="v41-install-steps"><b>初回のみ、次の手順が最も確実です。</b><br>①「URLをコピー」<br>② Chromeを開く<br>③ Chromeのアドレス欄へURLを貼り付けて開く<br>④ Chrome右上の︙ →「アプリをインストール」または「ホーム画面に追加」<br><span style="color:#64748b">※ アドレスバーや☆がない画面では、Webページ側からブラウザの☆や︙を強制表示できません。</span></div>';if(copy)copy.textContent='① URLをコピー';if(open)open.textContent='② Chromeを開く（補助）';if(topBtn)topBtn.textContent='追加方法を確認';if(topStatus)topStatus.textContent='直接追加できない場合は、下の4手順でChromeから追加してください。';}
 for(const ev of ['pageshow','focus','sprint-install-ready','appinstalled'])window.addEventListener(ev,()=>setTimeout(installGuide41,40));document.addEventListener('DOMContentLoaded',()=>{ensureSequenceDetails41();compactSequence41();installGuide41();installMsObservers41();});setTimeout(installMsObservers41,0);
+})();
+</script>
+
+<style id="start-phase-sequence-v42-style">
+/* v42 is isolated to recorded START analysis. */
+.v42-analysis-note{margin-top:8px;padding:9px 10px;border-left:4px solid #2563eb;border-radius:8px;background:#eff6ff;color:#1e3a8a;font-size:12px;line-height:1.6}
+.v42-analysis-note.warn{border-left-color:#f59e0b;background:#fffbeb;color:#854d0e}
+.v42-analysis-note.bad{border-left-color:#ef4444;background:#fef2f2;color:#991b1b}
+.v42-analysis-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:7px}
+.v42-analysis-chip{padding:5px 7px;border:1px solid #bfdbfe;border-radius:8px;background:#fff;font-size:11px;font-weight:800}
+.v42-diagnostic-actions{display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px}
+.v42-diagnostic-btn{min-height:38px;border:1px solid #2563eb;border-radius:8px;background:#fff;color:#1d4ed8;font-weight:900}
+.v42-measurement-limit{margin:8px 0;padding:8px 9px;border:1px solid #fed7aa;border-radius:9px;background:#fff7ed;color:#9a3412;font-size:12px;line-height:1.55}
+.v42-measurement-limit.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+@media(max-width:600px){.v42-analysis-grid{grid-template-columns:1fr}.v42-analysis-note{font-size:11px}}
+</style>
+
+<script id="start-phase-sequence-v42-script">
+(()=>{
+'use strict';
+/* =====================================================================
+   Sprint Timer Pro v42 / recorded START only
+
+   Design goals
+   1. Every temporal rule uses seconds and real frame timestamps.
+   2. Detect ON_YOUR_MARKS -> SET_HOLD -> START_MOVEMENT without a fixed
+      "start must happen within 1.5 s" assumption.
+   3. Anchor the athlete identity in the first clean post-launch Pose run.
+   4. Track that torso image backwards, then re-run Pose chronologically
+      only on missing or mismatched frames.
+   5. Stabilize physical limbs across MediaPipe left/right label swaps.
+   6. Decode landing sequences globally and stop before an off-screen step.
+   7. Keep all manual Set, ground, contact, liftoff and landmark edits final.
+
+   No VBT, MyJump, neural-fatigue or SPRINTPEAK function is changed here.
+   ===================================================================== */
+
+const V42_VERSION='2026.09.14.42';
+const CFG42=Object.freeze({
+  stableSec:.10,
+  shortRepairSec:.10,
+  launchLookSec:.34,
+  preLaunchStableSec:.18,
+  minStepSec:.09,
+  maxStepSec:.42,
+  candidateClusterSec:.105,
+  exitConfirmSec:.09,
+  maxDiagnosticSignals:1200
+});
+const SEG42=[
+  {p:11,c:13,k:'lua',lo:.30,hi:.95},{p:13,c:15,k:'lfa',lo:.28,hi:.95},
+  {p:12,c:14,k:'rua',lo:.30,hi:.95},{p:14,c:16,k:'rfa',lo:.28,hi:.95},
+  {p:23,c:25,k:'lt',lo:.45,hi:1.35},{p:25,c:27,k:'ls',lo:.45,hi:1.35},
+  {p:24,c:26,k:'rt',lo:.45,hi:1.35},{p:26,c:28,k:'rs',lo:.45,hi:1.35},
+  {p:27,c:29,k:'lh',lo:.07,hi:.58},{p:27,c:31,k:'lf',lo:.10,hi:.72},
+  {p:28,c:30,k:'rh',lo:.07,hi:.58},{p:28,c:32,k:'rf',lo:.10,hi:.72}
+];
+const PARENT42={13:11,15:13,14:12,16:14,25:23,27:25,29:27,31:27,26:24,28:26,30:28,32:28};
+const LOWER_PAIRS42=[[23,24],[25,26],[27,28],[29,30],[31,32]];
+const ANALYZE_BUTTON42=document.getElementById('start-offline-analyze');
+const analyzeBase42=startOfflineAnalyze;
+const recomputeBase42=startOfflineRecomputeDerived;
+const detectBase42=startOfflineDetectContacts;
+const correctedBase42=startOfflineCorrectedLandmarks;
+const bodyStateBase42=startOfflineBodyStateAtFrame;
+const globalCalibrationBase42=startOfflineGlobalBodyCalibration;
+
+function fresh42(){
+  return {
+    version:V42_VERSION,
+    phase:{labels:new Map(),direction:0,setIndex:null,setT:null,holdStartT:null,launchIndex:null,launchT:null,clearanceIndex:null,clearanceT:null,confidence:0},
+    stable:{anchorIndex:null,anchorT:null,endIndex:null,score:0,reference:{}},
+    integrity:{frames:0,badFrames:0,badPoints:0,repaired:0,rejected:0,pinned:0},
+    recovery:{trackedFrames:0,suspectFrames:0,attempted:0,recovered:0,failed:0,meanCorrelation:null,reason:''},
+    limbs:{states:new Map(),switches:0,ambiguous:0,anchorIndex:null},
+    ground:{phaseBalanced:false,points:0,confidence:0},
+    boundary:{validEnd:Infinity,lastFullT:null,truncated:false,reason:'解析範囲末尾',partialCandidates:0},
+    candidates:[],
+    selectedCandidates:[],
+    lastRun:0,
+    running:false,
+    recomputing:false
+  };
+}
+let S42=fresh42();
+window.__startV42=S42;
+
+const clamp42=(v,a,b)=>Math.max(a,Math.min(b,v));
+function median42(values){
+  const a=(values||[]).filter(Number.isFinite).slice().sort((x,y)=>x-y);
+  if(!a.length)return NaN;
+  const m=a.length>>1;
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+function percentile42(values,p){
+  const a=(values||[]).filter(Number.isFinite).slice().sort((x,y)=>x-y);
+  if(!a.length)return NaN;
+  const x=clamp42(p,0,1)*(a.length-1),i=Math.floor(x),r=x-i;
+  return a[i]*(1-r)+a[Math.min(a.length-1,i+1)]*r;
+}
+function clone42(lm){return (lm||[]).map(p=>p?Object.assign({},p):p);}
+function distance42(a,b){return a&&b?Math.hypot(a.x-b.x,a.y-b.y):Infinity;}
+function raw42(frame){return frame?._v42RawLandmarks||frame?._v40OriginalLandmarks||frame?.landmarks||null;}
+function frame42(index){return startOfflinePoseMap?.get?.(index)||null;}
+function frameTime42(index){return Number.isFinite(startOfflineFrameTimes?.[index])?startOfflineFrameTimes[index]:NaN;}
+function frameStep42(){return 1/Math.max(1,startOfflineEffectiveFps());}
+function isManual42(c){return !!(c?.manualAnchor||c?.manual||String(c?.source||'').includes('manual'));}
+function inTime42(rows,t,lo,hi){return rows.filter(r=>r.t>=t+lo&&r.t<=t+hi);}
+function nearestByTime42(rows,t,maxGap=Infinity){
+  let best=null,bd=maxGap;
+  for(const r of rows){const d=Math.abs(r.t-t);if(d<bd){bd=d;best=r;}}
+  return best;
+}
+function pointPx42(p,w,h,min=.12){
+  return p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&(p.visibility??1)>=min?{x:p.x*w,y:p.y*h,v:p.visibility??1}:null;
+}
+function geometry42(lm,w,h){
+  if(!lm?.length)return null;
+  const core=[11,12,23,24].map(i=>pointPx42(lm[i],w,h,.16)).filter(Boolean);
+  if(core.length<3)return null;
+  const sh=[11,12].map(i=>pointPx42(lm[i],w,h,.12)).filter(Boolean);
+  const hp=[23,24].map(i=>pointPx42(lm[i],w,h,.12)).filter(Boolean);
+  if(!sh.length||!hp.length)return null;
+  const shoulder={x:sh.reduce((s,p)=>s+p.x,0)/sh.length,y:sh.reduce((s,p)=>s+p.y,0)/sh.length};
+  const hip={x:hp.reduce((s,p)=>s+p.x,0)/hp.length,y:hp.reduce((s,p)=>s+p.y,0)/hp.length};
+  const center={x:(shoulder.x+hip.x)/2,y:(shoulder.y+hip.y)/2};
+  const torso=Math.hypot(shoulder.x-hip.x,shoulder.y-hip.y);
+  if(!(torso>8))return null;
+  const body=[];
+  for(let i=0;i<33;i++){const p=pointPx42(lm[i],w,h,.20);if(p)body.push(p);}
+  const xs=body.map(p=>p.x),ys=body.map(p=>p.y);
+  const bbox=body.length>=7?{
+    x1:percentile42(xs,.04),x2:percentile42(xs,.96),
+    y1:percentile42(ys,.03),y2:percentile42(ys,.97)
+  }:{x1:center.x-torso*1.5,x2:center.x+torso*1.5,y1:center.y-torso*1.8,y2:center.y+torso*2.8};
+  return {center,shoulder,hip,torso,bbox,points:body.length};
+}
+function anatomy42(lm,w,h){
+  const geo=geometry42(lm,w,h);
+  if(!geo)return {score:0,hard:99,ratios:{},geo:null};
+  let seen=0,ok=0,hard=0,vis=[],ratios={};
+  for(const s of SEG42){
+    const a=pointPx42(lm[s.p],w,h,.08),b=pointPx42(lm[s.c],w,h,.08);
+    if(!a||!b)continue;
+    const r=distance42(a,b)/geo.torso;
+    ratios[s.k]=r;seen++;
+    vis.push(Math.min(lm[s.p]?.visibility??0,lm[s.c]?.visibility??0));
+    if(r>=s.lo&&r<=s.hi)ok++;
+    else if(r>s.hi*1.28||r<s.lo*.62)hard++;
+  }
+  const core=[11,12,23,24,25,26,27,28].map(i=>lm[i]?.visibility??0);
+  const q=median42(vis.concat(core))||0;
+  const score=clamp42((seen?ok/seen:0)*.68+clamp42((q-.22)/.68,0,1)*.32-hard*.06,0,1);
+  return {score,hard,ratios,geo};
+}
+function captureRaw42(){
+  S42.limbs={states:new Map(),switches:0,ambiguous:0,anchorIndex:null};
+  for(const f of startOfflinePoseFrames||[]){
+    if(!f._v42RawLandmarks)f._v42RawLandmarks=clone42(f._v40OriginalLandmarks||f.landmarks);
+    f.landmarks=clone42(f._v42RawLandmarks);
+    f._v40OriginalLandmarks=clone42(f._v42RawLandmarks);
+    delete f._v40Integrity;
+    delete f._v42Integrity;
+  }
+}
+function rows42(useRaw=false){
+  const w=startOfflineCanvas.width||startOfflineVideo.videoWidth||1280;
+  const h=startOfflineCanvas.height||startOfflineVideo.videoHeight||720;
+  const g=startOfflineGroundAxis();
+  const out=[];
+  for(const f of (startOfflinePoseFrames||[]).slice().sort((a,b)=>a.t-b.t)){
+    const lm=useRaw?raw42(f):f.landmarks;
+    const an=anatomy42(lm,w,h),geo=an.geo;
+    if(!geo)continue;
+    out.push({f,index:f.index,t:f.t,lm,an,geo,s:geo.hip.x*g.x+geo.hip.y*g.y,u:geo.hip.x*g.y-geo.hip.y*g.x});
+  }
+  for(let i=0;i<out.length;i++){
+    const r=out[i],a=nearestByTime42(out,r.t-.07,.10)||out[Math.max(0,i-1)],b=nearestByTime42(out,r.t+.07,.10)||out[Math.min(out.length-1,i+1)];
+    const dt=Math.max(.001,b.t-a.t);
+    r.speed=(b.s-a.s)/(Math.max(1,w)*dt);
+    r.motion=distance42(a.geo.center,b.geo.center)/(Math.max(1,w)*dt);
+    r.smoothS=median42(inTime42(out,r.t,-.055,.055).map(x=>x.s));
+    r.smoothMotion=median42(inTime42(out,r.t,-.08,.08).map(x=>x.motion));
+  }
+  return out;
+}
+
+function detectPhase42(useRaw=false){
+  const rs=rows42(useRaw),w=Math.max(1,startOfflineCanvas.width||startOfflineVideo.videoWidth||1280);
+  const labels=new Map();
+  if(rs.length<3)return {labels,direction:0,setIndex:null,setT:null,holdStartT:null,launchIndex:null,launchT:null,clearanceIndex:null,clearanceT:null,confidence:0,rows:rs};
+  const manualDirection=document.getElementById('start-offline-direction')?.value;
+  const q=Math.max(2,Math.floor(rs.length*.18));
+  const early=median42(rs.slice(0,q).map(r=>r.smoothS));
+  const late=median42(rs.slice(-q).map(r=>r.smoothS));
+  let direction=manualDirection==='left'?-1:manualDirection==='right'?1:(late>=early?1:-1);
+  if(Math.abs(late-early)<w*.012)direction=0;
+  if(!direction)direction=startOfflineAutoDirection||1;
+  let launch=null,bestFallback=null;
+  for(const r of rs){
+    const f18=nearestByTime42(rs,r.t+.18,.07),f34=nearestByTime42(rs,r.t+CFG42.launchLookSec,.09);
+    if(!f18||!f34)continue;
+    const d18=(f18.smoothS-r.smoothS)*direction/w,d34=(f34.smoothS-r.smoothS)*direction/w;
+    const pre=inTime42(rs,r.t,-CFG42.preLaunchStableSec,-.025);
+    const post=inTime42(rs,r.t,.025,.28);
+    const preMotion=median42(pre.map(x=>x.smoothMotion));
+    const postSpeed=median42(post.map(x=>x.speed*direction));
+    const stableQ=clamp42((.075-(Number.isFinite(preMotion)?preMotion:.075))/.065,0,1);
+    const moveQ=clamp42(((Number.isFinite(postSpeed)?postSpeed:0)-.035)/.17,0,1);
+    const dispQ=clamp42((d34-.012)/.065,0,1);
+    const shortQ=clamp42((d18-.004)/.032,0,1);
+    const quality=clamp42(r.an.score,0,1);
+    const score=stableQ*.24+moveQ*.27+dispQ*.27+shortQ*.12+quality*.10;
+    if(!bestFallback||score>bestFallback.score)bestFallback={r,score,d34,postSpeed};
+    if(d34>.018&&d18>.003&&postSpeed>.043&&score>.48){launch={r,score};break;}
+  }
+  if(!launch&&bestFallback&&bestFallback.d34>.015)launch={r:bestFallback.r,score:bestFallback.score*.78};
+  if(!launch){
+    const moving=rs.find(r=>Math.abs(r.speed)>.055);
+    launch={r:moving||rs[0],score:.22};
+  }
+  let launchRow=launch.r;
+  const refinedOnset=rs.find(r=>r.t>=launchRow.t&&r.t<=launchRow.t+.24&&r.speed*direction>.040&&median42(inTime42(rs,r.t,.015,.16).map(x=>x.speed*direction))>.050);
+  if(refinedOnset)launchRow=refinedOnset;
+  const before=rs.filter(r=>r.t<launchRow.t-.008);
+  let setRow=null;
+  for(let i=before.length-1;i>=0;i--){
+    const r=before[i];
+    if((r.smoothMotion||0)<.075&&r.an.score>=.35){setRow=r;break;}
+  }
+  setRow=setRow||before[before.length-1]||rs[0];
+  let holdStart=setRow,breaks=0;
+  const setPos=rs.indexOf(setRow);
+  for(let i=setPos-1;i>=0;i--){
+    const r=rs[i],gap=rs[i+1].t-r.t,stable=(r.smoothMotion||0)<.068&&gap<.16;
+    if(stable){holdStart=r;breaks=0;}else if(++breaks>=2)break;
+  }
+  const anchorSearch=rs.filter(r=>r.t>=launchRow.t+.035);
+  let anchor=null;
+  for(const r of anchorSearch){
+    const run=inTime42(anchorSearch,r.t,0,CFG42.stableSec+.012);
+    const duration=run.length?run[run.length-1].t-r.t:0;
+    if(duration>=CFG42.stableSec*.72&&run.length>=2&&run.every(x=>x.an.score>=.65&&x.an.hard===0)){anchor={r,end:run[run.length-1],score:median42(run.map(x=>x.an.score))};break;}
+  }
+  if(!anchor){
+    const good=anchorSearch.slice().sort((a,b)=>b.an.score-a.an.score)[0]||launchRow;
+    anchor={r:good,end:good,score:good.an.score||.2};
+  }
+  for(const r of rs){
+    let state='ON_YOUR_MARKS';
+    if(r.t>=holdStart.t&&r.t<launchRow.t)state='SET_HOLD';
+    else if(r.t>=launchRow.t)state='START_MOVEMENT';
+    labels.set(r.index,state);
+  }
+  return {
+    labels,direction,
+    setIndex:setRow.index,setT:setRow.t,holdStartT:holdStart.t,
+    launchIndex:launchRow.index,launchT:launchRow.t,
+    clearanceIndex:null,clearanceT:null,
+    confidence:clamp42(launch.score*.72+anchor.score*.28,0,1),
+    rows:rs,
+    anchorIndex:anchor.r.index,anchorT:anchor.r.t,anchorEndIndex:anchor.end.index,anchorScore:anchor.score
+  };
+}
+
+function buildReference42(phase){
+  const w=startOfflineCanvas.width||startOfflineVideo.videoWidth||1280,h=startOfflineCanvas.height||startOfflineVideo.videoHeight||720;
+  const frames=(startOfflinePoseFrames||[]).filter(f=>f.t>=phase.anchorT-.001&&f.t<=phase.anchorT+.55);
+  const good=frames.map(f=>({f,an:anatomy42(f.landmarks,w,h)})).filter(x=>x.an.score>=.62&&x.an.hard<=1);
+  const source=good.length>=2?good:(startOfflinePoseFrames||[]).map(f=>({f,an:anatomy42(f.landmarks,w,h)})).filter(x=>x.an.score>=.68&&x.f.t>=phase.launchT);
+  const reference={};
+  for(const s of SEG42){const m=median42(source.map(x=>x.an.ratios[s.k]));if(Number.isFinite(m))reference[s.k]=m;}
+  S42.stable={anchorIndex:phase.anchorIndex,anchorT:phase.anchorT,endIndex:phase.anchorEndIndex,score:phase.anchorScore,reference};
+  return reference;
+}
+function temporalNeighbor42(frames,i,seconds,dir){
+  const t=frames[i].t;
+  let best=null,bd=Infinity;
+  for(let k=i+dir;k>=0&&k<frames.length;k+=dir){
+    const d=Math.abs(frames[k].t-t);
+    if(d>seconds)break;
+    if(d<bd){bd=d;best={f:frames[k],i:k};}
+  }
+  return best;
+}
+function applyIntegrity42(phase){
+  const frames=(startOfflinePoseFrames||[]).slice().sort((a,b)=>a.t-b.t);
+  const w=startOfflineCanvas.width||startOfflineVideo.videoWidth||1280,h=startOfflineCanvas.height||startOfflineVideo.videoHeight||720;
+  const ref=buildReference42(phase),marks=frames.map(()=>new Set()),reasons=frames.map(()=>new Map());
+  const mark=(i,j,why)=>{marks[i].add(j);const a=reasons[i].get(j)||[];a.push(why);reasons[i].set(j,a);};
+  for(let i=0;i<frames.length;i++){
+    const l=frames[i].landmarks,an=anatomy42(l,w,h),torso=Math.max(24,an.geo?.torso||60);
+    for(const s of SEG42){
+      const r=an.ratios[s.k],rr=ref[s.k];
+      if(!Number.isFinite(r)||!Number.isFinite(rr))continue;
+      if(r>rr*1.48||r<rr*.57||r>s.hi*1.16||r<s.lo*.70)mark(i,s.c,'正常Pose骨長から逸脱');
+    }
+    const P=temporalNeighbor42(frames,i,.12,-1),N=temporalNeighbor42(frames,i,.12,1);
+    if(!P||!N||N.f.t<=P.f.t)continue;
+    const gp=geometry42(P.f.landmarks,w,h),gn=geometry42(N.f.landmarks,w,h);
+    const bodyMove=distance42(gp?.center,gn?.center);
+    if(!(bodyMove>Math.max(8,torso*.11)))continue;
+    for(const j of [25,26,27,28,29,30,31,32]){
+      const a=pointPx42(P.f.landmarks?.[j],w,h,.08),b=pointPx42(N.f.landmarks?.[j],w,h,.08);
+      const par=PARENT42[j],c=pointPx42(l?.[j],w,h,.08),p=pointPx42(l?.[par],w,h,.08);
+      const seg=SEG42.find(s=>s.c===j),rr=seg?ref[seg.k]:NaN;
+      if(!a||!b||!c||!p||!Number.isFinite(rr))continue;
+      if(distance42(a,b)<Math.max(3,torso*.045)&&distance42(c,p)>rr*torso*1.16)mark(i,j,'身体移動中に固定物へ停留');
+    }
+  }
+  let badFrames=0,badPoints=0,repaired=0,rejected=0,pinned=0;
+  for(let i=0;i<frames.length;i++){
+    const f=frames[i],bad=marks[i],out=clone42(f.landmarks);
+    if(!bad.size){f._v42Integrity={ok:true,bad:[],repaired:[],rejected:[]};continue;}
+    badFrames++;badPoints+=bad.size;
+    const rep=[],rej=[];
+    for(const j of bad){
+      const why=(reasons[i].get(j)||[]).join(' / ');
+      if(why.includes('固定物'))pinned++;
+      const P=temporalNeighbor42(frames,i,CFG42.shortRepairSec,-1),N=temporalNeighbor42(frames,i,CFG42.shortRepairSec,1);
+      let done=false;
+      if(P&&N&&!marks[P.i].has(j)&&!marks[N.i].has(j)&&N.f.t>P.f.t){
+        const a=(f.t-P.f.t)/(N.f.t-P.f.t),x=P.f.landmarks?.[j],y=N.f.landmarks?.[j];
+        if(x&&y&&(x.visibility??0)>=.28&&(y.visibility??0)>=.28){
+          out[j]=Object.assign({},out[j],{
+            x:x.x+(y.x-x.x)*a,y:x.y+(y.y-x.y)*a,
+            z:Number.isFinite(x.z)&&Number.isFinite(y.z)?x.z+(y.z-x.z)*a:(out[j]?.z||0),
+            visibility:Math.min(.46,Math.max(.30,Math.min(x.visibility??.4,y.visibility??.4)*.64)),
+            _v42Repaired:true,_v42Reason:why
+          });
+          rep.push(j);repaired++;done=true;
+        }
+      }
+      if(!done&&out[j]){
+        out[j]=Object.assign({},out[j],{visibility:.01,_v42Rejected:true,_v42Reason:why});
+        rej.push(j);rejected++;
+      }
+    }
+    f.landmarks=out;
+    f.poseQuality=startOfflinePoseQuality(out);
+    f._v42Integrity={ok:false,bad:[...bad],repaired:rep,rejected:rej,reasons:[...reasons[i].entries()]};
+  }
+  S42.integrity={frames:frames.length,badFrames,badPoints,repaired,rejected,pinned};
+}
+
+/* Physical left/right continuity. The clean anchor is forced to the normal
+   MediaPipe mapping; before and after it, a two-state Viterbi path may swap
+   the complete lower-limb chains together. */
+function limbTransitionCost42(prev,curr,dt){
+  if(!prev&&!curr)return .06;
+  if(!prev||!curr)return .38;
+  const px=Math.hypot(curr.p.x-prev.p.x,curr.p.y-prev.p.y);
+  const ppm=median42([prev.scale?.pxPerMeter,curr.scale?.pxPerMeter]);
+  const meters=Number.isFinite(ppm)&&ppm>20?px/ppm:px/Math.max(80,startOfflineCanvas.height*.35);
+  return clamp42(meters/Math.max(.10,dt*10.5),0,2.4);
+}
+function stabilizeLimbs42(rawSeries,rawDetail,phase){
+  const byIndex=new Map();
+  for(const side of ['left','right']){
+    for(const q of rawSeries?.[side]||[]){
+      let r=byIndex.get(q.index);if(!r){r={index:q.index,t:q.t,left:null,right:null};byIndex.set(q.index,r);}
+      r[side]=q;
+    }
+  }
+  const rows=[...byIndex.values()].sort((a,b)=>a.t-b.t);
+  if(!rows.length)return {detail:rawDetail,series:rawSeries,states:new Map(),switches:0,ambiguous:0};
+  const dp=rows.map(()=>[Infinity,Infinity]),parent=rows.map(()=>[-1,-1]);
+  dp[0][0]=0;dp[0][1]=.16;
+  const assigned=(r,state,physical)=>state===0?r[physical]:(physical==='left'?r.right:r.left);
+  for(let i=1;i<rows.length;i++){
+    const dt=Math.max(.005,rows[i].t-rows[i-1].t);
+    for(let s=0;s<2;s++){
+      const anchorPenalty=Math.abs(rows[i].t-phase.anchorT)<=Math.max(frameStep42(),.018)&&s===1?4:0;
+      for(let ps=0;ps<2;ps++){
+        const c=dp[i-1][ps]+limbTransitionCost42(assigned(rows[i-1],ps,'left'),assigned(rows[i],s,'left'),dt)+limbTransitionCost42(assigned(rows[i-1],ps,'right'),assigned(rows[i],s,'right'),dt)+(ps===s?0:.075)+anchorPenalty;
+        if(c<dp[i][s]){dp[i][s]=c;parent[i][s]=ps;}
+      }
+    }
+  }
+  let state=dp[rows.length-1][0]<=dp[rows.length-1][1]?0:1;
+  const states=new Map();
+  for(let i=rows.length-1;i>=0;i--){states.set(rows[i].index,state);state=i>0?Math.max(0,parent[i][state]):state;}
+  let switches=0,last=null,ambiguous=0;
+  for(const r of rows){const s=states.get(r.index)||0;if(last!==null&&s!==last)switches++;last=s;if(!r.left||!r.right)ambiguous++;}
+  const detail=new Map();
+  for(const [idx,rec] of rawDetail||[]){
+    if((states.get(idx)||0)===1)detail.set(idx,{left:rec?.right,right:rec?.left});
+    else detail.set(idx,rec);
+  }
+  return {detail,states,switches,ambiguous};
+}
+
+startOfflineCorrectedLandmarks=function(frameOrIndex){
+  const l=correctedBase42(frameOrIndex);
+  if(!l)return l;
+  const f=typeof frameOrIndex==='number'?frame42(frameOrIndex):frameOrIndex;
+  if(!f||startOfflineLandmarkCorrections?.has?.(f.index)||(S42.limbs.states.get(f.index)||0)!==1)return l;
+  const out=clone42(l);
+  for(const pair of LOWER_PAIRS42){const a=pair[0],b=pair[1],tmp=out[a];out[a]=out[b];out[b]=tmp;}
+  return out;
+};
+
+function chooseEven42(items,max){
+  if(items.length<=max)return items;
+  const out=[];
+  for(let i=0;i<max;i++)out.push(items[Math.round(i*(items.length-1)/(max-1))]);
+  return out;
+}
+function balancedCalibration42(){
+  const frames=(startOfflinePoseFrames||[]).filter(f=>f.landmarks);
+  if(!frames.length)return globalCalibrationBase42();
+  const p=S42.phase||{},set=frames.filter(f=>Number.isFinite(p.launchT)&&f.t>=Math.max(startOfflineRangeStart||0,p.launchT-.45)&&f.t<p.launchT),run=frames.filter(f=>!Number.isFinite(p.launchT)||f.t>=p.launchT+.06);
+  const picked=chooseEven42(set.filter(f=>(f._v42Integrity?.bad?.length||0)<3),10).concat(chooseEven42(run.filter(f=>(f._v42Integrity?.bad?.length||0)<3),36));
+  const states=[];
+  for(const f of picked){
+    const s=bodyCalibrationEstimate(startOfflineCorrectedLandmarks(f),startOfflineCanvas.width,startOfflineCanvas.height,bodyReadCalibrationProfile());
+    if(s?.pxPerMeter&&s.confidence>=.25)states.push(s);
+  }
+  return states.length?bodyRobustCalibration(states):globalCalibrationBase42();
+}
+startOfflineGlobalBodyCalibration=balancedCalibration42;
+startOfflineBodyStateAtFrame=function(frame){
+  if(!frame)return bodyStateBase42(frame);
+  const around=(startOfflinePoseFrames||[]).filter(f=>Math.abs(f.t-frame.t)<=.105&&(f._v42Integrity?.bad?.length||0)<4);
+  const states=[];
+  for(const f of around){
+    const s=bodyCalibrationEstimate(startOfflineCorrectedLandmarks(f),startOfflineCanvas.width,startOfflineCanvas.height,bodyReadCalibrationProfile());
+    if(s?.pxPerMeter&&s.confidence>=.22)states.push(s);
+  }
+  return states.length?bodyRobustCalibration(states):bodyStateBase42(frame);
+};
+
+function phaseBalancedGround42(detail,phase,baseGround){
+  if(baseGround?.manual||startOfflineGroundModel?.manual)return startOfflineGroundModel?.manual?startOfflineGroundModel:baseGround;
+  const selected=new Map(),from=(phase.launchT??startOfflineRangeStart??0)+.14;
+  let lastAcceptedT=-Infinity;
+  for(const f of (startOfflinePoseFrames||[]).slice().sort((a,b)=>a.t-b.t)){
+    if(f.t<from||(f.poseQuality||0)<.16||(f._v42Integrity?.bad?.length||0)>5)continue;
+    const rec=detail.get(f.index);if(!rec)continue;
+    if(f.t-lastAcceptedT<Math.min(.018,frameStep42()*.70))continue;
+    const hasFoot=['left','right'].some(side=>{
+      const q=rec?.[side];return [q?.heel,q?.toe].some(p=>p&&(p.visibility??0)>=.27);
+    });
+    if(hasFoot){selected.set(f.index,rec);lastAcceptedT=f.t;}
+  }
+  const gm=offlineBuildFixedGroundModel(selected,startOfflineGroundAxis(),startOfflineUpUnit());
+  if(gm?.valid&&gm.points>=6&&gm.confidence>=.24){
+    S42.ground={phaseBalanced:true,points:gm.points,confidence:gm.confidence};
+    return gm;
+  }
+  S42.ground={phaseBalanced:false,points:baseGround?.points||0,confidence:baseGround?.confidence||0};
+  return baseGround;
+}
+
+/* Refit derivatives over the same physical time span at every source FPS.
+   This removes the 24/30/60 fps bandwidth change caused by i-1/i+1 only. */
+function timeSlope42(arr,i,key,half=.060){
+  const t0=arr[i].t,rows=[];
+  for(let j=i;j>=0&&t0-arr[j].t<=half;j--)if(Number.isFinite(arr[j][key]))rows.push(arr[j]);
+  for(let j=i+1;j<arr.length&&arr[j].t-t0<=half;j++)if(Number.isFinite(arr[j][key]))rows.push(arr[j]);
+  if(rows.length<2)return NaN;
+  const mt=rows.reduce((s,x)=>s+x.t,0)/rows.length,mv=rows.reduce((s,x)=>s+x[key],0)/rows.length;
+  let num=0,den=0;for(const x of rows){const dt=x.t-mt;num+=dt*(x[key]-mv);den+=dt*dt;}
+  return den>1e-8?num/den:NaN;
+}
+function normalizeSignalVelocity42(series){
+  for(const side of ['left','right']){
+    const arr=series?.[side]||[];
+    for(let i=0;i<arr.length;i++){
+      const q=arr[i],near=[];
+      for(let j=i;j>=0&&q.t-arr[j].t<=.060;j--)near.push(arr[j].scale?.pxPerMeter);
+      for(let j=i+1;j<arr.length&&arr[j].t-q.t<=.060;j++)near.push(arr[j].scale?.pxPerMeter);
+      const ppm=median42(near);
+      const div=Number.isFinite(ppm)&&ppm>20?ppm:NaN;
+      const assign=(target,key)=>{const v=timeSlope42(arr,i,key,.060);q[target]=Number.isFinite(v)&&Number.isFinite(div)?v/div:NaN;};
+      assign('vGround','centerS');assign('toeVUp','toeUp');assign('heelVUp','heelUp');assign('ankleVUp','ankleUp');
+      q.angleRate=timeSlope42(arr,i,'footAngle',.060);
+    }
+  }
+  return series;
+}
+
+function detectClearance42(phase,detail){
+  if(startOfflineManualClearanceIndex!==null){
+    const f=frame42(startOfflineManualClearanceIndex);
+    return {index:startOfflineManualClearanceIndex,t:f?.t??frameTime42(startOfflineManualClearanceIndex)};
+  }
+  const setRec=detail.get(phase.setIndex)||{},g=startOfflineGroundAxis(),u=startOfflineUpUnit(),dir=phase.direction||1;
+  const point=q=>q?.center||q?.ankle||q?.toe||q?.heel||null;
+  const lp=point(setRec.left),rp=point(setRec.right);
+  if(!lp&&!rp)return {index:null,t:null};
+  const s=p=>p.x*g.x+p.y*g.y;
+  const side=!rp?'left':!lp?'right':dir>0?(s(lp)>=s(rp)?'left':'right'):(s(lp)<=s(rp)?'left':'right');
+  const base=point(setRec[side]);
+  const arr=startOfflineFootSignals?.[side]||[];
+  let first=null;
+  for(let i=0;i<arr.length;i++){
+    const q=arr[i];if(q.t<phase.launchT-.01)continue;
+    const dx=q.p.x-base.x,dy=q.p.y-base.y,fw=(dx*g.x+dy*g.y)*dir,up=dx*u.x+dy*u.y;
+    const sc=q.scale?.pxPerMeter||startOfflineScaleSummary?.pxPerMeter||0;
+    const fwN=sc>20?fw/sc:fw/Math.max(60,startOfflineCanvas.height*.30);
+    const upN=sc>20?up/sc:up/Math.max(60,startOfflineCanvas.height*.30);
+    const moved=fwN>.045||upN>.030;
+    if(moved&&!first)first=q;
+    if(!moved){first=null;continue;}
+    const later=arr.find(x=>x.t>=q.t+Math.max(.025,frameStep42()*.8)&&x.t<=q.t+.09);
+    if(first&&later){
+      const ldx=later.p.x-base.x,ldy=later.p.y-base.y,lfw=(ldx*g.x+ldy*g.y)*dir,lup=ldx*u.x+ldy*u.y;
+      if((sc>20?lfw/sc:lfw/Math.max(60,startOfflineCanvas.height*.30))>.035||(sc>20?lup/sc:lup/Math.max(60,startOfflineCanvas.height*.30))>.024)return {index:first.index,t:first.t,side};
+    }
+  }
+  return {index:phase.launchIndex,t:phase.launchT,side};
+}
+
+function measurementBoundary42(phase){
+  const frames=(startOfflinePoseFrames||[]).filter(f=>f.t>=Math.max(startOfflineRangeStart||0,(phase.launchT||0)-.05)).sort((a,b)=>a.t-b.t);
+  const rangeEnd=Math.min(startOfflineRangeEnd??startOfflineVideo.duration??Infinity,startOfflineVideo.duration||Infinity);
+  if(frames.length<2)return {validEnd:rangeEnd,lastFullT:null,truncated:false,reason:'Poseフレーム不足'};
+  const dir=phase.direction||1,w=startOfflineCanvas.width||1,h=startOfflineCanvas.height||1;
+  let started=false,lastGood=null,badSince=null,truncated=false;
+  for(const f of frames){
+    const l=startOfflineCorrectedLandmarks(f),core=[11,12,23,24].map(i=>l?.[i]).filter(Boolean),lower=[23,24,25,26,27,28,29,30,31,32].map(i=>l?.[i]).filter(Boolean);
+    const coreIn=core.filter(p=>(p.visibility??0)>=.16&&p.x>=-.015&&p.x<=1.015&&p.y>=-.04&&p.y<=1.04).length;
+    const lowerIn=lower.filter(p=>(p.visibility??0)>=.14&&p.x>=-.02&&p.x<=1.02&&p.y>=-.05&&p.y<=1.05).length;
+    const geo=geometry42(l,w,h),cx=geo?.hip?.x/w;
+    const edgeOk=Number.isFinite(cx)&&(dir>0?cx<.965:cx>.035);
+    const good=coreIn>=3&&lowerIn>=5&&edgeOk&&(f.poseQuality||0)>=.08;
+    if(good){started=true;lastGood=f.t;badSince=null;}
+    else if(started){
+      if(badSince===null)badSince=f.t;
+      if(f.t-badSince>=CFG42.exitConfirmSec){truncated=true;break;}
+    }
+  }
+  const pad=Math.min(frameStep42()*.55,.025);
+  const validEnd=truncated&&Number.isFinite(lastGood)?Math.min(rangeEnd,lastGood+pad):rangeEnd;
+  return {validEnd,lastFullT:lastGood,truncated,reason:truncated?'進行方向の画面端で身体・足部の完全観測を終了':'解析範囲末尾まで観測'};
+}
+
+function partConsensus42(q){
+  const vals=[
+    [q?.toeHeightM,.046,q?.parts?.toe],
+    [q?.heelHeightM,.052,q?.parts?.heel],
+    [q?.ankleHeightM,.122,q?.parts?.ankle]
+  ];
+  let available=0,near=0,weight=0,total=0;
+  for(const x of vals){
+    const h=x[0],thr=x[1],p=x[2];
+    if(!Number.isFinite(h)||!p||(p.visibility??0)<.14)continue;
+    const v=clamp42(p.visibility??.2,.15,1);available++;total+=v;
+    if(h<=thr){near++;weight+=v*clamp42((thr+.018-h)/.038,.2,1);}
+  }
+  return {available,near,score:total?weight/total:0};
+}
+function landingEmission42(arr,i){
+  const q=arr[i],h=q?.contactHeightM;
+  if(!q||!Number.isFinite(h))return null;
+  const pre=arr.filter(x=>x.t>=q.t-.24&&x.t<=q.t-Math.max(.012,frameStep42()*.35));
+  const post=arr.filter(x=>x.t>=q.t&&x.t<=q.t+.10);
+  const airMax=Math.max(-Infinity,...pre.map(x=>x.contactHeightM).filter(Number.isFinite));
+  const drop=Number.isFinite(airMax)?airMax-h:0;
+  const groundQ=clamp42((.058-h)/.052,0,1);
+  const airQ=Number.isFinite(airMax)?clamp42((airMax-.026)/.040,0,1):0;
+  const dropQ=clamp42((drop-.004)/.032,0,1);
+  const cons=partConsensus42(q);
+  const postNear=post.length?post.filter(x=>{const c=partConsensus42(x);return c.near>=Math.min(2,c.available)&&c.available>=1;}).length/post.length:0;
+  const p=arr[i-1],n=arr[i+1];
+  const localMin=(!Number.isFinite(p?.contactHeightM)||h<=p.contactHeightM+.007)&&(!Number.isFinite(n?.contactHeightM)||h<=n.contactHeightM+.007)?1:0;
+  const down=pre.some(x=>[x.toeVUp,x.ankleVUp].some(v=>Number.isFinite(v)&&v<-.08))?1:.25;
+  const quality=clamp42(q.confidence||0,0,1);
+  const score=clamp42(groundQ*.25+airQ*.20+dropQ*.14+cons.score*.15+postNear*.10+localMin*.06+down*.035+quality*.065,0,1);
+  return {score,groundQ,airQ,dropQ,cons,postNear,localMin,down};
+}
+function makeContact42(side,q,arr,index,em,source){
+  const end=offlineContactEndStatus(arr,index,.70,.035);
+  return {
+    side,index:q.index,frame:q.index,t:q.t,x:q.p.x,y:q.p.y,
+    visibility:q.p.visibility??q.confidence,
+    confidence:clamp42((q.confidence||0)*.34+em.score*.52+(startOfflineGroundModel?.confidence||0)*.08+.06,.25,.95),
+    source:source||'v42-time-state',
+    liftoff:end.liftoff?.t??null,duration:end.duration,
+    durationInvalid:!!end.invalidReason,durationInvalidReason:end.invalidReason,
+    method:'時間正規化・足部3点・物理脚系列',
+    contactEvidence:em.score,temporalScore:em.score,
+    uncertaintySec:frameStep42()/2,_signal:q,_v42Emission:em
+  };
+}
+function sideCandidates42(side,arr,startT){
+  const out=[];let flight=false,last=-Infinity;
+  for(let i=0;i<arr.length;i++){
+    const q=arr[i],h=q.contactHeightM;
+    if(q.t<startT-.22)continue;
+    if(Number.isFinite(h)&&h>.040&&(q.confidence||0)>=.14)flight=true;
+    if(q.t<startT||q.t-last<CFG42.candidateClusterSec)continue;
+    const em=landingEmission42(arr,i);
+    if(!em||em.groundQ<.28||em.score<.37||(!flight&&em.airQ<.28))continue;
+    let best={i,em};
+    for(let j=i+1;j<arr.length&&arr[j].t<=q.t+.065;j++){
+      const x=landingEmission42(arr,j);
+      if(x&&x.score>best.em.score+.018)best={i:j,em:x};
+    }
+    out.push(makeContact42(side,arr[best.i],arr,best.i,best.em,'v42-time-state'));
+    last=arr[best.i].t;flight=false;i=best.i;
+  }
+  return out;
+}
+function cleanEvent42(c){
+  return {
+    side:c.side,index:c.index,frame:c.frame,t:c.t,x:c.x,y:c.y,
+    confidence:c.confidence||0,source:c.source||'auto',
+    liftoff:Number.isFinite(c.liftoff)?c.liftoff:null,
+    duration:Number.isFinite(c.duration)?c.duration:null,
+    durationInvalid:!!c.durationInvalid,durationInvalidReason:c.durationInvalidReason||null,
+    method:c.method||'',contactEvidence:c.contactEvidence||c.temporalScore||0,
+    uncertaintySec:Number.isFinite(c.uncertaintySec)?c.uncertaintySec:frameStep42()/2,
+    manualAnchor:!!c.manualAnchor,manual:!!c.manual
+  };
+}
+function dedupeCandidates42(events){
+  const out=[];
+  for(const c of events.filter(x=>Number.isFinite(x?.t)).sort((a,b)=>a.t-b.t||(b.confidence||0)-(a.confidence||0))){
+    const same=out.findIndex(x=>x.side===c.side&&Math.abs(x.t-c.t)<.055);
+    if(same>=0){if((c.confidence||0)>(out[same].confidence||0)||c.manualAnchor)out[same]=c;continue;}
+    out.push(c);
+  }
+  return out.sort((a,b)=>a.t-b.t);
+}
+function selectSequence42(candidates,startT,endT){
+  const c=candidates.filter(x=>x.t>=startT&&x.t<=endT).sort((a,b)=>a.t-b.t);
+  if(!c.length)return [];
+  const best=c.map((x,i)=>({score:(x.confidence||0)-.18,path:[i],typical:.22}));
+  for(let j=0;j<c.length;j++){
+    for(let i=0;i<j;i++){
+      const dt=c[j].t-c[i].t;
+      if(dt<CFG42.minStepSec||dt>CFG42.maxStepSec)continue;
+      const base=best[i],typ=base.typical||.22;
+      const timingQ=clamp42(1-Math.abs(dt-typ)/Math.max(.10,typ*.72),0,1);
+      const alternating=c[i].side!==c[j].side;
+      const gain=(c[j].confidence||0)-.30+(alternating?.16:-.17)+timingQ*.09;
+      const score=base.score+gain;
+      if(score>best[j].score+.001){
+        const ints=base.path.slice(-3).map((idx,k,a)=>k?c[idx].t-c[a[k-1]].t:NaN).filter(Number.isFinite).concat(dt);
+        best[j]={score,path:base.path.concat(j),typical:clamp42(median42(ints)||dt,.12,.34)};
+      }
+    }
+  }
+  let win=best[0];
+  for(const x of best){const a=x.score+x.path.length*.035,b=win.score+win.path.length*.035;if(a>b)win=x;}
+  return win.path.map(i=>c[i]);
+}
+function decodeContacts42(anchorIndex){
+  let legacy=[];
+  try{legacy=detectBase42(anchorIndex)||[];}catch(e){console.warn('v42 legacy contact candidates',e);}
+  const phase=S42.phase||{},clearT=Number.isFinite(phase.clearanceT)?phase.clearanceT:Number.isFinite(phase.launchT)?phase.launchT:(startOfflineRangeStart||0);
+  const startT=clearT+Math.max(.025,frameStep42()*.65);
+  const generated=[];
+  for(const side of ['left','right'])generated.push(...sideCandidates42(side,startOfflineFootSignals?.[side]||[],startT));
+  const boosted=legacy.map(c=>{
+    const x=Object.assign({},c);
+    x.confidence=Math.max(x.confidence||0,.50+(x.contactEvidence||x.temporalScore||0)*.20);
+    x.uncertaintySec=frameStep42()/2;
+    return x;
+  });
+  const candidates=dedupeCandidates42(generated.concat(boosted));
+  S42.candidates=candidates.map(cleanEvent42);
+  const validEnd=Number.isFinite(S42.boundary.validEnd)?S42.boundary.validEnd:(startOfflineRangeEnd??startOfflineVideo.duration??Infinity);
+  S42.boundary.partialCandidates=candidates.filter(c=>!isManual42(c)&&c.t>validEnd&&c.t<=validEnd+.38).length;
+  let selected=selectSequence42(candidates,startT,validEnd);
+  if(!selected.length)selected=legacy.filter(c=>isManual42(c)||c.t<=validEnd);
+  selected=dedupeCandidates42(selected).map(c=>{
+    const x=Object.assign({},c);
+    if(!isManual42(x)&&Number.isFinite(x.liftoff)&&x.liftoff>validEnd){
+      x.liftoffRaw=x.liftoff;x.durationRaw=x.duration;x.liftoff=null;x.duration=null;
+      x.durationInvalid=true;x.durationInvalidReason='画面外になる前に離地を確認できません';
+      x.confidence=Math.max(.18,(x.confidence||0)*.72);
+    }
+    return x;
+  });
+  S42.selectedCandidates=selected.map(cleanEvent42);
+  return selected.slice(0,12);
+}
+startOfflineDetectContacts=decodeContacts42;
+
+function findProjection42(phase,firstT){
+  const lo=Number.isFinite(phase.clearanceT)?phase.clearanceT:phase.launchT;
+  const hi=Math.min(Number.isFinite(firstT)?firstT-.006:Infinity,startOfflineRangeEnd??startOfflineVideo.duration??Infinity);
+  if(!(hi>lo))return phase.clearanceIndex??phase.launchIndex;
+  let best=null;
+  for(const f of startOfflinePoseFrames||[]){
+    if(f.t<lo||f.t>hi||(f._v42Integrity?.bad?.length||0)>3)continue;
+    const r=startOfflineProjectionAt(f.index);
+    if(!r?.valid||!Number.isFinite(r.angle))continue;
+    const score=(f.poseQuality||0)+clamp42((f.t-lo)/Math.max(.04,hi-lo),0,1)*.08;
+    if(!best||score>best.score)best={index:f.index,score};
+  }
+  return best?.index??phase.clearanceIndex??phase.launchIndex;
+}
+
+function rebuildDerived42(){
+  if(!startOfflinePoseFrames?.length)return;
+  S42.phase=detectPhase42(false);
+  if(startOfflineManualSetIndex===null)startOfflineAutoSetIndex=S42.phase.setIndex;
+  const setIndex=startOfflineManualSetIndex??startOfflineAutoSetIndex;
+  if(startOfflineManualSetIndex!==null){
+    const f=frame42(setIndex);S42.phase.setIndex=setIndex;S42.phase.setT=f?.t??frameTime42(setIndex);
+  }
+  startOfflineAutoDirection=S42.phase.direction||startOfflineAutoDirection||0;
+  startOfflineBuildKneeTracking();
+  startOfflineScaleSummary=balancedCalibration42();
+  let foot=offlineBuildResilientFootDetail(startOfflinePoseFrames,startOfflineCanvas.width,startOfflineCanvas.height,startOfflineCorrectedLandmarks,.16);
+  let baseGround=startOfflineGroundModel?.manual?startOfflineGroundModel:offlineBuildFixedGroundModel(foot.map,startOfflineGroundAxis(),startOfflineUpUnit());
+  startOfflineGroundModel=phaseBalancedGround42(foot.map,S42.phase,baseGround);
+  let rawSignals=offlineBuildFootSignals(startOfflinePoseFrames,startOfflineCanvas.width,startOfflineCanvas.height,foot.map,startOfflineBodyStateAtFrame,startOfflineSceneScaleAtPoint,startOfflineGroundModel,startOfflineGroundAxis(),startOfflineUpUnit());
+  normalizeSignalVelocity42(rawSignals);
+  const limbs=stabilizeLimbs42(rawSignals,foot.map,S42.phase);
+  S42.limbs={states:limbs.states,switches:limbs.switches,ambiguous:limbs.ambiguous,anchorIndex:S42.phase.anchorIndex};
+  startOfflineFootDetail=limbs.detail;
+  startOfflineFootDetailStats=foot.stats;
+  startOfflineFootSignals=offlineBuildFootSignals(startOfflinePoseFrames,startOfflineCanvas.width,startOfflineCanvas.height,startOfflineFootDetail,startOfflineBodyStateAtFrame,startOfflineSceneScaleAtPoint,startOfflineGroundModel,startOfflineGroundAxis(),startOfflineUpUnit());
+  normalizeSignalVelocity42(startOfflineFootSignals);
+  for(const side of ['left','right'])for(const q of startOfflineFootSignals[side]||[]){q._physicalSide=side;q._sourceSide=(S42.limbs.states.get(q.index)||0)===1?(side==='left'?'right':'left'):side;}
+  const clearance=detectClearance42(S42.phase,startOfflineFootDetail);
+  if(startOfflineManualClearanceIndex===null)startOfflineAutoClearanceIndex=clearance.index;
+  S42.phase.clearanceIndex=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex;
+  const clearanceFrame=frame42(S42.phase.clearanceIndex);
+  S42.phase.clearanceT=clearanceFrame?.t??clearance.t??frameTime42(S42.phase.clearanceIndex);
+  for(const [idx,state] of S42.phase.labels)if(Number.isFinite(S42.phase.clearanceT)&&frameTime42(idx)>=S42.phase.clearanceT)S42.phase.labels.set(idx,'RUNNING');
+  S42.boundary=measurementBoundary42(S42.phase);
+  const anchor=S42.phase.clearanceIndex??S42.phase.setIndex;
+  const auto=startOfflineDetectContacts(anchor);
+  startOfflineContacts=startOfflineMergeManualContacts(auto);
+  const firstT=startOfflineContacts.length?startOfflineContacts[0].t:Infinity;
+  if(!startOfflineAngleIndexManual){
+    startOfflineAutoProjectionIndex=findProjection42(S42.phase,firstT);
+    startOfflineAngleIndex=startOfflineAutoProjectionIndex;
+    startOfflineAngleManual=null;
+  }
+  if(startOfflineAngleIndex!==null){
+    const pr=startOfflineProjectionAt(startOfflineAngleIndex);
+    startOfflineAngleAuto=pr.valid?pr.angle:null;
+    startOfflineAngleLineAuto=pr.line?Object.assign({},pr.line):null;
+    if(startOfflineAngleManual===null||!startOfflineAngleLine)startOfflineAngleLine=startOfflineAngleLineAuto?Object.assign({},startOfflineAngleLineAuto):null;
+  }
+  startOfflineRenderResults();
+  startOfflineRenderMarkerStatus();
+  startOfflineRenderCompare();
+  drawStartOfflineOverlay();
+  sceneRenderStatus('offline',startOfflineScaleSummary);
+  startOfflineRenderTrackingUi();
+  startOfflineRenderQuickContactUi();
+  if(typeof startGroundRenderUi==='function')startGroundRenderUi();
+  if(typeof startGroundEnhanceSequenceTable==='function')startGroundEnhanceSequenceTable();
+  startOfflineLastDerivedAt=performance.now();
+  S42.lastRun=Date.now();
+  queueMicrotask(renderUi42);
+}
+
+startOfflineRecomputeDerived=function(...args){
+  if(S42.recomputing)return recomputeBase42(...args);
+  S42.recomputing=true;
+  try{
+    captureRaw42();
+    S42.phase=detectPhase42(true);
+    const result=recomputeBase42(...args);
+    S42.phase=detectPhase42(false);
+    applyIntegrity42(S42.phase);
+    rebuildDerived42();
+    return result;
+  }finally{S42.recomputing=false;}
+};
+
+/* ---------- Backward image tracking + chronological selective re-Pose ---------- */
+const scanCanvas42=document.createElement('canvas'),scanCtx42=scanCanvas42.getContext('2d',{alpha:false,willReadFrequently:true});
+const cropCanvas42=document.createElement('canvas'),cropCtx42=cropCanvas42.getContext('2d',{alpha:false});
+function analysisIndices42(){
+  const fps=Math.max(1,startOfflineEffectiveFps()),value=document.getElementById('start-offline-analysis-density')?.value||'120';
+  const maxRate=value==='all'?Infinity:parseFloat(value),stride=maxRate===Infinity?1:Math.max(1,Math.ceil(fps/maxRate));
+  const from=startOfflineRangeStart||0,to=startOfflineRangeEnd??startOfflineVideo.duration??0,out=[];
+  for(let i=0;i<startOfflineFrameTimes.length;i+=stride){const t=startOfflineFrameTimes[i];if(t>=from-.001&&t<=to+.001)out.push(i);}
+  return out;
+}
+async function lumaFrame42(index){
+  await startOfflineSeekTime(frameTime42(index));
+  const vw=startOfflineVideo.videoWidth||startOfflineCanvas.width||1280,vh=startOfflineVideo.videoHeight||startOfflineCanvas.height||720;
+  const sw=320,sh=Math.max(120,Math.round(sw*vh/vw));
+  if(scanCanvas42.width!==sw||scanCanvas42.height!==sh){scanCanvas42.width=sw;scanCanvas42.height=sh;}
+  scanCtx42.drawImage(startOfflineVideo,0,0,sw,sh);
+  const rgba=scanCtx42.getImageData(0,0,sw,sh).data,luma=new Uint8Array(sw*sh);
+  for(let p=0,j=0;p<rgba.length;p+=4,j++)luma[j]=(rgba[p]*77+rgba[p+1]*150+rgba[p+2]*29)>>8;
+  return {luma,w:sw,h:sh,index,t:frameTime42(index)};
+}
+function template42(img,cx,cy,pw,ph){
+  const nx=9,ny=11,vals=new Float32Array(nx*ny);let sum=0,sum2=0,k=0;
+  for(let y=0;y<ny;y++)for(let x=0;x<nx;x++){
+    const px=clamp42(Math.round(cx+(x/(nx-1)-.5)*pw),1,img.w-2),py=clamp42(Math.round(cy+(y/(ny-1)-.5)*ph),1,img.h-2);
+    const v=img.luma[py*img.w+px]*.55+Math.abs(img.luma[py*img.w+px+1]-img.luma[py*img.w+px-1])*.25+Math.abs(img.luma[(py+1)*img.w+px]-img.luma[(py-1)*img.w+px])*.20;
+    vals[k++]=v;sum+=v;sum2+=v*v;
+  }
+  const mean=sum/vals.length,std=Math.sqrt(Math.max(1,sum2/vals.length-mean*mean));
+  for(let i=0;i<vals.length;i++)vals[i]=(vals[i]-mean)/std;
+  return {vals,nx,ny,pw,ph};
+}
+function correlation42(img,tpl,cx,cy){
+  let sum=0,sum2=0,dot=0,k=0;
+  for(let y=0;y<tpl.ny;y++)for(let x=0;x<tpl.nx;x++){
+    const px=clamp42(Math.round(cx+(x/(tpl.nx-1)-.5)*tpl.pw),1,img.w-2),py=clamp42(Math.round(cy+(y/(tpl.ny-1)-.5)*tpl.ph),1,img.h-2);
+    const v=img.luma[py*img.w+px]*.55+Math.abs(img.luma[py*img.w+px+1]-img.luma[py*img.w+px-1])*.25+Math.abs(img.luma[(py+1)*img.w+px]-img.luma[(py-1)*img.w+px])*.20;
+    sum+=v;sum2+=v*v;dot+=v*tpl.vals[k++];
+  }
+  const n=tpl.vals.length,variance=Math.max(1,sum2-sum*sum/n);
+  return dot/Math.sqrt(variance*n);
+}
+async function backwardTrack42(anchorIndex){
+  const indices=analysisIndices42(),pos=indices.indexOf(anchorIndex);
+  if(pos<0)return {map:new Map(),anchorGeometry:null};
+  const f=frame42(anchorIndex),lm=raw42(f),vw=startOfflineVideo.videoWidth||startOfflineCanvas.width||1280,vh=startOfflineVideo.videoHeight||startOfflineCanvas.height||720,geo=geometry42(lm,vw,vh);
+  if(!geo)return {map:new Map(),anchorGeometry:null};
+  const originalTime=startOfflineVideo.currentTime||0,anchorImage=await lumaFrame42(anchorIndex),sx=anchorImage.w/vw,sy=anchorImage.h/vh;
+  let cx=geo.center.x*sx,cy=geo.center.y*sy;
+  const pw=clamp42(geo.torso*sx*1.55,18,70),ph=clamp42(geo.torso*sy*2.10,24,90);
+  let tpl=template42(anchorImage,cx,cy,pw,ph),vx=0,vy=0,fail=0;
+  const map=new Map(),corrs=[];
+  const bodyCx=(geo.bbox.x1+geo.bbox.x2)/2,bodyCy=(geo.bbox.y1+geo.bbox.y2)/2;
+  const offset={x:(bodyCx-geo.center.x)/vw,y:(bodyCy-geo.center.y)/vh};
+  const cropW=clamp42(Math.max((geo.bbox.x2-geo.bbox.x1)/vw*1.75,geo.torso/vw*5.2,.23),.20,.78);
+  const cropH=clamp42(Math.max((geo.bbox.y2-geo.bbox.y1)/vh*1.58,geo.torso/vh*5.8,.44),.38,.98);
+  map.set(anchorIndex,{cx:geo.center.x/vw,cy:geo.center.y/vh,corr:1,cropW,cropH,offset});
+  let current=anchorImage;
+  for(let z=pos-1;z>=0;z--){
+    if(startOfflineCancelRequested)break;
+    const idx=indices[z],img=await lumaFrame42(idx),dt=Math.max(.005,current.t-img.t),predX=cx-vx,predY=cy-vy;
+    const radiusX=clamp42(Math.round(img.w*dt*1.55)+4,7,28)+fail*3,radiusY=clamp42(Math.round(img.h*dt*.80)+3,5,20)+fail*2;
+    let best={score:-Infinity,x:predX,y:predY,corr:-1};
+    for(let dy=-radiusY;dy<=radiusY;dy+=2)for(let dx=-radiusX;dx<=radiusX;dx+=2){
+      const x=clamp42(predX+dx,pw*.55,img.w-pw*.55),y=clamp42(predY+dy,ph*.55,img.h-ph*.55);
+      const corr=correlation42(img,tpl,x,y),penalty=(dx*dx/(radiusX*radiusX+1)+dy*dy/(radiusY*radiusY+1))*.035,score=corr-penalty;
+      if(score>best.score)best={score,x,y,corr};
+    }
+    if(best.corr<.10){fail++;cx=predX;cy=predY;}else{fail=0;vx=vx*.58+(cx-best.x)*.42;vy=vy*.58+(cy-best.y)*.42;cx=best.x;cy=best.y;tpl=template42(img,cx,cy,pw,ph);}
+    corrs.push(best.corr);
+    map.set(idx,{cx:cx/img.w,cy:cy/img.h,corr:best.corr,cropW:clamp42(cropW*(1+Math.min(.16,(anchorImage.t-img.t)*.012)),.20,.82),cropH,offset});
+    current=img;
+    if(z%12===0){
+      const st=document.getElementById('start-offline-analysis-status');
+      if(st)st.textContent='v42 人物ROIを正常Poseから逆追跡中… '+(pos-z)+'/'+pos;
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+    }
+  }
+  try{await startOfflineSeekTime(originalTime);}catch(_){}
+  S42.recovery.trackedFrames=map.size;
+  S42.recovery.meanCorrelation=median42(corrs.filter(x=>x>-.5));
+  return {map,anchorGeometry:geo};
+}
+function cropForTrack42(tr){
+  const w=tr.cropW,h=tr.cropH,cx=tr.cx+(tr.offset?.x||0),cy=tr.cy+(tr.offset?.y||0);
+  return {x:clamp42(cx-w/2,0,1-w),y:clamp42(cy-h/2,0,1-h),w,h};
+}
+function prepareCrop42(crop){
+  const vw=startOfflineVideo.videoWidth||startOfflineCanvas.width||1280,vh=startOfflineVideo.videoHeight||startOfflineCanvas.height||720;
+  const sx=crop.x*vw,sy=crop.y*vh,sw=Math.max(2,crop.w*vw),sh=Math.max(2,crop.h*vh),aspect=sw/sh;
+  let dw,dh;if(aspect>=1){dw=1280;dh=Math.max(420,Math.round(dw/aspect));}else{dh=1280;dw=Math.max(420,Math.round(dh*aspect));}
+  const max=Math.max(dw,dh);if(max>1408){const k=1408/max;dw=Math.round(dw*k);dh=Math.round(dh*k);}
+  cropCanvas42.width=Math.max(320,dw);cropCanvas42.height=Math.max(320,dh);
+  cropCtx42.fillStyle='#000';cropCtx42.fillRect(0,0,cropCanvas42.width,cropCanvas42.height);
+  cropCtx42.drawImage(startOfflineVideo,sx,sy,sw,sh,0,0,cropCanvas42.width,cropCanvas42.height);
+  return cropCanvas42;
+}
+function mapCropLandmarks42(lm,crop){
+  return lm.map(p=>Object.assign({},p,{x:crop.x+p.x*crop.w,y:crop.y+p.y*crop.h,z:Number.isFinite(p.z)?p.z*crop.w:p.z}));
+}
+function suspectFrames42(track,phase){
+  const indices=analysisIndices42().filter(i=>i<=phase.anchorIndex),w=startOfflineVideo.videoWidth||startOfflineCanvas.width||1280,h=startOfflineVideo.videoHeight||startOfflineCanvas.height||720;
+  const rawSuspects=[];
+  for(const idx of indices){
+    const tr=track.get(idx);if(!tr||tr.corr<.08)continue;
+    const f=frame42(idx),lm=raw42(f),an=anatomy42(lm,w,h),err=an.geo?Math.hypot((an.geo.center.x/w-tr.cx),(an.geo.center.y/h-tr.cy)):Infinity;
+    const critical=frameTime42(idx)>=phase.launchT-.22,limit=critical ? .040 : .060;
+    const integrityBad=f?._v42Integrity?.bad?.length||f?._v40Integrity?.bad?.length||0;
+    if(!f||an.score<.54||an.hard>1||err>limit||integrityBad>=3)rawSuspects.push(idx);
+  }
+  const expanded=new Set(rawSuspects),pad=.055;
+  for(const idx of indices)if(rawSuspects.some(x=>Math.abs(frameTime42(x)-frameTime42(idx))<=pad))expanded.add(idx);
+  return [...expanded].sort((a,b)=>a-b);
+}
+async function recoverPose42(){
+  const phase=S42.phase;
+  if(!Number.isFinite(phase.anchorIndex)||!Number.isFinite(phase.anchorT))return 0;
+  const from=startOfflineRangeStart||0;
+  if(phase.anchorT-from<.12)return 0;
+  const originalTime=startOfflineVideo.currentTime||0,tracked=await backwardTrack42(phase.anchorIndex),suspects=suspectFrames42(tracked.map,phase);
+  S42.recovery.suspectFrames=suspects.length;
+  if(!suspects.length){S42.recovery.reason='逆追跡とRaw Poseが整合';return 0;}
+  try{if(typeof startOfflinePose.reset==='function')await Promise.resolve(startOfflinePose.reset());}catch(_){}
+  let recovered=0,failed=0,attempted=0;
+  for(const idx of suspects){
+    if(startOfflineCancelRequested)break;
+    const tr=tracked.map.get(idx);if(!tr||tr.corr<.08)continue;
+    const crop=cropForTrack42(tr);attempted++;
+    const st=document.getElementById('start-offline-analysis-status');
+    if(st)st.textContent='v42 疑わしいPoseを人物ROIで再解析中… '+attempted+'/'+suspects.length;
+    try{
+      await startOfflineSeekTime(frameTime42(idx));
+      const r=await startOfflinePoseSend(prepareCrop42(crop));
+      if(!r?.poseLandmarks){failed++;continue;}
+      const mapped=mapCropLandmarks42(r.poseLandmarks,crop),an=anatomy42(mapped,startOfflineVideo.videoWidth||startOfflineCanvas.width,startOfflineVideo.videoHeight||startOfflineCanvas.height);
+      const centerErr=an.geo?Math.hypot(an.geo.center.x/(startOfflineVideo.videoWidth||startOfflineCanvas.width)-tr.cx,an.geo.center.y/(startOfflineVideo.videoHeight||startOfflineCanvas.height)-tr.cy):Infinity;
+      if(an.score<.48||an.hard>2||centerErr>.075){failed++;continue;}
+      let f=frame42(idx);
+      if(!f){
+        f={index:idx,t:frameTime42(idx),landmarks:clone42(mapped),poseQuality:startOfflinePoseQuality(mapped),scale:bodyCalibrationEstimate(mapped,startOfflineCanvas.width,startOfflineCanvas.height,bodyReadCalibrationProfile())};
+        startOfflinePoseFrames.push(f);startOfflinePoseMap.set(idx,f);
+      }
+      f._v42RawLandmarks=clone42(mapped);f._v40OriginalLandmarks=clone42(mapped);f.landmarks=clone42(mapped);
+      f.poseQuality=startOfflinePoseQuality(mapped);f.scale=bodyCalibrationEstimate(mapped,startOfflineCanvas.width,startOfflineCanvas.height,bodyReadCalibrationProfile());
+      f._v42Recovered=true;f._v42Recovery={crop:Object.assign({},crop),correlation:tr.corr,centerError:centerErr};
+      recovered++;
+    }catch(e){failed++;}
+    if(attempted%8===0)await new Promise(resolve=>requestAnimationFrame(resolve));
+  }
+  startOfflinePoseFrames.sort((a,b)=>a.t-b.t);
+  startOfflinePoseMap=new Map(startOfflinePoseFrames.map(f=>[f.index,f]));
+  try{await startOfflineSeekTime(originalTime);}catch(_){}
+  S42.recovery.attempted=attempted;S42.recovery.recovered=recovered;S42.recovery.failed=failed;
+  S42.recovery.reason=recovered?'正常Poseから逆追跡したROIで再推論':'再推論候補を確定できずRaw Poseを保守的に維持';
+  return recovered;
+}
+
+/* ---------- Diagnostics and user-facing measurement limit ---------- */
+function phaseName42(name){
+  return ({ON_YOUR_MARKS:'On your marks',SET_HOLD:'Set保持',START_MOVEMENT:'発進',RUNNING:'疾走'})[name]||name||'--';
+}
+function ensureUi42(){
+  const host=document.getElementById('start-athlete-track-diagnostics');
+  if(host&&!document.getElementById('start-v42-analysis-note')){
+    const d=document.createElement('div');d.id='start-v42-analysis-note';d.className='v42-analysis-note';host.appendChild(d);
+    const actions=document.createElement('div');actions.className='v42-diagnostic-actions';
+    const b=document.createElement('button');b.type='button';b.id='start-v42-export-diagnostics';b.className='v42-diagnostic-btn';b.textContent='解析診断JSONを書き出す';actions.appendChild(b);host.appendChild(actions);
+    b.addEventListener('click',exportDiagnostics42);
+  }
+  const sequence=document.getElementById('start-offline-sequence-panel');
+  if(sequence&&!document.getElementById('start-v42-measurement-limit')){
+    const n=document.createElement('div');n.id='start-v42-measurement-limit';n.className='v42-measurement-limit';sequence.insertAdjacentElement('beforebegin',n);
+  }
+}
+function renderUi42(){
+  ensureUi42();
+  const p=S42.phase||{},r=S42.recovery||{},b=S42.boundary||{},fps=Math.max(1,startOfflineEffectiveFps()),frameMs=1000/fps;
+  const note=document.getElementById('start-v42-analysis-note');
+  if(note){
+    const confidence=Math.round((p.confidence||0)*100),cls=confidence>=70?'':confidence>=45?'warn':'bad';
+    note.className='v42-analysis-note '+cls;
+    note.innerHTML='<b>v42 時系列解析：</b>長いSet保持と動画FPSを実時間で処理します。'+
+      '<div class="v42-analysis-grid">'+
+      '<div class="v42-analysis-chip">Set '+(Number.isFinite(p.setT)?p.setT.toFixed(3)+'秒':'--')+'</div>'+
+      '<div class="v42-analysis-chip">発進 '+(Number.isFinite(p.launchT)?p.launchT.toFixed(3)+'秒':'--')+' / '+confidence+'%</div>'+
+      '<div class="v42-analysis-chip">正常Pose Frame '+(S42.stable.anchorIndex??'--')+'</div>'+
+      '<div class="v42-analysis-chip">ROI再Pose '+r.recovered+'/'+r.attempted+'F</div>'+
+      '<div class="v42-analysis-chip">固定物疑い '+(S42.integrity.pinned||0)+'点</div>'+
+      '<div class="v42-analysis-chip">脚ラベル交換 '+(S42.limbs.switches||0)+'回</div>'+
+      '</div>';
+  }
+  const limit=document.getElementById('start-v42-measurement-limit');
+  if(limit){
+    const count=(startOfflineContacts||[]).length,unc=(frameMs/2).toFixed(1);
+    limit.className='v42-measurement-limit '+(b.truncated?'':'ok');
+    limit.textContent=b.truncated?
+      '測定可能：'+count+'歩。次の接地候補は画面外／観測不足として除外しました。時刻のフレーム不確かさは約±'+unc+'msです。':
+      '測定可能：'+count+'歩。解析範囲末尾まで人物を観測しました。時刻のフレーム不確かさは約±'+unc+'msです。';
+  }
+}
+function landmarkJson42(lm){return (lm||[]).map(p=>p?{x:p.x,y:p.y,z:p.z,visibility:p.visibility??null}:null);}
+function signalJson42(q){return {side:q._physicalSide||null,sourceSide:q._sourceSide||null,index:q.index,t:q.t,contactHeightM:q.contactHeightM,toeHeightM:q.toeHeightM,heelHeightM:q.heelHeightM,ankleHeightM:q.ankleHeightM,vGround:q.vGround,toeVUp:q.toeVUp,ankleVUp:q.ankleVUp,confidence:q.confidence};}
+function diagnosticObject42(){
+  const file=startOfflineFiles?.[startOfflineFileIndex],ground=startOfflineGroundModel||{};
+  return {
+    schema:'sprint-timer-start-diagnostics-v42',
+    generatedAt:new Date().toISOString(),
+    app:{version:window.SPRINT_TIMER_VERSION,build:window.SPRINT_TIMER_BUILD},
+    video:{name:file?.name||null,size:file?.size||null,type:file?.type||null,width:startOfflineVideo.videoWidth||null,height:startOfflineVideo.videoHeight||null,duration:startOfflineVideo.duration||null,effectiveFps:startOfflineEffectiveFps(),frameTimesSource:startOfflineFrameTimesSource,frameTimes:startOfflineFrameTimes},
+    range:{start:startOfflineRangeStart||0,end:startOfflineRangeEnd??startOfflineVideo.duration??null},
+    phase:{direction:S42.phase.direction,setIndex:S42.phase.setIndex,setT:S42.phase.setT,holdStartT:S42.phase.holdStartT,launchIndex:S42.phase.launchIndex,launchT:S42.phase.launchT,clearanceIndex:S42.phase.clearanceIndex,clearanceT:S42.phase.clearanceT,confidence:S42.phase.confidence,labels:[...S42.phase.labels.entries()]},
+    stable:S42.stable,
+    integrity:S42.integrity,
+    recovery:S42.recovery,
+    limbs:{switches:S42.limbs.switches,ambiguous:S42.limbs.ambiguous,anchorIndex:S42.limbs.anchorIndex,states:[...S42.limbs.states.entries()]},
+    ground:{valid:!!ground.valid,a:ground.a,b:ground.b,confidence:ground.confidence,points:ground.points,anchors:ground.anchors,rmse:ground.rmse,manual:!!ground.manual,phaseBalanced:S42.ground.phaseBalanced},
+    boundary:S42.boundary,
+    candidates:S42.candidates,
+    selectedContacts:(startOfflineContacts||[]).map(cleanEvent42),
+    manual:{setIndex:startOfflineManualSetIndex,clearanceIndex:startOfflineManualClearanceIndex,angleIndex:startOfflineAngleIndexManual?startOfflineAngleIndex:null,contactAnchors:startOfflineContactAnchors,landmarkCorrectionFrames:[...startOfflineLandmarkCorrections.keys()]},
+    frames:(startOfflinePoseFrames||[]).map(f=>({index:f.index,t:f.t,poseQuality:f.poseQuality,recovered:!!f._v42Recovered,integrity:f._v42Integrity?{ok:f._v42Integrity.ok,bad:f._v42Integrity.bad,repaired:f._v42Integrity.repaired,rejected:f._v42Integrity.rejected}:null,rawLandmarks:landmarkJson42(raw42(f)),finalLandmarks:landmarkJson42(startOfflineCorrectedLandmarks(f))})),
+    signals:{
+      left:(startOfflineFootSignals?.left||[]).slice(0,CFG42.maxDiagnosticSignals).map(signalJson42),
+      right:(startOfflineFootSignals?.right||[]).slice(0,CFG42.maxDiagnosticSignals).map(signalJson42)
+    }
+  };
+}
+function exportDiagnostics42(){
+  try{
+    const data=JSON.stringify(diagnosticObject42(),null,2),blob=new Blob([data],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    const file=startOfflineFiles?.[startOfflineFileIndex]?.name||'start-video',base=file.replace(/\.[^.]+$/,'').replace(/[^\w\-ぁ-んァ-ヶ一-龠]+/g,'_');
+    a.href=url;a.download=base+'_SprintTimer_v42_diagnostics.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }catch(e){alert('診断JSONを書き出せませんでした：'+(e?.message||e));}
+}
+window.startOfflineExportDiagnosticsV42=exportDiagnostics42;
+window.__startV42Test={detectPhase:detectPhase42,selectSequence:selectSequence42,anatomy:anatomy42,measurementBoundary:measurementBoundary42,stabilizeLimbs:stabilizeLimbs42};
+
+async function analyzeWithRecovery42(){
+  if(S42.running||startOfflineAnalyzing)return;
+  S42.running=true;
+  try{
+    await analyzeBase42();
+    if(startOfflineCancelRequested||!startOfflinePoseFrames?.length)return;
+    startOfflineAnalyzing=true;
+    if(ANALYZE_BUTTON42)ANALYZE_BUTTON42.disabled=true;
+    const recovered=await recoverPose42();
+    if(recovered>0&&!startOfflineCancelRequested)startOfflineRecomputeDerived(false);
+    renderUi42();
+    const st=document.getElementById('start-offline-analysis-status');
+    if(st&&!startOfflineCancelRequested){
+      const b=S42.boundary;
+      st.textContent='解析完了：有効Pose '+startOfflinePoseFrames.length+'F ／ 接地 '+startOfflineContacts.length+'件'+
+        (S42.recovery.attempted?' ／ ROI再Pose '+S42.recovery.recovered+'/'+S42.recovery.attempted+'F':'')+
+        (b.truncated?' ／ 次の接地は画面外として終了':'')+'。';
+    }
+  }catch(e){
+    console.error('v42 START analysis',e);
+    const st=document.getElementById('start-offline-analysis-status');
+    if(st)st.textContent='v42追加解析で問題が発生したため、取得済みの保守的な結果を表示しています：'+(e?.message||e);
+  }finally{
+    startOfflineAnalyzing=false;S42.running=false;
+    if(ANALYZE_BUTTON42)ANALYZE_BUTTON42.disabled=false;
+    const cancel=document.getElementById('start-offline-cancel');if(cancel)cancel.disabled=true;
+  }
+}
+
+if(ANALYZE_BUTTON42){
+  ANALYZE_BUTTON42.removeEventListener('click',startOfflineAnalyze);
+  ANALYZE_BUTTON42.addEventListener('click',analyzeWithRecovery42);
+  ANALYZE_BUTTON42.addEventListener('click',()=>{
+    S42=fresh42();window.__startV42=S42;
+    document.getElementById('start-v42-analysis-note')?.remove();
+    document.getElementById('start-v42-measurement-limit')?.remove();
+  },{capture:true});
+}
+document.addEventListener('DOMContentLoaded',ensureUi42);
+setTimeout(ensureUi42,0);
 })();
 </script>
 
