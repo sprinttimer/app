@@ -1,4 +1,4 @@
-const APP_VERSION = '2026.09.14.44';
+const APP_VERSION = '2026.09.20.49';
 const CACHE_NAME = `sprint-timer-pro-${APP_VERSION}`;
 const ASSETS = ['./index.html', './manifest.json'];
 const LOCAL_VIDEO_DB = 'SprintTimerLocalVideoTransport';

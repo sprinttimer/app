@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.19.48">
-<meta name="sprint-timer-build" content="20260919-v48-vbt-gap-baseline-telemetry-fix">
+<meta name="sprint-timer-version" content="2026.09.20.49">
+<meta name="sprint-timer-build" content="20260920-v49-sprint-target-selection-fix">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.19.48";
-window.SPRINT_TIMER_BUILD = "20260919-v48-vbt-gap-baseline-telemetry-fix";
+window.SPRINT_TIMER_VERSION = "2026.09.20.49";
+window.SPRINT_TIMER_BUILD = "20260920-v49-sprint-target-selection-fix";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1215,10 +1215,10 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <div class="small" style="margin-bottom:8px;text-align:left;">1〜5倍。スマートフォンは2本指でピンチ拡大・縮小、そのまま2本指で移動できます。拡大は表示だけに適用し、関節・バトンのタップ位置は元動画座標へ逆変換して保存します。</div>
             <div id="sprint-offline-roi-card">
                 <div class="setting-header"><span class="roi-title">解析対象選手（遠い・複数人動画向け）</span><span class="setting-value" id="sprint-offline-roi-label">全画面</span></div>
-                <div class="small" style="text-align:left;margin-bottom:8px;">選手が小さい、または複数人が映る場合に使用します。<b>「対象範囲を指定」→映像上の対角2点をタップ</b>してください。指定範囲だけを切り抜いて拡大してPose解析し、結果座標は元動画へ戻します。走行中に選手が枠外へ出ないよう少し広めに指定してください。</div>
+                <div class="small" style="text-align:left;margin-bottom:8px;">選手が小さい、または複数人が映る場合に使用します。<b>「選手をドラッグで囲む」→頭から足先まで入るように指で囲ってください。</b> 指定範囲を内部で拡大してPose解析し、走行中は身体中心を追って解析範囲を移動します。</div>
                 <div class="button-row" style="grid-template-columns:2fr 1fr;">
-                    <button type="button" class="action-btn btn-blue" id="sprint-offline-roi-set">対象範囲を指定</button>
-                    <button type="button" class="action-btn btn-gray" id="sprint-offline-roi-reset">全画面に戻す</button>
+                    <button type="button" class="action-btn btn-blue" id="sprint-offline-roi-set">選手をドラッグで囲む</button>
+                    <button type="button" class="action-btn btn-gray" id="sprint-offline-roi-reset">追跡解除</button>
                 </div>
                 <div class="info" id="sprint-offline-roi-status" style="margin:8px 0 0;">通常解析：動画全体をMediaPipeへ入力します。</div>
             </div>
@@ -1473,8 +1473,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.19.48</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260919-v48-vbt-gap-baseline-telemetry-fix</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.20.49</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260920-v49-sprint-target-selection-fix</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -7627,7 +7627,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.19.48")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.20.49")}`,{
                 updateViaCache:"none"
             });
 
@@ -8973,6 +8973,8 @@ const ATS={
   start:{selected:null,selecting:false,drag:null,draft:null,run:null,manualView:false,gesture:null,pointers:new Map()},
   sprint:{selected:null,selecting:false,drag:null,draft:null,run:null,manualView:false,gesture:null,pointers:new Map()}
 };
+window.__athleteTrackingStateV30=ATS;
+window.__sprintV49Selecting=false;
 const inputCanvas={start:document.createElement('canvas'),sprint:document.createElement('canvas')};
 const inputCtx={start:inputCanvas.start.getContext('2d',{alpha:false}),sprint:inputCanvas.sprint.getContext('2d',{alpha:false})};
 
@@ -9024,15 +9026,15 @@ function resetRun(prefix){
   st.run={roi:init,lastGoodRoi:init,center:c,lastGoodCenter:c,velocity:{x:0,y:0},lost:0,maxLost:0,attempts:0,hits:0,predicted:0,reacquired:0,rejectedJump:0,history:new Map(),baseW:init.w,baseH:init.h};
   render(prefix);diag(prefix);
 }
-function clearSelection(prefix){const st=ATS[prefix];st.selected=null;st.selecting=false;st.drag=null;st.draft=null;st.run=null;st.discovery=null;st.discoveryFrameAttempts=0;if(prefix==='sprint'){window.__sprintOfflineRoi=null;window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;}render(prefix);diag(prefix);AT[prefix].draw();}
+function clearSelection(prefix){const st=ATS[prefix];if(prefix==='sprint')window.__sprintV49Selecting=false;st.selected=null;st.selecting=false;st.drag=null;st.draft=null;st.run=null;st.discovery=null;st.discoveryFrameAttempts=0;if(prefix==='sprint'){window.__sprintOfflineRoi=null;window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;}render(prefix);diag(prefix);AT[prefix].draw();}
 async function beginSelection(prefix){
-  const cfg=AT[prefix],v=cfg.video(),c=cfg.canvas();if(!v?.src||!c)return;v.pause();manualViewOff(prefix,true);offlineZoomReset(cfg.zoomKey);
+  const cfg=AT[prefix],v=cfg.video(),c=cfg.canvas();if(!v?.src||!c)return;if(prefix==='sprint')window.__sprintV49Selecting=true;v.pause();manualViewOff(prefix,true);offlineZoomReset(cfg.zoomKey);
   const rs=cfg.rangeStart();if(Number.isFinite(rs)&&Math.abs((v.currentTime||0)-rs)>.03){try{await cfg.seek(rs);}catch(_){}}
   const st=ATS[prefix];st.selecting=true;st.drag=null;st.draft=null;render(prefix);cfg.draw();
 }
 function finishSelection(prefix,a,b){
   const cfg=AT[prefix],cv=cfg.canvas(),st=ATS[prefix];if(!cv?.width)return;const x1=clamp(Math.min(a.x,b.x)/cv.width,0,1),y1=clamp(Math.min(a.y,b.y)/cv.height,0,1),x2=clamp(Math.max(a.x,b.x)/cv.width,0,1),y2=clamp(Math.max(a.y,b.y)/cv.height,0,1),r={x:x1,y:y1,w:x2-x1,h:y2-y1};
-  st.selecting=false;st.drag=null;st.draft=null;if(r.w<.045||r.h<.07){render(prefix,'範囲が小さすぎます。頭から足先まで入るように、もう少し大きく囲ってください。');ui(prefix).card?.classList.add('attention');cfg.draw();return;}
+  st.selecting=false;if(prefix==='sprint')window.__sprintV49Selecting=false;st.drag=null;st.draft=null;if(r.w<.045||r.h<.07){render(prefix,'範囲が小さすぎます。頭から足先まで入るように、もう少し大きく囲ってください。');ui(prefix).card?.classList.add('attention');cfg.draw();return;}
   st.selected={...rectClamp(r),frame:cfg.frame(),time:cfg.time()};resetRun(prefix);st.run=null;render(prefix);diag(prefix);cfg.draw();
 }
 function canvasPoint(prefix,e){return offlineZoomClientToCanvas(AT[prefix].canvas(),e);}
@@ -9041,7 +9043,7 @@ function installSelectionEvents(prefix){
   cv.addEventListener('pointerdown',e=>{const st=ATS[prefix];if(!st.selecting)return;e.preventDefault();e.stopImmediatePropagation();const p=canvasPoint(prefix,e);st.drag=p;st.draft={a:p,b:p};try{cv.setPointerCapture(e.pointerId)}catch(_){}AT[prefix].draw();},{capture:true});
   cv.addEventListener('pointermove',e=>{const st=ATS[prefix];if(!st.selecting||!st.drag)return;e.preventDefault();e.stopImmediatePropagation();st.draft={a:st.drag,b:canvasPoint(prefix,e)};AT[prefix].draw();},{capture:true});
   cv.addEventListener('pointerup',e=>{const st=ATS[prefix];if(!st.selecting||!st.drag)return;e.preventDefault();e.stopImmediatePropagation();const a=st.drag,b=canvasPoint(prefix,e);try{cv.releasePointerCapture(e.pointerId)}catch(_){}finishSelection(prefix,a,b);},{capture:true});
-  cv.addEventListener('pointercancel',e=>{const st=ATS[prefix];if(!st.selecting)return;st.drag=null;st.draft=null;render(prefix);AT[prefix].draw();},{capture:true});
+  cv.addEventListener('pointercancel',e=>{const st=ATS[prefix];if(!st.selecting)return;if(prefix==='sprint')window.__sprintV49Selecting=false;st.selecting=false;st.drag=null;st.draft=null;render(prefix);AT[prefix].draw();},{capture:true});
 }
 function drawTracker(prefix){
   const cfg=AT[prefix],cv=cfg.canvas(),ctx=cfg.ctx(),st=ATS[prefix];if(!cv?.width||!ctx)return;const w=cv.width,h=cv.height;ctx.save();ctx.font=`700 ${Math.max(15,w/78)}px sans-serif`;
@@ -9094,6 +9096,8 @@ function athleteDiscoveryCrops(prefix){
 async function discoverAthleteByCrop(prefix){
   const cfg=AT[prefix],st=ATS[prefix],v=cfg.video(),crops=athleteDiscoveryCrops(prefix);let best=null;
   st.discovery={phase:'searching',tested:0,total:crops.length,found:false};render(prefix);diag(prefix);
+  /* v49: do not stop at the first detectable person. Overlapping crops can see
+     officials/spectators before the foreground runner, so every crop is scored. */
   for(const crop of crops){
     st.discovery.tested++;render(prefix);
     let r=null;try{r=await athleteDiscoverySend(prepareInput(prefix,crop));}catch(_){}
@@ -9101,14 +9105,15 @@ async function discoverAthleteByCrop(prefix){
     const mapped=mappedLandmarks(r.poseLandmarks,crop),g=bodyGeometry(mapped);if(!g||g.points<9)continue;
     const vh=v.videoHeight||cfg.canvas().height||720,athletePx=g.bbox.h*vh,q=startOfflinePoseQuality(mapped);
     if(!Number.isFinite(athletePx)||athletePx<55)continue;
-    const score=(q||0)*2.2+Math.min(1.2,athletePx/320)+Math.min(1,g.points/20);
+    const sizeScore=Math.min(2.35,athletePx/210),pointScore=Math.min(.90,g.points/22);
+    const centerBias=prefix==='sprint'?.16*Math.max(0,1-Math.abs((g.center?.x??.5)-.5)*2):0;
+    const score=(q||0)*1.65+sizeScore+pointScore+centerBias;
     if(!best||score>best.score)best={mapped,g,athletePx,score,crop,q};
-    if(q>=.28&&athletePx>=90)break;
   }
   if(!best){st.discovery.phase='failed';st.discovery.found=false;render(prefix);diag(prefix);return null;}
   const autoBox=padRect(best.g.bbox,.16,.12);
   st.selected={...autoBox,frame:cfg.frame(),time:cfg.time(),auto:true,athletePx:best.athletePx,discovery:true};
-  st.discovery.phase='found';st.discovery.found=true;resetRun(prefix);st.run=null;render(prefix);diag(prefix);AT[prefix].draw();
+  st.discovery.phase='found';st.discovery.found=true;st.discovery.bestAthletePx=Math.round(best.athletePx);resetRun(prefix);st.run=null;render(prefix);diag(prefix);AT[prefix].draw();
   return st.selected;
 }
 window.v39AthleteSearchSummary=prefix=>{const st=ATS[prefix];return {selected:!!st.selected,discovery:st.discovery?{...st.discovery}:null,auto:!!st.selected?.auto};};
@@ -9126,15 +9131,33 @@ function updateRunLost(prefix){
 }
 async function adaptive(prefix){
   const cfg=AT[prefix],st=ATS[prefix],v=cfg.video();
-  /* v39: full-frame high-precision Pose -> automatic split/crop discovery ->
-     high-precision ROI Pose. Search-only low-threshold landmarks are never used
-     directly for measurement values. */
+  /* v49: full-frame Pose is only a candidate. In SPRINTPEAK, a small foreground
+     occupancy is challenged by split/crop discovery even when Pose itself succeeds.
+     This prevents a stationary background person from locking the whole run. */
   if(!st.selected){
     const first=await cfg.baseSend(v);
     if(first?.poseLandmarks){
       const g=bodyGeometry(first.poseLandmarks),vh=v.videoHeight||cfg.canvas().height||720,athletePx=g?.bbox?.h*vh;
-      st.discovery={phase:'full-pose',tested:0,total:0,found:true};
-      if(g&&g.points>=10&&Number.isFinite(athletePx)&&athletePx>=60&&athletePx<=420){
+      st.discovery={phase:'full-pose',tested:0,total:0,found:true,fullAthletePx:Number.isFinite(athletePx)?Math.round(athletePx):0};
+      const fullValid=!!(g&&g.points>=10&&Number.isFinite(athletePx)&&athletePx>=60&&athletePx<=vh*.94);
+      const smallSprintCandidate=prefix==='sprint'&&fullValid&&athletePx<vh*.32;
+      if(smallSprintCandidate&&(st.discoveryFrameAttempts||0)<5){
+        st.discoveryFrameAttempts=(st.discoveryFrameAttempts||0)+1;
+        const fullBox=padRect(g.bbox,.16,.12),fullPx=athletePx;
+        const found=await discoverAthleteByCrop(prefix);
+        if(found&&Number.isFinite(found.athletePx)&&found.athletePx>=Math.max(fullPx*1.18,fullPx+42)){
+          st.discovery={...(st.discovery||{}),phase:'found-larger-runner',found:true,fullAthletePx:Math.round(fullPx),bestAthletePx:Math.round(found.athletePx)};
+          resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;run.history.set(cfg.frame(),{...crop});
+          try{const refined=await cfg.baseSend(prepareInput(prefix,crop));if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}}catch(e){updateRunLost(prefix);}
+          render(prefix);diag(prefix);return null;
+        }
+        /* A small full-frame person was detected but no clearly larger athlete has
+           been confirmed yet. Do not feed that likely background person into the
+           measurement series; allow later frames to search again. */
+        st.selected=null;st.run=null;st.discovery={phase:'small-candidate-rejected',tested:st.discovery?.tested||0,total:st.discovery?.total||0,found:false,fullAthletePx:Math.round(fullPx)};
+        render(prefix);diag(prefix);return {...first,poseLandmarks:null};
+      }
+      if(fullValid){
         const autoBox=padRect(g.bbox,.16,.12);
         st.selected={...autoBox,frame:cfg.frame(),time:cfg.time(),auto:true,athletePx,discovery:false};
         resetRun(prefix);
@@ -9149,7 +9172,7 @@ async function adaptive(prefix){
       render(prefix);diag(prefix);return first;
     }
     st.discoveryFrameAttempts=(st.discoveryFrameAttempts||0)+1;
-    if(st.discoveryFrameAttempts<=3){
+    if(st.discoveryFrameAttempts<=5){
       const found=await discoverAthleteByCrop(prefix);
       if(found){
         resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;run.history.set(cfg.frame(),{...crop});
@@ -9157,18 +9180,22 @@ async function adaptive(prefix){
           const refined=await cfg.baseSend(prepareInput(prefix,crop));
           if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}
         }catch(e){updateRunLost(prefix);}
-        /* Keep the discovered ROI even if this exact frame misses high-precision Pose;
-           following frames continue within the tracked crop. */
         render(prefix);diag(prefix);return null;
       }
     }
-    if(st.discoveryFrameAttempts>=3&&st.discovery?.phase!=='found'){st.discovery={...(st.discovery||{}),phase:'failed',found:false};}
+    if(st.discoveryFrameAttempts>=5&&st.discovery?.phase!=='found'){st.discovery={...(st.discovery||{}),phase:'failed',found:false};}
     render(prefix);diag(prefix);return first;
   }
   if(!st.run)resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;const idx=cfg.frame();run.history.set(idx,{...crop});let out;try{out=await cfg.baseSend(prepareInput(prefix,crop));}catch(e){updateRunLost(prefix);throw e;}
   if(out?.poseLandmarks){const mapped=mappedLandmarks(out.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...out,poseLandmarks:mapped};}}
   updateRunLost(prefix);render(prefix);diag(prefix);return out?{...out,poseLandmarks:null}:out;
 }
+window.__sprintAthleteApiV49={
+  state:ATS.sprint,
+  begin:()=>beginSelection('sprint'),
+  clear:()=>clearSelection('sprint'),
+  redraw:()=>AT.sprint.draw()
+};
 window.startOfflinePoseSendDynamic=()=>adaptive('start');
 window.sprintOfflinePoseSendAdaptive=()=>adaptive('sprint');
 
@@ -9345,6 +9372,9 @@ for(const prefix of ['start','sprint']){v31InstallMainTap(prefix);v31InstallEval
 const v32Finite=Number.isFinite;
 function v32MainBusy(prefix){
   try{
+    const shared=window.__athleteTrackingStateV30?.[prefix];
+    if(shared?.selecting||shared?.manualView)return true;
+    if(prefix==='sprint'&&(window.__sprintV49Selecting||window.__sprintOfflineRoiPickStep))return true;
     if(typeof ATS!=='undefined'&&ATS[prefix]?.selecting)return true;
     if(typeof ATS!=='undefined'&&ATS[prefix]?.manualView)return true;
     if(prefix==='start'){
@@ -9515,8 +9545,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.19.48";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260919-v48-vbt-gap-baseline-telemetry-fix";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.20.49";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260920-v49-sprint-target-selection-fix";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -10799,7 +10829,7 @@ function fixKeyframesAndContacts41(){if(!startOfflinePoseFrames?.length)return;c
 function stableNote41(){if(!S41.frames)return '';const cls=S41.stableScore>=.72?'':'warn',start=S41.stableStart??'--',end=S41.stableEnd??'--';return `<div class="v41-stable-pose-note ${cls}"><b>正常Pose基準：</b>Frame ${start}〜${end}付近の連続した人体形状を基準に、選手固有の骨長を学習しました。固定物へ張り付いた疑い ${S41.pinnedPoints}点 ／ 再構築 ${S41.repairedPoints}点 ／ 不確実で除外 ${S41.rejectedPoints}点${S41.sequenceAdded?` ／ 接地系列を${S41.sequenceAdded}件補完`:''}${S41.sequenceRelabeled?` ／ 脚判定を${S41.sequenceRelabeled}件再判定`:''}${S41.groundImproved?' ／ 地面モデルを正常Pose区間から再推定':''}。<br>再構築できない点は無理に数値化しません。</div>`;}
 function updateStableUi41(){const el=document.getElementById('start-athlete-track-diagnostics');if(el&&S41.frames){el.querySelector('.v41-stable-pose-note')?.remove();el.insertAdjacentHTML('beforeend',stableNote41());}const src=document.getElementById('start-offline-angle-source');if(src&&S41.keyframeShift>0){let n=document.getElementById('start-v41-keyframe-note');if(!n){n=document.createElement('div');n.id='start-v41-keyframe-note';n.className='v41-keyframe-note';src.insertAdjacentElement('afterend',n);}n.textContent='⚠ 壊れたPoseフレームを角度測定に使わず、直後の人体整合性が高いフレームへ自動補正しています。';}}
 const recompute41Base=startOfflineRecomputeDerived;
-startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.19.48"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
+startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.20.49"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
 document.getElementById('start-offline-analyze')?.addEventListener('click',()=>{S41={frames:0,stableStart:null,stableEnd:null,stableScore:0,reference:new Map(),rawGood:new Set(),repairedPoints:0,rejectedPoints:0,pinnedPoints:0,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:0};window.__startV41StablePose=S41;},{capture:true});
 
 /* ---------- Beginner-friendly contact display ---------- */
@@ -11913,7 +11943,7 @@ setTimeout(ensureUi42,0);
 <script id="performance-diagnostics-v44-stage2">
 (()=>{
   'use strict';
-  const VERSION44='2026.09.19.48';
+  const VERSION44='2026.09.20.49';
   const MAX_FRAME_SAMPLES44=720;
   const MAX_SNAPSHOTS44=240;
   const P44={
@@ -12508,7 +12538,7 @@ setTimeout(ensureUi42,0);
 ============================================================ */
 const c47=(v,a,b)=>Math.max(a,Math.min(b,v));
 const V47={
-  version:'2026.09.19.48',
+  version:'2026.09.20.49',
   rep:{state:'IDLE',noiseSamples:[],startThreshold:.045,endThreshold:.025,startHoldMs:45,endHoldMs:65,repsFinalized:0,repsRejected:0,lastQuality:null,lastCutoff:null,gapResets:0},
   worker:{supported:false,enabled:false,ready:false,busy:false,captureBusy:false,used:0,validated:0,fallbacks:0,errors:0,lastConfidence:0,lastError:null},
   load:{level:0,highCount:0,lowCount:0,lastUpdate:0},
@@ -12801,6 +12831,46 @@ const baseOpenCamera47=openVbtCamera;openVbtCamera=async function(...args){const
 document.getElementById('vbt-start')?.addEventListener('click',()=>{if(!vbtRunning)return;resetRepMachine47(true);lastAlarmRep47=null;workerValidationCounter47=0;lastValidationConfidence47=1;V47.rep.repsFinalized=0;V47.rep.repsRejected=0;V47.rep.lastQuality=null;updateThresholds47();if(workerOk47&&vbtFocus)workerNeedInit47=true;});
 document.getElementById('vbt-stop')?.addEventListener('click',()=>{resetRepMachine47(false);});
 window.addEventListener('pagehide',()=>{try{worker47?.terminate();}catch(_){}worker47=null;});
+})();
+</script>
+
+
+<style id="sprint-v49-target-fix-style">
+#sprint-v49-selection-box{position:absolute;z-index:120;border:3px solid #ffbf00;background:rgba(255,191,0,.08);pointer-events:none;display:none;box-shadow:0 0 0 1px rgba(0,0,0,.45) inset}
+#sprint-offline-roi-card.v49-selecting{border-color:#f59e0b!important;background:#fffaf0!important}
+.sprint-v49-target-warning{margin-top:7px;padding:8px 9px;border-radius:8px;border:1px solid #f0b44d;background:#fff8e8;color:#7a4300;font-size:12px;line-height:1.5}
+.sprint-v49-target-ok{color:#17652d}
+</style>
+<script id="sprint-v49-target-selection-fix">
+(()=>{
+'use strict';
+/* v49 SPRINTPEAK-only safety patch:
+   1) drag selection always wins over tap-to-play;
+   2) legacy two-point ROI is bypassed;
+   3) target confidence separates 'Pose exists' from 'the runner was tracked'. */
+const F={active:false,drag:false,start:null,box:null};
+const $=id=>document.getElementById(id);
+function ensureBox(){let b=$('sprint-v49-selection-box');if(b)return b;const w=$('sprint-offline-video-wrap');if(!w)return null;b=document.createElement('div');b.id='sprint-v49-selection-box';w.appendChild(b);return b;}
+function setUi(msg,selecting=false){const card=$('sprint-offline-roi-card'),label=$('sprint-offline-roi-label'),status=$('sprint-offline-roi-status'),btn=$('sprint-offline-roi-set');card?.classList.toggle('v49-selecting',selecting);if(label)label.textContent=selecting?'範囲指定中':label.textContent;if(status&&msg)status.innerHTML=msg;if(btn)btn.textContent=selecting?'指で選手を囲ってください':'選手をドラッグで囲む';}
+function pt(e){const cv=$('sprint-offline-canvas');if(!cv)return null;const r=cv.getBoundingClientRect();if(!r.width||!r.height)return null;return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)),px:e.clientX-r.left,py:e.clientY-r.top,rect:r};}
+function drawBox(a,b){const box=ensureBox(),wrap=$('sprint-offline-video-wrap');if(!box||!wrap||!a||!b)return;const wr=wrap.getBoundingClientRect(),x1=Math.min(a.clientX,b.clientX)-wr.left,y1=Math.min(a.clientY,b.clientY)-wr.top,x2=Math.max(a.clientX,b.clientX)-wr.left,y2=Math.max(a.clientY,b.clientY)-wr.top;box.style.left=x1+'px';box.style.top=y1+'px';box.style.width=Math.max(1,x2-x1)+'px';box.style.height=Math.max(1,y2-y1)+'px';box.style.display='block';}
+function hideBox(){const b=ensureBox();if(b)b.style.display='none';}
+function startFallback(){const v=$('sprint-offline-video');if(!v?.src)return;try{v.pause();}catch(_){}try{offlineZoomReset('sprintoffline');}catch(_){}window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoiFirst=null;window.__sprintV49Selecting=true;F.active=true;F.drag=false;F.start=null;setUi('<b>選手を囲ってください：</b>頭から足先まで入るように、選手の外側から反対側へ指をドラッグしてください。',true);}
+function finishFallback(a,b){const pa=pt(a),pb=pt(b);if(!pa||!pb)return;const x=Math.min(pa.x,pb.x),y=Math.min(pa.y,pb.y),w=Math.abs(pa.x-pb.x),h=Math.abs(pa.y-pb.y);F.active=false;F.drag=false;F.start=null;window.__sprintV49Selecting=false;hideBox();if(w<.045||h<.07){setUi('<b>範囲が小さすぎます。</b> 頭から足先まで入るように、もう一度ドラッグしてください。');return startFallback();}window.__sprintOfflineRoi={x,y,w,h};setUi(`✓ 選手を指定しました。解析時はこの範囲を内部拡大し、走行中は身体中心を追跡します。`);try{sprintOfflineDrawOverlay();}catch(_){} }
+/* Capture the button before both legacy two-tap and newer listeners. */
+document.addEventListener('click',e=>{const b=e.target.closest?.('#sprint-offline-roi-set');if(!b)return;e.preventDefault();e.stopImmediatePropagation();const api=window.__sprintAthleteApiV49;if(api?.begin){window.__sprintV49Selecting=true;Promise.resolve(api.begin()).catch(()=>{window.__sprintV49Selecting=false;startFallback();});}else startFallback();},{capture:true});
+/* Legacy fallback path: document capture runs before wrapper tap-to-play. */
+document.addEventListener('pointerdown',e=>{if(!F.active||!e.target.closest?.('#sprint-offline-video-wrap'))return;e.preventDefault();e.stopImmediatePropagation();F.drag=true;F.start={clientX:e.clientX,clientY:e.clientY};drawBox(F.start,F.start);},{capture:true});
+document.addEventListener('pointermove',e=>{if(!F.active||!F.drag||!F.start)return;e.preventDefault();e.stopImmediatePropagation();drawBox(F.start,{clientX:e.clientX,clientY:e.clientY});},{capture:true,passive:false});
+document.addEventListener('pointerup',e=>{if(!F.active||!F.drag||!F.start)return;e.preventDefault();e.stopImmediatePropagation();finishFallback(F.start,{clientX:e.clientX,clientY:e.clientY});},{capture:true});
+document.addEventListener('pointercancel',()=>{if(!F.active)return;F.active=false;F.drag=false;F.start=null;window.__sprintV49Selecting=false;hideBox();setUi('範囲指定を中断しました。');},{capture:true});
+$('sprint-offline-roi-reset')?.addEventListener('click',()=>{F.active=false;F.drag=false;window.__sprintV49Selecting=false;hideBox();window.__sprintOfflineRoiPickStep=0;window.__sprintOfflineRoi=null;},true);
+
+function median(a){const b=a.filter(Number.isFinite).sort((x,y)=>x-y);if(!b.length)return 0;const m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2;}
+function q(a,p){const b=a.filter(Number.isFinite).sort((x,y)=>x-y);if(!b.length)return 0;const i=Math.max(0,Math.min(b.length-1,Math.round((b.length-1)*p)));return b[i];}
+function targetStats(total){try{const fs=sprintOfflinePoseFrames||[],vw=sprintOfflineVideo?.videoWidth||1,vh=sprintOfflineVideo?.videoHeight||1,xs=[],hs=[];for(const f of fs){const l=f?.landmarks;if(!l?.length)continue;const torso=[11,12,23,24].map(i=>l[i]).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&(p.visibility??1)>.25);if(torso.length>=2)xs.push(torso.reduce((s,p)=>s+p.x,0)/torso.length);const pts=l.filter((p,i)=>i<33&&p&&Number.isFinite(p.y)&&(p.visibility??1)>.28);if(pts.length>=7){const ys=pts.map(p=>p.y);hs.push((q(ys,.96)-q(ys,.04))*vh);}}const xSpan=xs.length>=3?Math.max(0,q(xs,.90)-q(xs,.10)):0,medPx=median(hs),poseRate=total?Math.min(1,fs.length/Math.max(1,total)):Math.min(1,fs.length/20),move=Math.min(1,xSpan/.28),size=Math.min(1,medPx/(vh*.32)),confidence=Math.max(0,Math.min(1,move*.62+size*.28+poseRate*.10));return {frames:fs.length,xSpan,medPx,confidence,likelyMismatch:fs.length>4&&xSpan<.075&&medPx<vh*.30};}catch(_){return null;}}
+const oldPost=window.sprintOfflineRoiPostAnalyze;
+window.sprintOfflineRoiPostAnalyze=function(total){if(typeof oldPost==='function')oldPost(total);const st=targetStats(total);if(!st)return;const diag=$('sprint-athlete-track-diagnostics')||$('sprint-offline-roi-status');if(diag){diag.querySelector?.('.sprint-v49-target-warning')?.remove();const d=document.createElement('div');d.className='sprint-v49-target-warning'+(st.likelyMismatch?'':' sprint-v49-target-ok');d.innerHTML=`<b>対象選手一致度 ${Math.round(st.confidence*100)}%</b> ／ 人物サイズ中央値 約${Math.round(st.medPx)}px ／ 横移動 ${Math.round(st.xSpan*100)}%${st.likelyMismatch?'<br><b>⚠ 背景人物を追跡した可能性があります。</b>「選手をドラッグで囲む」で走者を指定して再解析してください。':'<br>走者としての移動量と人物サイズを確認しました。'}`;diag.appendChild(d);}if(st.likelyMismatch){const a=$('sprint-offline-analysis-status');if(a&&!/背景人物/.test(a.textContent))a.textContent+=' ／ ⚠ 背景人物を追跡した可能性：走者を囲って再解析してください。';const c=$('sprint-offline-confidence');if(c)c.innerText=`要再確認：対象選手一致度 ${Math.round(st.confidence*100)}%。Pose自体の品質が高くても、背景人物を追跡している可能性があります。`;try{if(sprintOfflineLastResult)sprintOfflineLastResult.targetMismatch=true;}catch(_){}}};
 })();
 </script>
 
