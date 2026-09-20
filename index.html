@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.14.44">
-<meta name="sprint-timer-build" content="20260914-v44-fps-diagnostics-stage2">
+<meta name="sprint-timer-version" content="2026.09.19.48">
+<meta name="sprint-timer-build" content="20260919-v48-vbt-gap-baseline-telemetry-fix">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.14.44";
-window.SPRINT_TIMER_BUILD = "20260914-v44-fps-diagnostics-stage2";
+window.SPRINT_TIMER_VERSION = "2026.09.19.48";
+window.SPRINT_TIMER_BUILD = "20260919-v48-vbt-gap-baseline-telemetry-fix";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1473,8 +1473,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.14.44</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260914-v44-fps-diagnostics-stage2</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.19.48</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260919-v48-vbt-gap-baseline-telemetry-fix</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -4372,6 +4372,7 @@ function requestVbtFrame(videoCallbackNow,videoMetadata){
             vbtTrackConfidence=Math.max(0,vbtTrackConfidence*.68);
             vbtTrackMode=vbtLostFrames>=3?"recovery":"expanded";
             if(vbtLostFrames===8){
+            window.__vbtTrackingLost48?.();
                 vbtUp=false;
                 vbtUpStartSample=null;
                 vbtUpTopSample=null;
@@ -5266,7 +5267,8 @@ function smoothVbtVelocity(){
 }
 
 function estimateVbtRegressionVelocity(currentSample){
-    const recent=vbtSamples.slice(-8).concat([currentSample]).filter(s=>currentSample.t-s.t<=180&&currentSample.t-s.t>=0);
+    const recent=vbtSamples.slice(-8).concat([currentSample]).filter(s=>currentSample.t-s.t<=180&&currentSample.t-s.t>=0&&
+        (currentSample._v48Segment===undefined||s._v48Segment===currentSample._v48Segment));
     if(recent.length<2)return 0;
     let sw=0,st=0,sy=0;
     for(const s of recent){
@@ -7625,7 +7627,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.14.44")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.19.48")}`,{
                 updateViaCache:"none"
             });
 
@@ -9513,8 +9515,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.14.44";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260914-v44-fps-diagnostics-stage2";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.19.48";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260919-v48-vbt-gap-baseline-telemetry-fix";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -9985,6 +9987,7 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
         vbtTrackConfidence=Math.max(0,vbtTrackConfidence*.68);
         vbtTrackMode=vbtLostFrames>=3?"recovery":"expanded";
         if(vbtLostFrames===8){
+            window.__vbtTrackingLost48?.();
           vbtUp=false;vbtUpStartSample=null;vbtUpTopSample=null;vbtStableEndFrames=0;vbtMotionWindow=[];vbtLastTracked=null;
           setVbtTargetUiState("lost");
           document.getElementById("vbt-status").innerText="対象物を見失いました。固定テンプレートとプレート外周を使って広域再探索中です。再捕捉できない場合は中心を再指定してください。";
@@ -10796,7 +10799,7 @@ function fixKeyframesAndContacts41(){if(!startOfflinePoseFrames?.length)return;c
 function stableNote41(){if(!S41.frames)return '';const cls=S41.stableScore>=.72?'':'warn',start=S41.stableStart??'--',end=S41.stableEnd??'--';return `<div class="v41-stable-pose-note ${cls}"><b>正常Pose基準：</b>Frame ${start}〜${end}付近の連続した人体形状を基準に、選手固有の骨長を学習しました。固定物へ張り付いた疑い ${S41.pinnedPoints}点 ／ 再構築 ${S41.repairedPoints}点 ／ 不確実で除外 ${S41.rejectedPoints}点${S41.sequenceAdded?` ／ 接地系列を${S41.sequenceAdded}件補完`:''}${S41.sequenceRelabeled?` ／ 脚判定を${S41.sequenceRelabeled}件再判定`:''}${S41.groundImproved?' ／ 地面モデルを正常Pose区間から再推定':''}。<br>再構築できない点は無理に数値化しません。</div>`;}
 function updateStableUi41(){const el=document.getElementById('start-athlete-track-diagnostics');if(el&&S41.frames){el.querySelector('.v41-stable-pose-note')?.remove();el.insertAdjacentHTML('beforeend',stableNote41());}const src=document.getElementById('start-offline-angle-source');if(src&&S41.keyframeShift>0){let n=document.getElementById('start-v41-keyframe-note');if(!n){n=document.createElement('div');n.id='start-v41-keyframe-note';n.className='v41-keyframe-note';src.insertAdjacentElement('afterend',n);}n.textContent='⚠ 壊れたPoseフレームを角度測定に使わず、直後の人体整合性が高いフレームへ自動補正しています。';}}
 const recompute41Base=startOfflineRecomputeDerived;
-startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.14.44"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
+startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.19.48"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
 document.getElementById('start-offline-analyze')?.addEventListener('click',()=>{S41={frames:0,stableStart:null,stableEnd:null,stableScore:0,reference:new Map(),rawGood:new Set(),repairedPoints:0,rejectedPoints:0,pinnedPoints:0,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:0};window.__startV41StablePose=S41;},{capture:true});
 
 /* ---------- Beginner-friendly contact display ---------- */
@@ -11910,7 +11913,7 @@ setTimeout(ensureUi42,0);
 <script id="performance-diagnostics-v44-stage2">
 (()=>{
   'use strict';
-  const VERSION44='2026.09.14.44';
+  const VERSION44='2026.09.19.48';
   const MAX_FRAME_SAMPLES44=720;
   const MAX_SNAPSHOTS44=240;
   const P44={
@@ -12046,15 +12049,24 @@ setTimeout(ensureUi42,0);
     const vi=document.getElementById('vbt-camera-info');if(vi&&!document.getElementById('vbt-perf44')){const d=document.createElement('details');d.id='vbt-perf44';d.className='perf44-panel';d.innerHTML='<summary><span>性能診断（第2段階）</span><span class="perf44-badge" id="vbt-perf44-badge">待機</span></summary><div class="perf44-body"><div id="vbt-perf44-text">カメラ起動後に診断値を表示します。</div><div class="perf44-actions"><button type="button" id="vbt-perf44-export">診断JSONを書き出す</button><button type="button" id="vbt-perf44-reset">診断値をリセット</button></div><div class="perf44-muted" style="margin-top:6px">画像は保存・送信しません。FPS、処理時間、カメラ設定、ライブトラック数だけを端末内で記録します。</div></div>';vi.insertAdjacentElement('afterend',d);d.querySelector('#vbt-perf44-export').addEventListener('click',export44);d.querySelector('#vbt-perf44-reset').addEventListener('click',resetVbt44);}
     const si=document.getElementById('start-camera-info');if(si&&!document.getElementById('start-perf44')){const d=document.createElement('details');d.id='start-perf44';d.className='perf44-panel';d.innerHTML='<summary><span>リアルタイムカメラ診断</span><span class="perf44-badge" id="start-perf44-badge">待機</span></summary><div class="perf44-body"><div id="start-perf44-text">リアルタイム簡易計測を開くと診断値を表示します。</div></div>';si.insertAdjacentElement('afterend',d);}
   }
-  function resetVbt44(){P44.vbt.frames=[];P44.vbt.snapshots=[];P44.vbt.callbackTimes=[];P44.vbt.metaHistory=[];P44.vbt.callbackFps=0;P44.vbt.presentedFps=0;try{vbtProcessingTimes.length=0;vbtTrackingFrameTimes.length=0;vbtAcceptedTimes.length=0;}catch(_){}renderPanels44();}
-  function renderPanels44(){
+  function resetVbt44(){P44.vbt.frames=[];P44.vbt.snapshots=[];P44.vbt.callbackTimes=[];P44.vbt.metaHistory=[];P44.vbt.callbackFps=0;P44.vbt.presentedFps=0;try{vbtProcessingTimes.length=0;vbtTrackingFrameTimes.length=0;vbtAcceptedTimes.length=0;}catch(_){}renderPanels44(true);}
+  let lastPanelUi48=-Infinity;
+  function renderPanels44(force=false){
+    const now=performance.now();
+    if(!force&&now-lastPanelUi48<350)return;
+    lastPanelUi48=now;
     ensureUi44();
     const vm=currentVbtMetrics44(),vf=vm.presentedFps||0,tf=vm.trackingFps||0,settingsFps=vm.settings.frameRate||0,st=vm.processing.total;
     const vtext=document.getElementById('vbt-perf44-text'),vbadge=document.getElementById('vbt-perf44-badge');if(vtext){const warn=vm.hiddenLiveTracks>0?'⚠ 非選択カメラが残っています':(vbtRunning&&vf>=45&&tf>0&&tf<vf*.85?'⚠ 追跡処理が映像に追いついていません':(vbtRunning&&st.p95>0&&vf>0&&st.p95>1000/vf?'⚠ p95処理時間が1フレーム間隔を超過':'✓ 診断中'));vtext.innerHTML=`<div><b>選択モード：</b>${P44.vbt.cameraMode?.label||'--'} ／ <b>現在：</b>${vm.mode}</div><div class="perf44-grid"><div class="perf44-cell"><b>カメラ側</b>設定 ${settingsFps?settingsFps.toFixed(1):'--'} fps<br>提示 ${vf?vf.toFixed(1):'--'} fps<br>通知 ${vm.callbackFps?vm.callbackFps.toFixed(1):'--'} fps</div><div class="perf44-cell"><b>解析側</b>追跡 ${tf?tf.toFixed(1):'--'} fps<br>採用 ${vm.acceptedFps?vm.acceptedFps.toFixed(1):'--'} fps<br>ライブTrack ${vm.liveTracks} / 非選択 ${vm.hiddenLiveTracks}</div><div class="perf44-cell"><b>処理時間</b>全体 p50 ${st.p50?st.p50.toFixed(1):'--'} / p95 ${st.p95?st.p95.toFixed(1):'--'} ms<br>追跡 p95 ${vm.processing.tracking.p95?vm.processing.tracking.p95.toFixed(1):'--'} ms<br>探索呼出 ${vm.processing.searchCalls||0}/処理F</div><div class="perf44-cell"><b>画素処理</b>Canvasコピー p95 ${vm.processing.copy.p95?vm.processing.copy.p95.toFixed(1):'--'} ms<br>画素読出 p95 ${vm.processing.pixels.p95?vm.processing.pixels.p95.toFixed(1):'--'} ms<br>探索合計 p95 ${vm.processing.search.p95?vm.processing.search.p95.toFixed(1):'--'} ms</div></div><div class="${warn.startsWith('⚠')?'perf44-warn':'perf44-ok'}">${warn}</div>`;if(vbadge){vbadge.textContent=vf?`${vf.toFixed(0)}fps提示`:'待機';vbadge.className='perf44-badge';}}
     const sm=currentStartMetrics44(),stext=document.getElementById('start-perf44-text'),sbadge=document.getElementById('start-perf44-badge');if(stext){stext.innerHTML=`<div><b>選択モード：</b>${P44.start.cameraMode?.label||'--'}</div><div class="perf44-grid"><div class="perf44-cell"><b>カメラ側</b>設定 ${sm.settings.frameRate?sm.settings.frameRate.toFixed(1):'--'} fps<br>提示 ${sm.presentedFps?sm.presentedFps.toFixed(1):'--'} fps<br>通知 ${sm.callbackFps?sm.callbackFps.toFixed(1):'--'} fps</div><div class="perf44-cell"><b>アプリ側</b>Pose ${sm.poseFps?sm.poseFps.toFixed(1):'--'} fps<br>ライブTrack ${sm.liveTracks}<br>非選択Track ${sm.hiddenLiveTracks}</div></div>`;if(sbadge)sbadge.textContent=sm.presentedFps?`${sm.presentedFps.toFixed(0)}fps提示`:'待機';}
   }
 
-  const baseVbtTelemetry44=updateVbtCameraTelemetry;updateVbtCameraTelemetry=function(force){baseVbtTelemetry44(force);const track=vbtVideo?.srcObject?.getVideoTracks?.()[0],s=safeSettings44(track),presented=P44.vbt.presentedFps||0,callback=P44.vbt.callbackFps||0,tracking=vbtMeasuredTrackingFps||0,accepted=typeof fpsFromTimes==='function'?fpsFromTimes(vbtAcceptedTimes):0,res=s.width&&s.height?`${s.width}×${s.height}`:'--',cam=s.facingMode==='user'?'イン':'アウト',state=mode44();let warn='';if(presented>0&&presented<45)warn+=' ／ ⚠ 提示FPS低';if(vbtRunning&&presented>=45&&tracking>0&&tracking<presented*.85)warn+=' ／ ⚠ 追跡遅れ';document.getElementById('vbt-camera-info').innerText=`カメラ：${cam} ${res} ／ 設定FPS：${s.frameRate?s.frameRate.toFixed(1):'--'} ／ 提示FPS：${presented?presented.toFixed(1):'--'} ／ 通知FPS：${callback?callback.toFixed(1):'--'} ／ 追跡FPS：${tracking?tracking.toFixed(1):'--'} ／ 採用FPS：${accepted?accepted.toFixed(1):'--'} ／ ${state}${warn}`;renderPanels44();};
+  let lastVbtTelemetryUi48=-Infinity;
+  const baseVbtTelemetry44=updateVbtCameraTelemetry;updateVbtCameraTelemetry=function(force){
+    const now=performance.now();
+    if(!force&&now-lastVbtTelemetryUi48<350)return;
+    lastVbtTelemetryUi48=now;
+    baseVbtTelemetry44(force);const track=vbtVideo?.srcObject?.getVideoTracks?.()[0],s=safeSettings44(track),presented=P44.vbt.presentedFps||0,callback=P44.vbt.callbackFps||0,tracking=vbtMeasuredTrackingFps||0,accepted=typeof fpsFromTimes==='function'?fpsFromTimes(vbtAcceptedTimes):0,res=s.width&&s.height?`${s.width}×${s.height}`:'--',cam=s.facingMode==='user'?'イン':'アウト',state=mode44();let warn='';if(presented>0&&presented<45)warn+=' ／ ⚠ 提示FPS低';if(vbtRunning&&presented>=45&&tracking>0&&tracking<presented*.85)warn+=' ／ ⚠ 追跡遅れ';document.getElementById('vbt-camera-info').innerText=`カメラ：${cam} ${res} ／ 設定FPS：${s.frameRate?s.frameRate.toFixed(1):'--'} ／ 提示FPS：${presented?presented.toFixed(1):'--'} ／ 通知FPS：${callback?callback.toFixed(1):'--'} ／ 追跡FPS：${tracking?tracking.toFixed(1):'--'} ／ 採用FPS：${accepted?accepted.toFixed(1):'--'} ／ ${state}${warn}`;renderPanels44(!!force);};
   updateStartCameraInfo=function(){const m=currentStartMetrics44(),s=m.settings,facing=s.facingMode||currentFacingMode||'',cameraName=facing==='user'?'イン':facing==='environment'?'アウト':'確認中',dims=s.width&&s.height?` ${s.width}×${s.height}`:'',pf=m.presentedFps||0,cf=m.callbackFps||0,poseFps=m.poseFps||0,warn=pf&&pf<45?'　⚠ 提示FPSが低いため時間分解能が低下します。':'';document.getElementById('start-camera-info').innerText=`カメラ：${cameraName}${dims} ／ 設定FPS：${s.frameRate?s.frameRate.toFixed(1):'--'} ／ 提示FPS：${pf?pf.toFixed(1):'--'} ／ 通知FPS：${cf?cf.toFixed(1):'--'} ／ Pose解析FPS：${poseFps?poseFps.toFixed(1):'--'}${warn}`;renderPanels44();};
 
   function snapshot44(){const now=performance.now();pushCap44(P44.vbt.snapshots,{at:new Date().toISOString(),perf:now,...currentVbtMetrics44()},MAX_SNAPSHOTS44);pushCap44(P44.start.snapshots,{at:new Date().toISOString(),perf:now,...currentStartMetrics44()},MAX_SNAPSHOTS44);}
@@ -12069,5 +12081,728 @@ setTimeout(ensureUi42,0);
   document.addEventListener('DOMContentLoaded',ensureUi44);setTimeout(ensureUi44,0);setInterval(()=>{if(document.visibilityState==='visible'&&['vbt','camera-analysis'].includes(CameraLease43.activeTab())){snapshot44();renderPanels44();}},800);
 })();
 </script>
+
+
+<script id="shared-runtime-v45-stage3">
+/* ============================================================
+   v45 Stage 3: capture-first scheduling + shared Pose runtime
+   Goals (no UI/feature changes):
+   1) Keep camera / MediaRecorder frame delivery independent from live Pose work.
+      Live Pose is submitted on a later task and uses latest-frame-wins backpressure.
+   2) Preserve requestVideoFrameCallback/mediaTime as the timing source and carry
+      frame metadata through Pose submission without deriving event time from Pose FPS.
+   3) Reuse the two Pose instances already loaded by v44:
+        - `pose`             : realtime START + low-threshold athlete discovery
+        - `startOfflinePose` : START offline + SPRINTPEAK offline + MyJump
+      This avoids creating a separate MyJump Pose instance and a separate discovery Pose.
+   ============================================================ */
+(()=>{
+  'use strict';
+
+  const V45={
+    createdAt:new Date().toISOString(),
+    live:{scheduled:0,completed:0,droppedBusy:0,errors:0,lastMediaTime:null,lastPresentedFrames:null},
+    precision:{profile:'precision',submitted:0,completed:0,errors:0},
+    discovery:{submitted:0,completed:0,errors:0}
+  };
+  window.__sprintRuntimeV45=V45;
+
+  const LIVE_OPTIONS={modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.70,minTrackingConfidence:.70};
+  const DISCOVERY_OPTIONS={modelComplexity:1,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.45,minTrackingConfidence:.45};
+  const PRECISION_OPTIONS={modelComplexity:2,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.55,minTrackingConfidence:.60};
+  const MYJUMP_OPTIONS={modelComplexity:2,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.70,minTrackingConfidence:.65};
+
+  let realtimeProfile='live';
+  let precisionProfile='precision';
+  let realtimeChain=Promise.resolve();
+  let precisionChain=Promise.resolve();
+
+  function sameProfile(a,b){return a===b;}
+  function setRealtimeProfile(name){
+    if(sameProfile(realtimeProfile,name))return;
+    pose.setOptions(name==='discovery'?DISCOVERY_OPTIONS:LIVE_OPTIONS);
+    realtimeProfile=name;
+  }
+  function setPrecisionProfile(name){
+    if(sameProfile(precisionProfile,name))return;
+    startOfflinePose.setOptions(name==='myjump'?MYJUMP_OPTIONS:PRECISION_OPTIONS);
+    precisionProfile=name;
+    V45.precision.profile=name;
+  }
+
+  /* High precision lane: serializes all offline high-accuracy inference on the
+     existing startOfflinePose instance. Existing resolver variables are retained
+     so all downstream result handling remains unchanged. */
+  function precisionSend45(image,profile='precision',timeoutMs=8000){
+    const run=()=>new Promise((resolve,reject)=>{
+      setPrecisionProfile(profile);
+      V45.precision.submitted++;
+      let settled=false;
+      const finishOk=result=>{
+        if(settled)return;
+        settled=true;clearTimeout(timer);
+        if(startOfflinePoseResolve===finishOk)startOfflinePoseResolve=null;
+        startOfflinePoseReject=null;
+        V45.precision.completed++;
+        resolve(result||null);
+      };
+      const finishErr=err=>{
+        if(settled)return;
+        settled=true;clearTimeout(timer);
+        if(startOfflinePoseResolve===finishOk)startOfflinePoseResolve=null;
+        startOfflinePoseReject=null;
+        V45.precision.errors++;
+        reject(err instanceof Error?err:new Error(String(err||'Pose解析エラー')));
+      };
+      const timer=setTimeout(()=>{
+        try{
+          const r=startOfflinePose.reset?.();
+          Promise.resolve(r).finally(()=>finishErr(new Error('Pose解析タイムアウト')));
+        }catch(_){finishErr(new Error('Pose解析タイムアウト'));}
+      },timeoutMs);
+      startOfflinePoseResolve=finishOk;
+      startOfflinePoseReject=finishErr;
+      Promise.resolve(startOfflinePose.send({image})).catch(finishErr);
+    });
+    const p=precisionChain.then(run,run);
+    precisionChain=p.catch(()=>{});
+    return p;
+  }
+
+  /* Preserve the existing public helper name. START/SprintPeak automatically use
+     the precision profile; MyJump selects its previous smoothing/confidence profile. */
+  startOfflinePoseSend=function(image){return precisionSend45(image,'precision',8000);};
+  myJumpEnsurePose=async function(){return startOfflinePose;};
+  myJumpPoseSend=function(){return precisionSend45(myPreview,'myjump',8000).catch(()=>null);};
+
+  /* Discovery reuses the realtime model-complexity-1 instance. Offline analysis
+     suspends live START camera before discovery, so this lane is serialized and the
+     original START onResults callback/options are restored before live use resumes. */
+  ensureAthleteDiscoveryPose=async function(){return pose;};
+  athleteDiscoverySend=function(image){
+    const run=()=>new Promise((resolve)=>{
+      setRealtimeProfile('discovery');
+      V45.discovery.submitted++;
+      let settled=false;
+      const finish=result=>{
+        if(settled)return;
+        settled=true;clearTimeout(timer);
+        V45.discovery.completed++;
+        try{pose.onResults(onResults);setRealtimeProfile('live');}catch(_){ }
+        resolve(result||null);
+      };
+      const fail=()=>{
+        if(settled)return;
+        settled=true;clearTimeout(timer);
+        V45.discovery.errors++;
+        try{pose.onResults(onResults);setRealtimeProfile('live');}catch(_){ }
+        resolve(null);
+      };
+      const timer=setTimeout(()=>{
+        try{
+          const r=pose.reset?.();
+          Promise.resolve(r).finally(fail);
+        }catch(_){fail();}
+      },6500);
+      try{
+        pose.onResults(finish);
+        Promise.resolve(pose.send({image})).catch(fail);
+      }catch(_){fail();}
+    });
+    const p=realtimeChain.then(run,run);
+    realtimeChain=p.catch(()=>{});
+    return p;
+  };
+
+  /* Run live Pose outside the requestVideoFrameCallback task. This prevents the
+     frame-delivery callback itself from immediately entering MediaPipe/WASM work.
+     Backpressure is latest-frame-wins: if Pose is busy, no backlog is accumulated. */
+  function postPoseTask45(fn){
+    try{
+      if(window.scheduler?.postTask)return window.scheduler.postTask(fn,{priority:'user-visible'});
+    }catch(_){ }
+    return new Promise(resolve=>setTimeout(()=>Promise.resolve().then(fn).finally(resolve),0));
+  }
+
+  startPoseAnalysisLoop=function(generation){
+    const targetFps=(typeof LIVE_POSE_FPS==='number'&&LIVE_POSE_FPS>0)?LIVE_POSE_FPS:10;
+    const minInterval=1000/targetFps;
+    const submit=(now,metadata)=>{
+      if(generation!==startCameraGeneration||startPoseBusy||videoElement.readyState<2){
+        if(startPoseBusy)V45.live.droppedBusy++;
+        return;
+      }
+      if(now-startLastPoseSubmitPerf<minInterval)return;
+      startLastPoseSubmitPerf=now;
+
+      let captureT=startCaptureTimeFromPerf(now);
+      if(startRecordingActive&&metadata&&startFrameClockBaseMediaTime!==null&&Number.isFinite(metadata.mediaTime)){
+        captureT=Math.max(0,metadata.mediaTime-startFrameClockBaseMediaTime);
+      }
+      const frame=startNearestFrameByCaptureTime(captureT);
+      const meta={
+        perf:now,
+        captureT,
+        frameIndex:frame?.index??null,
+        mediaTime:Number.isFinite(metadata?.mediaTime)?metadata.mediaTime:null,
+        presentedFrames:Number.isFinite(metadata?.presentedFrames)?metadata.presentedFrames:null,
+        expectedDisplayTime:Number.isFinite(metadata?.expectedDisplayTime)?metadata.expectedDisplayTime:null,
+        width:Number.isFinite(metadata?.width)?metadata.width:null,
+        height:Number.isFinite(metadata?.height)?metadata.height:null
+      };
+      V45.live.lastMediaTime=meta.mediaTime;
+      V45.live.lastPresentedFrames=meta.presentedFrames;
+      V45.live.scheduled++;
+      startPoseBusy=true; // reserve before leaving the frame callback; prevents queued backlog
+
+      postPoseTask45(async()=>{
+        if(generation!==startCameraGeneration||!videoElement?.srcObject||videoElement.readyState<2){startPoseBusy=false;return;}
+        try{
+          setRealtimeProfile('live');
+          pose.onResults(onResults);
+          startPoseSubmitMeta=meta;
+          await pose.send({image:videoElement});
+          V45.live.completed++;
+        }catch(e){
+          V45.live.errors++;
+          console.error('Start Pose error',e);
+        }finally{
+          startPoseBusy=false;
+        }
+      });
+    };
+
+    if(typeof videoElement.requestVideoFrameCallback==='function'){
+      const loop=(now,metadata)=>{
+        if(generation!==startCameraGeneration)return;
+        submit(now,metadata);
+        videoElement.requestVideoFrameCallback(loop);
+      };
+      videoElement.requestVideoFrameCallback(loop);
+    }else{
+      const loop=now=>{
+        if(generation!==startCameraGeneration)return;
+        submit(now,null);
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+  };
+
+})();
+
+</script>
+
+<script id="motion-core-v46-stage4">
+/* ============================================================
+   v46 Stage 4: internal motion-quality upgrades (no UI/features changed)
+   A) Offline foot trajectories: confidence-aware constant-velocity Kalman
+      followed by zero-phase 2nd-order Butterworth smoothing.
+   B) FootNet-inspired corroboration: foot COM vertical velocity, shank
+      horizontal velocity and ankle-angle rate augment existing contact evidence.
+      Existing ground/height evidence remains the gate, so the new signals cannot
+      manufacture an airborne contact by themselves.
+   C) Progressive camera stabilization: if the browser/device exposes camera
+      controls, autofocus/autoexposure are allowed to settle and are then locked
+      at the current values. Unsupported devices keep the previous behavior.
+   D) Offline patch tracking worker: ImageBitmap -> OffscreenCanvas -> luma ->
+      template search runs off the main thread where supported, with automatic
+      fallback to the proven v45 path.
+   ============================================================ */
+(()=>{
+  'use strict';
+  const V46={
+    createdAt:new Date().toISOString(),
+    temporal:{runs:0,series:0,points:0,lastFps:null,lastCutoff:null},
+    footnet:{signalBuilds:0,evidenceCalls:0},
+    camera:{attempts:0,locked:0,partial:0,unsupported:0,errors:0,modules:{}},
+    worker:{supported:false,enabled:false,sessions:0,frames:0,fallbacks:0,errors:0,lastError:null}
+  };
+  window.__sprintRuntimeV46=V46;
+
+  const clamp46=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function median46(values){const a=(values||[]).filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return 0;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+  function fps46(frames){const d=[];for(let i=1;i<(frames||[]).length;i++){const dt=frames[i].t-frames[i-1].t;if(dt>.001&&dt<.25)d.push(dt);}const md=median46(d);return md>0?1/md:(typeof startOfflineEffectiveFps==='function'?startOfflineEffectiveFps():60);}
+
+  /* ---------- A) Kalman + zero-phase Butterworth ---------- */
+  function kalman1D46(values,times,confs,diag){
+    const n=values.length,out=new Array(n);if(!n)return out;
+    let x=values[0],v=0,p00=Math.pow(Math.max(2,diag*.010),2),p01=0,p11=Math.pow(Math.max(20,diag*.12),2);
+    const accelSigma=Math.max(60,diag*1.7);
+    out[0]=x;
+    for(let i=1;i<n;i++){
+      const dt=clamp46((times[i]-times[i-1])||1/60,1/300,.12),dt2=dt*dt,dt3=dt2*dt,dt4=dt2*dt2,q=accelSigma*accelSigma;
+      x=x+v*dt;
+      const np00=p00+2*dt*p01+dt2*p11+q*dt4*.25;
+      const np01=p01+dt*p11+q*dt3*.5;
+      const np11=p11+q*dt2;p00=np00;p01=np01;p11=np11;
+      const z=values[i],conf=clamp46(Number.isFinite(confs[i])?confs[i]:.45,.08,1);
+      const measSigma=Math.max(1.5,diag*(.0035+.017*(1-conf)));
+      let r=measSigma*measSigma,innovation=z-x,s=Math.max(1e-6,p00+r),sigma=Math.sqrt(s);
+      const hardGate=Math.max(diag*.055,6*sigma);
+      if(Math.abs(innovation)>hardGate){
+        if(conf<.72){out[i]=x;continue;}
+        r*=10;s=p00+r;
+      }
+      const k0=p00/s,k1=p01/s;x=x+k0*innovation;v=v+k1*innovation;
+      const op00=p00,op01=p01;p00=(1-k0)*op00;p01=(1-k0)*op01;p11=p11-k1*op01;out[i]=x;
+    }
+    return out;
+  }
+  function biquadLowpass46(values,fs,fc){
+    if(values.length<3||!(fs>0)||!(fc>0))return values.slice();
+    fc=Math.min(fc,fs*.45);const q=Math.SQRT1_2,w=2*Math.PI*fc/fs,c=Math.cos(w),sn=Math.sin(w),alpha=sn/(2*q),a0=1+alpha;
+    const b0=((1-c)/2)/a0,b1=(1-c)/a0,b2=b0,a1=(-2*c)/a0,a2=(1-alpha)/a0;
+    const out=new Array(values.length);let x1=values[0],x2=values[0],y1=values[0],y2=values[0];
+    for(let i=0;i<values.length;i++){const x0=values[i],y0=b0*x0+b1*x1+b2*x2-a1*y1-a2*y2;out[i]=y0;x2=x1;x1=x0;y2=y1;y1=y0;}return out;
+  }
+  function zeroPhaseButter46(values,fs,fc){
+    if(values.length<7)return values.slice();
+    const f=biquadLowpass46(values,fs,fc),r=biquadLowpass46(f.slice().reverse(),fs,fc).reverse();return r;
+  }
+  function landmarkGetter46(frames){
+    try{if(frames===startOfflinePoseFrames&&typeof startOfflineCorrectedLandmarks==='function')return startOfflineCorrectedLandmarks;}catch(_){}
+    try{if(frames===sprintOfflinePoseFrames&&typeof sprintOfflineTrackedLandmarks==='function')return sprintOfflineTrackedLandmarks;}catch(_){}
+    return null;
+  }
+  function temporallyFilterFootMap46(frames,map,w,h){
+    if(!frames?.length||!map?.size)return {map,series:0,points:0};
+    const frameByIndex=new Map(frames.map(f=>[f.index,f])),diag=Math.hypot(w||1,h||1),fs=clamp46(fps46(frames),10,240),fc=Math.min(fs*.43,Math.max(7.5,Math.min(22,fs*.22)));
+    const getter=landmarkGetter46(frames);let seriesCount=0,pointCount=0;
+    const parts=['ankle','heel','toe'];
+    for(const side of ['left','right'])for(const part of parts){
+      const rows=[];for(const f of frames){const p=map.get(f.index)?.[side]?.[part];if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y))rows.push({f,p});}
+      if(rows.length<7)continue;
+      const times=rows.map(r=>r.f.t),confs=rows.map(r=>r.p.visibility??.35),xs=rows.map(r=>r.p.x),ys=rows.map(r=>r.p.y);
+      const kx=kalman1D46(xs,times,confs,diag),ky=kalman1D46(ys,times,confs,diag),bx=zeroPhaseButter46(kx,fs,fc),by=zeroPhaseButter46(ky,fs,fc);
+      for(let i=0;i<rows.length;i++){
+        const r=rows[i],p=r.p;let manual=false;
+        try{const lm=getter?.(r.f),idx=OFFLINE_TRACK_DEFS?.[side]?.[part],raw=Number.isFinite(idx)?lm?.[idx]:null;manual=!!(raw?._manualCorrection||raw?._trackingSeed);}catch(_){}
+        if(manual)continue;
+        const vis=clamp46(p.visibility??.35,0,1),source=String(p.source||'');let weight=vis>=.84?.58:vis>=.60?.70:.84;if(p._inferredPart||source.includes('inferred'))weight=.88;if(p._patchTracked||source.includes('patch'))weight=Math.min(weight,.68);
+        const rawX=p.x,rawY=p.y;p.x=rawX*(1-weight)+bx[i]*weight;p.y=rawY*(1-weight)+by[i]*weight;p._v46RawX=rawX;p._v46RawY=rawY;p._v46TemporalFiltered=true;p._v46FilterWeight=weight;pointCount++;
+      }
+      seriesCount++;
+    }
+    /* Foot center must be rebuilt after the component trajectories move. */
+    for(const [idx,rec] of map){for(const side of ['left','right']){const d=rec?.[side];if(!d)continue;const heel=d.heel,toe=d.toe,ankle=d.ankle;let center=null;if(heel&&toe)center={x:(heel.x+toe.x)/2,y:(heel.y+toe.y)/2,visibility:Math.min(heel.visibility??0,toe.visibility??0),source:(heel._patchTracked||toe._patchTracked)?'patch/fused':(heel._inferredPart||toe._inferredPart)?'part-inferred':'pose',_inferredFoot:!!(heel._inferredPart||toe._inferredPart),_v46TemporalFiltered:true};else if(ankle&&heel)center={x:heel.x*.65+ankle.x*.35,y:heel.y*.65+ankle.y*.35,visibility:Math.min(heel.visibility??0,ankle.visibility??0)*.72,source:'partial',_inferredFoot:true,_v46TemporalFiltered:true};else if(ankle&&toe)center={x:toe.x*.65+ankle.x*.35,y:toe.y*.65+ankle.y*.35,visibility:Math.min(toe.visibility??0,ankle.visibility??0)*.72,source:'partial',_inferredFoot:true,_v46TemporalFiltered:true};if(center)d.center=center;}}
+    V46.temporal.runs++;V46.temporal.series+=seriesCount;V46.temporal.points+=pointCount;V46.temporal.lastFps=fs;V46.temporal.lastCutoff=fc;return {map,series:seriesCount,points:pointCount,fs,fc};
+  }
+  const baseFootDetail46=offlineBuildResilientFootDetail;
+  offlineBuildResilientFootDetail=function(frames,w,h,landmarkGetter,maxGapSec=.16){
+    const r=baseFootDetail46(frames,w,h,landmarkGetter,maxGapSec);
+    try{const f=temporallyFilterFootMap46(frames,r.map,w,h);r.map=f.map;r.stats={...(r.stats||{}),temporalFilter:'kalman+zero-phase-butterworth',temporalFilteredPoints:f.points,temporalSeries:f.series,temporalCutoffHz:f.fc||null};}catch(e){console.warn('v46 temporal foot filter fallback',e);}return r;
+  };
+
+  /* ---------- B) FootNet-inspired extra kinematic signals ---------- */
+  const baseFootSignals46=offlineBuildFootSignals;
+  offlineBuildFootSignals=function(frames,w,h,detail,bodyStateGetter,scaleAtPoint,groundModel,groundAxis,upUnit){
+    const series=baseFootSignals46(frames,w,h,detail,bodyStateGetter,scaleAtPoint,groundModel,groundAxis,upUnit);V46.footnet.signalBuilds++;
+    try{
+      const getter=landmarkGetter46(frames),defs=typeof OFFLINE_TRACK_DEFS!=='undefined'?OFFLINE_TRACK_DEFS:null;
+      for(const side of ['left','right']){
+        const arr=series[side]||[],def=defs?.[side];
+        for(const q of arr){
+          q.footComVUp=NaN;q.shankVGround=NaN;q.ankleAngle=NaN;q.ankleAngleRate=NaN;q.shankS=NaN;
+          const f=q.frame,lm=getter?.(f),kidx=def?.knee;const kp=Number.isFinite(kidx)?lm?.[kidx]:null,ankle=q.parts?.ankle,toe=q.parts?.toe;
+          if(kp&&(kp.visibility??0)>=.20&&ankle){const knee={x:kp.x*w,y:kp.y*h},shank={x:(knee.x+ankle.x)/2,y:(knee.y+ankle.y)/2};q.shankS=shank.x*groundAxis.x+shank.y*groundAxis.y;
+            if(toe){const sx=knee.x-ankle.x,sy=knee.y-ankle.y,fx=toe.x-ankle.x,fy=toe.y-ankle.y,den=Math.hypot(sx,sy)*Math.hypot(fx,fy);if(den>1e-6)q.ankleAngle=Math.acos(clamp46((sx*fx+sy*fy)/den,-1,1))*180/Math.PI;}
+          }
+        }
+        const der=(P,N,key,scale)=>Number.isFinite(P?.[key])&&Number.isFinite(N?.[key])&&N.t>P.t?(N[key]-P[key])/Math.max(1,scale)/(N.t-P.t):NaN;
+        for(let i=0;i<arr.length;i++){const P=arr[Math.max(0,i-1)],N=arr[Math.min(arr.length-1,i+1)],q=arr[i],sc=((P?.scale?.pxPerMeter||q.scale?.pxPerMeter||1)+(N?.scale?.pxPerMeter||q.scale?.pxPerMeter||1))/2;q.footComVUp=der(P,N,'centerUp',sc);q.shankVGround=der(P,N,'shankS',sc);if(Number.isFinite(P?.ankleAngle)&&Number.isFinite(N?.ankleAngle)&&N.t>P.t)q.ankleAngleRate=(N.ankleAngle-P.ankleAngle)/(N.t-P.t);}
+      }
+    }catch(e){console.warn('v46 foot kinematics fallback',e);}return series;
+  };
+  const baseContactEvidence46=offlineContactEvidence;
+  offlineContactEvidence=function(q,prev,next,mode='sprint'){
+    const base=baseContactEvidence46(q,prev,next,mode);V46.footnet.evidenceCalls++;if(!q)return base;
+    try{
+      const groundQ=Number.isFinite(q.contactHeightM)?clamp46((.052-q.contactHeightM)/.045,0,1):0;if(groundQ<.08)return base;
+      const footVert=Number.isFinite(q.footComVUp)?clamp46(1-Math.abs(q.footComVUp)/1.05,0,1):null;
+      const prevAbs=Number.isFinite(prev?.vGround)?Math.abs(prev.vGround):null,curAbs=Number.isFinite(q.vGround)?Math.abs(q.vGround):null;
+      const footSlow=prevAbs!==null&&curAbs!==null?clamp46((prevAbs-curAbs+.25)/2.4,0,1):null;
+      const shankTurn=Number.isFinite(prev?.shankVGround)&&Number.isFinite(next?.shankVGround)?clamp46(Math.abs(next.shankVGround-prev.shankVGround)/4.5,0,1):null;
+      const ankleTurn=Number.isFinite(q.ankleAngleRate)?clamp46(Math.abs(q.ankleAngleRate)/240,0,1):null;
+      const vals=[[footVert,.34],[footSlow,.26],[shankTurn,.20],[ankleTurn,.20]].filter(x=>x[0]!==null),ws=vals.reduce((s,x)=>s+x[1],0);if(!ws)return base;
+      const corroboration=vals.reduce((s,x)=>s+x[0]*x[1],0)/ws,support=clamp46(vals.length/4,0,1),blend=(mode==='first'?.16:.11)*support;let score=base*(1-blend)+corroboration*blend;
+      /* New kinematics may corroborate but may not override clear geometric evidence. */
+      if(groundQ<.25)score=Math.min(score,base+.025);q._v46FootNetScore=corroboration;q._v46FootNetSupport=support;return clamp46(score,0,1);
+    }catch(_){return base;}
+  };
+
+  /* ---------- C) Camera focus / exposure stabilization ---------- */
+  const delay46=ms=>new Promise(r=>setTimeout(r,ms));
+  function supportedMode46(caps,key,mode){const a=caps?.[key];return Array.isArray(a)&&a.includes(mode);}
+  async function applyAdvanced46(track,obj){if(!track?.applyConstraints||!obj||!Object.keys(obj).length)return false;try{await track.applyConstraints({advanced:[obj]});return true;}catch(_){return false;}}
+  async function stabilizeTrack46(track,module){
+    if(!track||track.readyState!=='live')return;V46.camera.attempts++;const rec={at:new Date().toISOString(),module,status:'attempt',before:null,after:null,focus:false,exposure:false};V46.camera.modules[module]=rec;
+    let caps={};try{caps=track.getCapabilities?.()||{};rec.before=track.getSettings?.()||{};}catch(_){}
+    const hasFocus=Array.isArray(caps.focusMode),hasExposure=Array.isArray(caps.exposureMode);if(!hasFocus&&!hasExposure){rec.status='unsupported';V46.camera.unsupported++;return;}
+    try{
+      const settle={};if(supportedMode46(caps,'focusMode','continuous'))settle.focusMode='continuous';else if(supportedMode46(caps,'focusMode','single-shot'))settle.focusMode='single-shot';if(supportedMode46(caps,'exposureMode','continuous'))settle.exposureMode='continuous';await applyAdvanced46(track,settle);await delay46(420);if(track.readyState!=='live')return;
+      const settled=track.getSettings?.()||{};let okF=false,okE=false;
+      if(supportedMode46(caps,'focusMode','manual')){const c={focusMode:'manual'};if(Number.isFinite(settled.focusDistance)&&caps.focusDistance&&typeof caps.focusDistance==='object')c.focusDistance=clamp46(settled.focusDistance,caps.focusDistance.min??settled.focusDistance,caps.focusDistance.max??settled.focusDistance);okF=await applyAdvanced46(track,c);}
+      if(supportedMode46(caps,'exposureMode','manual')){const c={exposureMode:'manual'};if(Number.isFinite(settled.exposureTime)&&caps.exposureTime&&typeof caps.exposureTime==='object')c.exposureTime=clamp46(settled.exposureTime,caps.exposureTime.min??settled.exposureTime,caps.exposureTime.max??settled.exposureTime);okE=await applyAdvanced46(track,c);}
+      rec.focus=okF;rec.exposure=okE;rec.after=track.getSettings?.()||{};if(okF||okE){rec.status=okF&&okE?'locked':'partial';if(okF&&okE)V46.camera.locked++;else V46.camera.partial++;}else{rec.status='settled-auto';V46.camera.partial++;}
+    }catch(e){rec.status='error';rec.error=String(e?.message||e);V46.camera.errors++;}
+  }
+  const scheduledStreams46=new WeakSet();
+  function scheduleStabilize46(stream,module){if(!stream||scheduledStreams46.has(stream))return;scheduledStreams46.add(stream);setTimeout(()=>{const t=stream.getVideoTracks?.()[0];if(t?.readyState==='live')stabilizeTrack46(t,module);},120);}
+  try{const b=getStartCameraStream;getStartCameraStream=async function(...a){const s=await b(...a);scheduleStabilize46(s,'start');return s;};}catch(_){}
+  try{const b=openVbtCamera;openVbtCamera=async function(...a){const s=await b(...a);scheduleStabilize46(s,'vbt');return s;};}catch(_){}
+  try{const b=startSprintCamera;startSprintCamera=async function(...a){const r=await b(...a);scheduleStabilize46(sprintVideo?.srcObject||sprintStream,'sprintpeak');return r;};}catch(_){}
+  try{const b=startMyJumpCamera;startMyJumpCamera=async function(...a){const r=await b(...a);scheduleStabilize46(myLive?.srcObject||myStream,'myjump');return r;};}catch(_){}
+
+  /* ---------- D) Worker-backed offline patch tracker ---------- */
+  const workerSupported46=typeof Worker==='function'&&typeof createImageBitmap==='function'&&typeof OffscreenCanvas==='function';V46.worker.supported=workerSupported46;
+  let patchWorker46=null,patchWorkerSeq46=0;const patchPending46=new Map();
+  function patchWorkerMain46(){
+    'use strict';const sessions=new Map(),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    function gray(bitmap){const scale=Math.min(1,320/bitmap.width,240/bitmap.height),w=Math.max(96,Math.round(bitmap.width*scale)),h=Math.max(72,Math.round(bitmap.height*scale)),c=new OffscreenCanvas(w,h),x=c.getContext('2d',{alpha:false,willReadFrequently:true});x.drawImage(bitmap,0,0,w,h);bitmap.close?.();const d=x.getImageData(0,0,w,h).data,g=new Uint8Array(w*h);for(let i=0,j=0;i<d.length;i+=4,j++)g[j]=(d[i]*77+d[i+1]*150+d[i+2]*29)>>8;return {data:g,w,h};}
+    function tpl(g,cx,cy,r=4){cx=Math.round(cx);cy=Math.round(cy);if(cx-r<1||cy-r<1||cx+r>=g.w-1||cy+r>=g.h-1)return null;const n=(2*r+1)**2,vals=new Float32Array(n);let k=0,sum=0,sq=0;for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){const v=g.data[(cy+y)*g.w+cx+x];vals[k++]=v;sum+=v;sq+=v*v;}const mean=sum/n,std=Math.sqrt(Math.max(0,sq/n-mean*mean));let norm=0;for(let i=0;i<n;i++){vals[i]-=mean;norm+=vals[i]*vals[i];}return {vals,r,std,norm:Math.sqrt(norm)};}
+    function cost(g,t,cx,cy){const r=t.r;cx=Math.round(cx);cy=Math.round(cy);if(cx-r<0||cy-r<0||cx+r>=g.w||cy+r>=g.h)return Infinity;const n=t.vals.length;let sum=0,sq=0;for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){const v=g.data[(cy+y)*g.w+cx+x];sum+=v;sq+=v*v;}const mean=sum/n,std=Math.sqrt(Math.max(0,sq/n-mean*mean));if(std<2||!(t.norm>1))return 80;let dot=0,norm=0,k=0;for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){const d=g.data[(cy+y)*g.w+cx+x]-mean;dot+=d*t.vals[k++];norm+=d*d;}const corr=clamp(dot/(Math.sqrt(norm)*t.norm+1e-6),-1,1),stdPenalty=Math.min(12,Math.abs(std-t.std)*.35);return (1-corr)*36+stdPenalty;}
+    function search(g,s,prior){const pred={x:s.x+s.vx,y:s.y+s.vy},speed=Math.hypot(s.vx,s.vy),rad=Math.round(clamp(10+speed*1.25,10,22));let best=null,bestScore=Infinity;function at(x,y){const c=cost(g,s.template,x,y);if(!Number.isFinite(c))return;const motion=.20*Math.hypot(x-pred.x,y-pred.y),pp=prior&&prior.conf>.58?.12*Math.hypot(x-prior.x,y-prior.y):0,score=c+motion+pp;if(score<bestScore){bestScore=score;best={x,y,c};}}for(let y=Math.round(pred.y-rad);y<=Math.round(pred.y+rad);y+=2)for(let x=Math.round(pred.x-rad);x<=Math.round(pred.x+rad);x+=2)at(x,y);if(best)for(let y=best.y-2;y<=best.y+2;y++)for(let x=best.x-2;x<=best.x+2;x++)at(x,y);if(!best)return null;const texture=clamp((s.template.std-4)/18,0,1),match=clamp((44-best.c)/34,0,1),conf=clamp(match*(.58+.42*texture),0,1);return {...best,conf,pred};}
+    function blend(a,b,k=.06){if(!a||!b||a.vals.length!==b.vals.length)return a;for(let i=0;i<a.vals.length;i++)a.vals[i]=a.vals[i]*(1-k)+b.vals[i]*k;a.std=a.std*(1-k)+b.std*k;let norm=0;for(let i=0;i<a.vals.length;i++)norm+=a.vals[i]*a.vals[i];a.norm=Math.sqrt(norm);return a;}
+    self.onmessage=e=>{const m=e.data||{},id=m.id;try{if(m.action==='close'){sessions.delete(m.session);postMessage({id,ok:true});return;}const g=gray(m.bitmap);if(m.action==='init'){const st=new Map();for(const p of m.points||[]){const x=p.x*g.w,y=p.y*g.h,t=tpl(g,x,y,4);if(t)st.set(String(p.id),{x,y,vx:0,vy:0,template:t,miss:0});}sessions.set(m.session,st);postMessage({id,ok:true,count:st.size});return;}if(m.action==='track'){const st=sessions.get(m.session);if(!st)throw new Error('patch session missing');const pri=new Map((m.priors||[]).map(p=>[String(p.id),p])),hits=[];for(const [key,s] of [...st]){const p0=pri.get(key),prior=p0&&Number.isFinite(p0.x)?{x:p0.x*g.w,y:p0.y*g.h,conf:p0.conf||0}:null,hit=search(g,s,prior);if(hit&&hit.conf>=.24){const nx=hit.x,ny=hit.y;s.vx=clamp(nx-s.x,-18,18)*.72+s.vx*.28;s.vy=clamp(ny-s.y,-18,18)*.72+s.vy*.28;s.x=nx;s.y=ny;s.miss=0;if(hit.conf>.62&&hit.c<24){const nt=tpl(g,nx,ny,4);if(nt)blend(s.template,nt,.06);}hits.push({id:key,ok:true,x:nx/g.w,y:ny/g.h,conf:hit.conf,c:hit.c,reanchored:false});}
+      else if(prior&&prior.conf>=.76&&Math.hypot(prior.x-(s.x+s.vx),prior.y-(s.y+s.vy))<=30){const nt=tpl(g,prior.x,prior.y,4);if(nt){s.x=prior.x;s.y=prior.y;s.vx*=.25;s.vy*=.25;s.template=nt;s.miss=0;hits.push({id:key,ok:true,x:p0.x,y:p0.y,conf:.50,c:null,reanchored:true});}else hits.push({id:key,ok:false});}
+      else{s.miss++;hits.push({id:key,ok:false,deleted:s.miss>6});if(s.miss>6)st.delete(key);}}postMessage({id,ok:true,hits});return;}throw new Error('unknown action');}catch(err){try{m.bitmap?.close?.();}catch(_){}postMessage({id,ok:false,error:String(err?.message||err)});}};
+  }
+  function ensurePatchWorker46(){if(!workerSupported46)return null;if(patchWorker46)return patchWorker46;try{const src='('+patchWorkerMain46.toString()+')();',url=URL.createObjectURL(new Blob([src],{type:'application/javascript'}));patchWorker46=new Worker(url);setTimeout(()=>URL.revokeObjectURL(url),1000);patchWorker46.onmessage=e=>{const m=e.data||{},p=patchPending46.get(m.id);if(!p)return;patchPending46.delete(m.id);clearTimeout(p.timer);m.ok?p.resolve(m):p.reject(new Error(m.error||'patch worker error'));};patchWorker46.onerror=e=>{V46.worker.errors++;V46.worker.lastError=String(e?.message||e);for(const [,p] of patchPending46){clearTimeout(p.timer);p.reject(new Error(V46.worker.lastError));}patchPending46.clear();try{patchWorker46.terminate();}catch(_){}patchWorker46=null;};V46.worker.enabled=true;return patchWorker46;}catch(e){V46.worker.errors++;V46.worker.lastError=String(e?.message||e);return null;}}
+  function workerCall46(action,payload={},transfer=[]){const w=ensurePatchWorker46();if(!w)return Promise.reject(new Error('worker unavailable'));return new Promise((resolve,reject)=>{const id=++patchWorkerSeq46,timer=setTimeout(()=>{patchPending46.delete(id);reject(new Error('patch worker timeout'));},6500);patchPending46.set(id,{resolve,reject,timer});w.postMessage({id,action,...payload},transfer);});}
+  const basePatchTracking46=offlineRunPatchTracking;
+  offlineRunPatchTracking=async function(args){
+    if(!workerSupported46)return basePatchTracking46(args);
+    const {video,seekTime,indices,frameTimes,seed,resolved,poseMap,w,h,cancelled,onProgress}=args||{},out=new Map(),stats={enabled:false,points:0,frames:0,reanchored:0,failed:0,forward:0,backward:0,worker:true};
+    try{
+      if(!seed||seed.frameIndex===null||!offlineTrackPointCount(seed)||!resolved?.mapping)return {map:out,stats};const selected=[];for(const leg of ['near','far']){const side=resolved.mapping[leg];if(!side)continue;for(const joint of OFFLINE_TRACK_JOINTS){const q=seed.points?.[leg]?.[joint];if(q)selected.push({leg,side,joint,idx:OFFLINE_TRACK_DEFS[side][joint],q});}}if(!selected.length)return {map:out,stats};stats.enabled=true;stats.points=selected.length;
+      const ref=seed.frameIndex,seq=[...new Set([...(indices||[]),ref])].filter(i=>i>=0&&i<frameTimes.length).sort((a,b)=>a-b),refPos=seq.indexOf(ref);if(refPos<0)return {map:out,stats};
+      for(const s of selected)offlinePatchStore(out,ref,s.idx,{x:s.q.x,y:s.q.y,z:0,visibility:1,_patchTracked:true,_patchSeed:true,_patchConfidence:1,_patchWorker:true});
+      const pass=async(list,direction)=>{const session='v46-'+Date.now()+'-'+Math.random().toString(36).slice(2)+'-'+direction;await seekTime(frameTimes[ref]);let bm=await createImageBitmap(video);await workerCall46('init',{session,points:selected.map(s=>({id:String(s.idx),x:s.q.x,y:s.q.y}))},[bm]);let done=0;try{for(const idx of list){if(cancelled?.())break;await seekTime(frameTimes[idx]);bm=await createImageBitmap(video);const lm=poseMap?.get(idx)?.landmarks,priors=selected.map(s=>{const p=lm?.[s.idx];return {id:String(s.idx),x:Number.isFinite(p?.x)?p.x:null,y:Number.isFinite(p?.y)?p.y:null,conf:p?.visibility??0};});const r=await workerCall46('track',{session,priors},[bm]);for(const hit of r.hits||[]){const jointIdx=parseInt(hit.id,10),raw=lm?.[jointIdx];if(hit.ok){if(hit.reanchored){stats.reanchored++;offlinePatchStore(out,idx,jointIdx,{x:hit.x,y:hit.y,z:raw?.z||0,visibility:.52,_patchTracked:true,_patchReanchored:true,_patchConfidence:.50,_patchDirection:direction,_patchWorker:true});}else{offlinePatchStore(out,idx,jointIdx,{x:hit.x,y:hit.y,z:Number.isFinite(raw?.z)?raw.z:0,visibility:clamp46(.30+.62*(hit.conf||0),.28,.88),_patchTracked:true,_patchConfidence:hit.conf||0,_patchDirection:direction,_patchCost:hit.c,_patchWorker:true});}}else stats.failed++;}done++;stats[direction]++;V46.worker.frames++;if(done%8===0)onProgress?.(done,list.length,direction);}}finally{workerCall46('close',{session}).catch(()=>{});}};
+      V46.worker.sessions++;await pass(seq.slice(refPos+1),'forward');if(!cancelled?.())await pass(seq.slice(0,refPos).reverse(),'backward');stats.frames=out.size;return {map:out,stats};
+    }catch(e){V46.worker.fallbacks++;V46.worker.errors++;V46.worker.lastError=String(e?.message||e);console.warn('v46 patch worker fallback',e);return basePatchTracking46(args);}
+  };
+  window.addEventListener('pagehide',()=>{try{patchWorker46?.terminate();}catch(_){}patchWorker46=null;});
+})();
+</script>
+
+
+
+<script id="vbt-v47-adaptive-evidence-worker-stage5">
+(()=>{
+'use strict';
+/* ============================================================
+   Sprint Timer Pro v48 — fixes 1 / 4 / 5 only
+   v48: invalidate reps across tracking loss, throttle diagnostic rendering,
+        and require a qualified velocity-loss baseline.
+   Existing v47 VBT internal refinements:
+   1) adaptive noise-floor thresholds + Rep State Machine
+   2) time-based start/end holds (no frame-count dependency)
+   3) per-rep zero-phase Butterworth + central-difference finalize
+   4) quality-gated best-rep baseline
+   5) alarm from finalized Mean Velocity only, once per valid rep
+   6) worker-assisted live VBT template tracking with v46 fallback
+   7) automatic processing-load controller
+   8) stable camera-FPS selector (60fps preferred, 30fps last-resort)
+   UI / controls / metric definitions remain unchanged.
+============================================================ */
+const c47=(v,a,b)=>Math.max(a,Math.min(b,v));
+const V47={
+  version:'2026.09.19.48',
+  rep:{state:'IDLE',noiseSamples:[],startThreshold:.045,endThreshold:.025,startHoldMs:45,endHoldMs:65,repsFinalized:0,repsRejected:0,lastQuality:null,lastCutoff:null,gapResets:0},
+  worker:{supported:false,enabled:false,ready:false,busy:false,captureBusy:false,used:0,validated:0,fallbacks:0,errors:0,lastConfidence:0,lastError:null},
+  load:{level:0,highCount:0,lowCount:0,lastUpdate:0},
+  camera:{stableTarget:60,downshifts:0,lastDecision:'60fps-priority',prefer30Next:false}
+};
+window.__sprintRuntimeV47=V47;
+
+/* ---------- robust statistics ---------- */
+function median47(a){if(!a?.length)return 0;const b=[...a].filter(Number.isFinite).sort((x,y)=>x-y);if(!b.length)return 0;const m=Math.floor(b.length/2);return b.length%2?b[m]:(b[m-1]+b[m])/2;}
+function quantile47(a,q){const b=[...a].filter(Number.isFinite).sort((x,y)=>x-y);if(!b.length)return 0;const p=c47(q,0,1)*(b.length-1),i=Math.floor(p),f=p-i;return b[i]+(b[Math.min(b.length-1,i+1)]-b[i])*f;}
+function mad47(a){if(!a?.length)return 0;const m=median47(a);return median47(a.map(x=>Math.abs(x-m)));}
+function fps47(){return c47(vbtMeasuredTrackingFps||vbtMeasuredVideoFps||vbtActualFps||60,20,240);}
+
+/* ---------- adaptive noise floor / time-domain hysteresis ---------- */
+let repState47='IDLE';
+let candidate47=null;
+let endCandidateSince47=null;
+let repCooldownUntil47=0;
+let lastRepEnd47=-Infinity;
+let lastGapT47=null;
+const VBT_MAX_TRACKING_GAP_MS48=220; // Keep the existing v47 continuity limit.
+let trackingSegment48=0;
+let lastAcceptedT48=null;
+let settleSince48=null;
+function resetRepMachine47(clearNoise=false){
+  repState47='IDLE';candidate47=null;endCandidateSince47=null;repCooldownUntil47=0;lastGapT47=null;
+  vbtUp=false;vbtUpStartSample=null;vbtUpTopSample=null;vbtStableEndFrames=0;
+  trackingSegment48++;lastAcceptedT48=null;settleSince48=null;
+  vbtMotionWindow=[];vbtLastTracked=null;
+  if(clearNoise)V47.rep.noiseSamples=[];
+  V47.rep.state=repState47;
+}
+function invalidateTrackingSegment48(){
+  if(repState47!=='IDLE'&&repState47!=='WAIT_SETTLE')V47.rep.repsRejected++;
+  resetRepMachine47(false);
+  repState47='WAIT_SETTLE';V47.rep.state=repState47;V47.rep.gapResets++;
+}
+window.__vbtTrackingLost48=function(){
+  if(vbtRunning)invalidateTrackingSegment48();
+  else resetRepMachine47(false);
+};
+function updateThresholds47(){
+  const n=V47.rep.noiseSamples.slice(-150);
+  if(n.length>=12){
+    const med=median47(n),m=mad47(n)*1.4826,q90=quantile47(n,.90),q95=quantile47(n,.95);
+    V47.rep.startThreshold=c47(Math.max(.024,q95*1.75,med+3.2*m),.024,.095);
+    V47.rep.endThreshold=c47(Math.max(.010,q90*1.15,med+1.35*m),.010,Math.min(.055,V47.rep.startThreshold*.68));
+  }else{
+    V47.rep.startThreshold=.045;V47.rep.endThreshold=.025;
+  }
+  const frameMs=1000/fps47();
+  V47.rep.startHoldMs=c47(frameMs*2.4,34,72);
+  V47.rep.endHoldMs=c47(frameMs*3.4,55,115);
+}
+function collectNoise47(v,confidence){
+  if(!Number.isFinite(v)||confidence<.68)return;
+  const a=Math.abs(v);
+  if(a<=.085){V47.rep.noiseSamples.push(a);if(V47.rep.noiseSamples.length>180)V47.rep.noiseSamples.shift();}
+  updateThresholds47();
+}
+function smoothVelocity47(nowMs){
+  const win=vbtMotionWindow.filter(o=>nowMs-o.t<=95&&nowMs-o.t>=0&&Number.isFinite(o.v));
+  if(!win.length)return 0;
+  let sw=0,sv=0;
+  for(const o of win){const age=nowMs-o.t,w=Math.exp(-age/75);sw+=w;sv+=o.v*w;}
+  return sw?sv/sw:0;
+}
+
+/* ---------- zero-phase Butterworth / derivative ---------- */
+function butterCoeffs47(fs,fc){
+  fc=c47(fc,.5,fs*.45);const w0=2*Math.PI*fc/fs,cs=Math.cos(w0),sn=Math.sin(w0),q=Math.SQRT1_2,alpha=sn/(2*q),a0=1+alpha;
+  return {b0:(1-cs)/2/a0,b1:(1-cs)/a0,b2:(1-cs)/2/a0,a1:-2*cs/a0,a2:(1-alpha)/a0};
+}
+function biquad47(x,c){
+  if(x.length<3)return x.slice();const y=new Array(x.length);let x1=x[0],x2=x[0],y1=x[0],y2=x[0];
+  for(let i=0;i<x.length;i++){const x0=x[i],y0=c.b0*x0+c.b1*x1+c.b2*x2-c.a1*y1-c.a2*y2;y[i]=y0;x2=x1;x1=x0;y2=y1;y1=y0;}return y;
+}
+function zeroPhase47(x,fs,fc){
+  if(x.length<7)return x.slice();const padN=Math.min(10,x.length-2),left=[],right=[];
+  for(let i=padN;i>=1;i--)left.push(2*x[0]-x[i]);
+  for(let i=1;i<=padN;i++)right.push(2*x[x.length-1]-x[x.length-1-i]);
+  const padded=left.concat(x,right),c=butterCoeffs47(fs,fc);let y=biquad47(padded,c);y=biquad47(y.reverse(),c).reverse();return y.slice(padN,padN+x.length);
+}
+function derivative47(p,t){
+  const n=p.length,v=new Array(n).fill(0);if(n<2)return v;
+  for(let i=0;i<n;i++){
+    let a,b;if(i===0){a=0;b=1;}else if(i===n-1){a=n-2;b=n-1;}else{a=i-1;b=i+1;}
+    const dt=(t[b]-t[a])/1000;v[i]=dt>1e-5?(p[b]-p[a])/dt:0;
+  }
+  return v;
+}
+function estimateFs47(samples){
+  const d=[];for(let i=1;i<samples.length;i++){const dt=(samples[i].t-samples[i-1].t)/1000;if(dt>.002&&dt<.12)d.push(dt);}const md=median47(d);return md>0?c47(1/md,20,240):fps47();
+}
+
+/* ---------- finalize one rep from full trajectory ---------- */
+function finalizeRep47(coarseStart,current){
+  if(!coarseStart||coarseStart._v48Segment!==current._v48Segment)return null;
+  const all=vbtSamples.concat([current]).filter(s=>Number.isFinite(s.t)&&Number.isFinite(s.y)&&s.t>=coarseStart.t-140&&s.t<=current.t+1&&s._v48Segment===current._v48Segment).sort((a,b)=>a.t-b.t);
+  const uniq=[];for(const s of all){if(!uniq.length||s.t-uniq[uniq.length-1].t>.15)uniq.push(s);else if((s.confidence||0)>(uniq[uniq.length-1].confidence||0))uniq[uniq.length-1]=s;}
+  if(uniq.length<5)return null;
+  // A long unobserved interval cannot be offset by other quality scores.
+  for(let i=1;i<uniq.length;i++){
+    if(uniq[i].t-uniq[i-1].t>=VBT_MAX_TRACKING_GAP_MS48)return null;
+  }
+  const fs=estimateFs47(uniq),noise95=quantile47(V47.rep.noiseSamples.slice(-120),.95)||.012;
+  let fc=c47(fs*.14,5,12);if(noise95>.028)fc*=.80;else if(noise95>.018)fc*=.90;fc=c47(fc,4.5,12);V47.rep.lastCutoff=fc;
+  const ys=zeroPhase47(uniq.map(s=>s.y),fs,fc),t=uniq.map(s=>s.t),mpp=vbtMetersPerPixel(),pos=ys.map(y=>-y*mpp),vel=derivative47(pos,t);
+  let rough=0,bestDt=Infinity;for(let i=0;i<t.length;i++){const d=Math.abs(t[i]-coarseStart.t);if(d<bestDt){bestDt=d;rough=i;}}
+  const refineThr=Math.max(.012,V47.rep.startThreshold*.38,noise95*1.10),backFrames=Math.max(1,Math.ceil(c47(1000/fs*2.2,18,55)*fs/1000));let si=rough;
+  for(let i=Math.max(1,rough-backFrames);i<=Math.min(t.length-3,rough+2);i++){
+    if(vel[i]>refineThr&&vel[i+1]>refineThr*.65){si=i;break;}
+  }
+  let top=si;for(let i=si+1;i<t.length;i++){if(pos[i]>pos[top])top=i;}
+  if(top<=si)return null;
+  const duration=(t[top]-t[si])/1000,distance=pos[top]-pos[si];
+  const diameterM=(parseFloat(document.getElementById('vbt-plate-diameter')?.value)||45)/100;
+  const minRom=c47(Math.max(.020,diameterM*.055),.020,.045);
+  if(!(duration>=.105&&duration<=4.5&&distance>=minRom&&distance<=2.0))return null;
+  const vv=vel.slice(si,top+1).filter(Number.isFinite),peak=vv.length?Math.max(distance/duration,...vv):distance/duration;
+  const confs=uniq.slice(si,top+1).map(s=>Number.isFinite(s.confidence)?s.confidence:.72),conf=median47(confs);
+  const gaps=[];for(let i=si+1;i<=top;i++)gaps.push((t[i]-t[i-1])/1000);const md=median47(gaps)||1/fs,maxGap=gaps.length?Math.max(...gaps):md;
+  const expected=Math.max(1,Math.round(duration/(md||1/fs))+1),coverage=c47((top-si+1)/expected,0,1)*c47((md*2.8)/Math.max(md,maxGap),0,1);
+  const dirFrac=vv.length?vv.filter(x=>x>=-.045).length/vv.length:0;
+  const normalFrac=uniq.slice(si,top+1).filter(s=>!s.trackMode||s.trackMode==='normal'||s.trackMode==='worker').length/Math.max(1,top-si+1);
+  const scaleQ=vbtPixelsPerMeter>0?c47(.72+.28*(vbtPlateRadiusConfidence||0),.72,1):.62;
+  const quality=c47(conf*.34+coverage*.22+dirFrac*.16+normalFrac*.12+scaleQ*.10+c47(duration/.22,0,1)*.06,0,1);
+  if(quality<.45)return null;
+  return {
+    mean:distance/duration,peak,distance,time:duration,
+    startT:t[si]/1000,endT:t[top]/1000,source:'auto',quality,
+    validForBest:quality>=.66&&coverage>=.64&&conf>=.58,
+    _v47Final:true,_v47Fs:fs,_v47Cutoff:fc,_v47Coverage:coverage,_v47Confidence:conf
+  };
+}
+
+/* ---------- replace live rep logic only; tracking/calibration remain intact ---------- */
+analyzeVbtMotion=function(callbackNow,videoMetadata){
+  if(!vbtFocus)return;
+  const now=performance.now();let relMs=now-vbtRecordStartPerf;
+  const mediaTime=videoMetadata&&Number.isFinite(videoMetadata.mediaTime)?videoMetadata.mediaTime:vbtCurrentMediaTime;
+  if(Number.isFinite(mediaTime)&&Number.isFinite(vbtRecordStartMediaTime))relMs=Math.max(0,(mediaTime-vbtRecordStartMediaTime)*1000);
+  if(lastAcceptedT48!==null){
+    const elapsed=relMs-lastAcceptedT48;
+    if(elapsed===0)return;
+    if(elapsed<0||elapsed>=VBT_MAX_TRACKING_GAP_MS48)invalidateTrackingSegment48();
+  }
+  const sample={t:relMs,x:vbtFocus.x,y:vbtFocus.y,v:0,confidence:vbtTrackConfidence,trackMode:vbtTrackMode,source:'live',_v48Segment:trackingSegment48};
+  if(vbtLastTracked){
+    const dt=(relMs-vbtLastTracked.t)/1000;
+    if(dt>0&&dt<.22){
+      sample.v=estimateVbtRegressionVelocity(sample);vbtMotionWindow.push({v:sample.v,t:relMs});while(vbtMotionWindow.length&&relMs-vbtMotionWindow[0].t>260)vbtMotionWindow.shift();
+      const sv=smoothVelocity47(relMs);updateThresholds47();const st=V47.rep.startThreshold,et=V47.rep.endThreshold;
+      if(repState47==='WAIT_SETTLE'){
+        // Do not count the remainder of a lift first seen after reacquisition.
+        if(sv<=et&&sample.confidence>=.56){
+          if(settleSince48===null)settleSince48=relMs;
+          if(relMs-settleSince48>=V47.rep.endHoldMs){
+            repState47='IDLE';settleSince48=null;repCooldownUntil47=relMs;
+          }
+        }else settleSince48=null;
+      }else if(repState47==='IDLE'){
+        collectNoise47(sv,sample.confidence||0);vbtUp=false;
+        if(relMs>=repCooldownUntil47&&sv>st&&sample.confidence>=.56){candidate47={...sample,sv,startT:relMs};repState47='CANDIDATE';}
+      }else if(repState47==='CANDIDATE'){
+        if(sv>st*.78&&sample.confidence>=.50){
+          if(relMs-candidate47.startT>=V47.rep.startHoldMs){repState47='CONCENTRIC';vbtUp=true;vbtUpStartSample={...candidate47};vbtUpTopSample={...sample};document.getElementById('vbt-status').innerText='上昇を検出中（MV：挙上開始→最高点）';}
+        }else if(sv<et||sample.confidence<.42){repState47='IDLE';candidate47=null;}
+      }else if(repState47==='CONCENTRIC'){
+        vbtUp=true;if(!vbtUpTopSample||sample.y<vbtUpTopSample.y)vbtUpTopSample={...sample};
+        if(sv<=et){endCandidateSince47=relMs;repState47='END_CANDIDATE';}
+      }else if(repState47==='END_CANDIDATE'){
+        vbtUp=true;if(!vbtUpTopSample||sample.y<vbtUpTopSample.y)vbtUpTopSample={...sample};
+        if(sv>st*.82){repState47='CONCENTRIC';endCandidateSince47=null;}
+        else if(relMs-(endCandidateSince47||relMs)>=V47.rep.endHoldMs){
+          const rep=finalizeRep47(vbtUpStartSample||candidate47,sample);
+          if(rep){vbtReps.push(rep);V47.rep.repsFinalized++;V47.rep.lastQuality=rep.quality;lastRepEnd47=rep.endT*1000;renderVbt();}
+          else V47.rep.repsRejected++;
+          repCooldownUntil47=relMs+c47(1000/fps47()*4,80,180);repState47='IDLE';candidate47=null;endCandidateSince47=null;vbtUp=false;vbtUpStartSample=null;vbtUpTopSample=null;
+        }
+      }
+      V47.rep.state=repState47;
+    }else if(dt>=.22){invalidateTrackingSegment48();sample._v48Segment=trackingSegment48;}
+  }
+  lastAcceptedT48=relMs;
+  vbtSamples.push(sample);if(vbtSamples.length>20000)vbtSamples.shift();vbtLastTracked={x:vbtFocus.x,y:vbtFocus.y,t:relMs,perf:now};
+};
+
+/* ---------- quality-gated baseline + alarm only after finalized MV ---------- */
+const baseRender47=renderVbt;
+let lastAlarmRep47=null;
+function bestRep47(){
+  const strong=vbtReps.filter(r=>r.validForBest!==false&&(r.quality==null||r.quality>=.62)&&Number.isFinite(r.mean)&&r.mean>0);
+  return strong.length?Math.max(...strong.map(r=>r.mean)):0;
+}
+renderVbt=function(){
+  const checks=['vbt-alert10','vbt-alert15','vbt-alert20'].map(id=>document.getElementById(id)),saved=checks.map(x=>!!x?.checked);
+  for(const x of checks)if(x)x.checked=false;
+  try{baseRender47();}finally{checks.forEach((x,i)=>{if(x)x.checked=saved[i];});}
+  if(!vbtReps.length)return;
+  const current=vbtReps[vbtReps.length-1],best=bestRep47();
+  const currentReliable=Number.isFinite(current.mean)&&current.mean>0&&
+    (current.quality==null||current.quality>=.58)&&
+    (!Number.isFinite(current._v47Coverage)||current._v47Coverage>=.64)&&
+    (!Number.isFinite(current._v47Confidence)||current._v47Confidence>=.58);
+  const loss=best>0&&currentReliable?Math.max(0,(1-current.mean/best)*100):null;
+  const lossEl=document.getElementById('vbt-loss');if(lossEl)lossEl.innerHTML=(loss===null?'--':loss.toFixed(1))+' <span class="unit">%</span>';
+  const repKey=current._v47Final?`${current.startT}-${current.endT}-${vbtReps.length}`:null;
+  if(vbtRunning&&current._v47Final&&repKey!==lastAlarmRep47){
+    lastAlarmRep47=repKey;current._alarmEvaluated=true;const status=document.getElementById('vbt-status');
+    if(loss===null){if(status)status.innerText=best>0?'計測中（このレップの速度低下判定は保留）':'計測中（速度低下の基準待ち）';return;}
+    if(loss>20&&saved[2]){if(status)status.innerText='速度低下20%超：警告';beep(350,.25);}
+    else if(loss>15&&saved[1]){if(status)status.innerText='速度低下15%超：警告';beep(550,.18);}
+    else if(loss>10&&saved[0]){if(status)status.innerText='速度低下10%超：警告';beep(750,.12);}
+    else if(status)status.innerText='計測中';
+  }
+};
+
+/* ---------- worker-assisted live tracker ---------- */
+const workerOk47=typeof Worker==='function'&&typeof createImageBitmap==='function'&&typeof OffscreenCanvas==='function';V47.worker.supported=workerOk47;
+let worker47=null,workerGen47=0,workerHint47=null,workerHintSeq47=0,workerConsumed47=0,workerNeedInit47=false,workerValidationCounter47=0,lastValidationConfidence47=1;
+function workerMain47(){
+  'use strict';let S=null;const C=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function gray(bitmap,maxDim=480){const scale=Math.min(1,maxDim/Math.max(bitmap.width,bitmap.height)),w=Math.max(96,Math.round(bitmap.width*scale)),h=Math.max(72,Math.round(bitmap.height*scale)),c=new OffscreenCanvas(w,h),x=c.getContext('2d',{alpha:false,willReadFrequently:true});x.drawImage(bitmap,0,0,w,h);bitmap.close?.();const d=x.getImageData(0,0,w,h).data,g=new Uint8Array(w*h);for(let i=0,j=0;i<d.length;i+=4,j++)g[j]=(d[i]*77+d[i+1]*150+d[i+2]*29)>>8;return {g,w,h};}
+  function tpl(F,cx,cy,half,step=2){half=Math.max(3,Math.round(half));const vals=[];let sum=0,sq=0;for(let y=-half;y<=half;y+=step)for(let x=-half;x<=half;x+=step){const xx=Math.round(cx+x),yy=Math.round(cy+y);if(xx<0||yy<0||xx>=F.w||yy>=F.h)return null;const v=F.g[yy*F.w+xx];vals.push(v);sum+=v;sq+=v*v;}const mean=sum/vals.length,std=Math.sqrt(Math.max(0,sq/vals.length-mean*mean)),z=new Float32Array(vals.length);let norm=0;for(let i=0;i<vals.length;i++){z[i]=vals[i]-mean;norm+=z[i]*z[i];}return {z,norm:Math.sqrt(norm),std,half,step};}
+  function corr(F,T,cx,cy){if(!T||T.norm<1)return -1;let sum=0,sq=0,n=0;for(let y=-T.half;y<=T.half;y+=T.step)for(let x=-T.half;x<=T.half;x+=T.step){const xx=Math.round(cx+x),yy=Math.round(cy+y);if(xx<0||yy<0||xx>=F.w||yy>=F.h)return -1;const v=F.g[yy*F.w+xx];sum+=v;sq+=v*v;n++;}const mean=sum/n,std=Math.sqrt(Math.max(0,sq/n-mean*mean));if(std<1.5)return -1;let dot=0,norm=0,k=0;for(let y=-T.half;y<=T.half;y+=T.step)for(let x=-T.half;x<=T.half;x+=T.step){const d=F.g[Math.round(cy+y)*F.w+Math.round(cx+x)]-mean;dot+=d*T.z[k++];norm+=d*d;}return dot/(Math.sqrt(norm)*T.norm+1e-6);}
+  function init(m){const F=gray(m.bitmap),x=m.x*F.w,y=m.y*F.h,ch=C(m.centerHalf*F.w,4,14),oh=C(m.outerHalf*F.w,8,28),ct=tpl(F,x,y,ch,1),ot=tpl(F,x,y,oh,2);if(!ct||!ot)throw new Error('template init failed');S={w:F.w,h:F.h,x,y,vx:0,vy:0,lastT:m.mediaTime??0,center:ct,outer:ot,miss:0};return {action:'init',ok:true};}
+  function track(m){const F=gray(m.bitmap);if(!S)throw new Error('not initialized');if(F.w!==S.w||F.h!==S.h){S=null;throw new Error('frame geometry changed');}const dt=C(Number.isFinite(m.mediaTime)?m.mediaTime-S.lastT:1/60,.004,.10),px=S.x+S.vx*dt,py=S.y+S.vy*dt,speed=Math.hypot(S.vx,S.vy),level=m.loadLevel||0,rad=C(12+speed*dt*1.8+level*3,12,34),coarse=level>=2?3:2;let best=null,bestScore=-9;
+    for(let y=Math.round(py-rad);y<=Math.round(py+rad);y+=coarse)for(let x=Math.round(px-rad);x<=Math.round(px+rad);x+=coarse){const c1=corr(F,S.center,x,y);if(c1<.15)continue;const c2=corr(F,S.outer,x,y),motion=Math.hypot(x-px,y-py)/Math.max(8,rad),score=c1*.74+c2*.26-motion*.08;if(score>bestScore){bestScore=score;best={x,y,c1,c2};}}
+    if(best)for(let y=best.y-2;y<=best.y+2;y++)for(let x=best.x-2;x<=best.x+2;x++){const c1=corr(F,S.center,x,y);if(c1<.15)continue;const c2=corr(F,S.outer,x,y),score=c1*.74+c2*.26;if(score>bestScore){bestScore=score;best={x,y,c1,c2};}}
+    if(!best){S.miss++;return {action:'track',ok:false,miss:S.miss};}
+    const conf=C((bestScore+.15)/1.05,0,1),nvx=(best.x-S.x)/dt,nvy=(best.y-S.y)/dt;S.vx=S.vx*.42+nvx*.58;S.vy=S.vy*.42+nvy*.58;S.x=best.x;S.y=best.y;S.lastT=Number.isFinite(m.mediaTime)?m.mediaTime:S.lastT+dt;S.miss=conf>.38?0:S.miss+1;
+    return {action:'track',ok:conf>=.38,x:S.x/S.w,y:S.y/S.h,vx:S.vx/S.w,vy:S.vy/S.h,conf,c1:best.c1,c2:best.c2,mediaTime:S.lastT,miss:S.miss};
+  }
+  self.onmessage=e=>{const m=e.data||{};try{let r;if(m.action==='init')r=init(m);else if(m.action==='track')r=track(m);else if(m.action==='reset'){S=null;r={action:'reset',ok:true};}else throw new Error('unknown action');postMessage({...r,generation:m.generation});}catch(err){try{m.bitmap?.close?.();}catch(_){}postMessage({action:m.action,ok:false,error:String(err?.message||err),generation:m.generation});}};
+}
+function ensureWorker47(){
+  if(!workerOk47)return null;if(worker47)return worker47;try{const src='('+workerMain47.toString()+')();',url=URL.createObjectURL(new Blob([src],{type:'application/javascript'}));worker47=new Worker(url);setTimeout(()=>URL.revokeObjectURL(url),1000);worker47.onmessage=e=>{const m=e.data||{};V47.worker.busy=false;if(m.generation!==workerGen47)return;if(m.action==='init'){V47.worker.ready=!!m.ok;V47.worker.enabled=!!m.ok;if(!m.ok){V47.worker.errors++;V47.worker.lastError=m.error||'init failed';}return;}if(m.action==='track'){if(m.ok){workerHint47={...m,seq:++workerHintSeq47,receivedAt:performance.now()};V47.worker.lastConfidence=m.conf||0;}else{V47.worker.errors++;V47.worker.lastError=m.error||'track failed';if((m.miss||0)>2)workerNeedInit47=true;}}};worker47.onerror=e=>{V47.worker.errors++;V47.worker.lastError=String(e?.message||e);V47.worker.enabled=false;V47.worker.ready=false;V47.worker.busy=false;try{worker47.terminate();}catch(_){}worker47=null;};return worker47;}catch(e){V47.worker.errors++;V47.worker.lastError=String(e?.message||e);return null;}
+}
+function scheduleWorkerInit47(){
+  if(!workerOk47||!vbtFocus||!vbtVideo.videoWidth)return;const w=ensureWorker47();if(!w||V47.worker.captureBusy||V47.worker.busy)return;V47.worker.captureBusy=true;const gen=++workerGen47,mt=Number.isFinite(vbtCurrentMediaTime)?vbtCurrentMediaTime:0,x=vbtFocus.x/Math.max(1,vbtCanvas.width),y=vbtFocus.y/Math.max(1,vbtCanvas.height),ch=vbtCenterHalf/Math.max(1,vbtCanvas.width),oh=vbtTemplateHalf/Math.max(1,vbtCanvas.width);
+  createImageBitmap(vbtVideo).then(bm=>{V47.worker.captureBusy=false;if(gen!==workerGen47){bm.close?.();return;}V47.worker.busy=true;V47.worker.ready=false;w.postMessage({action:'init',generation:gen,bitmap:bm,x,y,centerHalf:ch,outerHalf:oh,mediaTime:mt},[bm]);}).catch(e=>{V47.worker.captureBusy=false;V47.worker.errors++;V47.worker.lastError=String(e?.message||e);});
+}
+function submitWorker47(metadata){
+  if(!workerOk47||!vbtFocus||!vbtTemplate)return;if(workerNeedInit47){workerNeedInit47=false;scheduleWorkerInit47();return;}const w=ensureWorker47();if(!w||!V47.worker.ready||V47.worker.busy||V47.worker.captureBusy)return;V47.worker.captureBusy=true;const gen=workerGen47,mt=metadata&&Number.isFinite(metadata.mediaTime)?metadata.mediaTime:(Number.isFinite(vbtCurrentMediaTime)?vbtCurrentMediaTime:null);
+  createImageBitmap(vbtVideo).then(bm=>{V47.worker.captureBusy=false;if(gen!==workerGen47){bm.close?.();return;}V47.worker.busy=true;w.postMessage({action:'track',generation:gen,bitmap:bm,mediaTime:mt,loadLevel:V47.load.level},[bm]);}).catch(e=>{V47.worker.captureBusy=false;V47.worker.errors++;V47.worker.lastError=String(e?.message||e);if(V47.worker.errors>4)V47.worker.enabled=false;});
+}
+const baseCapture47=captureVbtTemplate;captureVbtTemplate=function(...args){const ok=baseCapture47(...args);if(ok){workerHint47=null;workerConsumed47=0;workerNeedInit47=true;setTimeout(scheduleWorkerInit47,0);}return ok;};
+const baseResetTarget47=resetVbtTargetAfterCameraChange;resetVbtTargetAfterCameraChange=function(...args){workerGen47++;workerHint47=null;workerConsumed47=0;workerNeedInit47=false;V47.worker.ready=false;try{worker47?.postMessage({action:'reset',generation:workerGen47});}catch(_){}resetRepMachine47(true);return baseResetTarget47(...args);};
+const baseRecordFrame47=recordVbtVideoFrame;recordVbtVideoFrame=function(now,metadata){const r=baseRecordFrame47(now,metadata);if(vbtFocus&&vbtTemplate)submitWorker47(metadata);return r;};
+
+const baseTrack47=trackVbtTemplateAdvanced;
+trackVbtTemplateAdvanced=function(now){
+  workerValidationCounter47++;const interval=V47.load.level===0?4:V47.load.level===1?6:8,needValidation=(workerValidationCounter47%interval===0)||lastValidationConfidence47<.70;
+  const hint=workerHint47,hasNew=hint&&hint.seq!==workerConsumed47&&hint.conf>=.66&&Number.isFinite(hint.x)&&Number.isFinite(hint.y);
+  if(workerOk47&&V47.worker.enabled&&hasNew&&!needValidation){
+    const currentMedia=Number.isFinite(vbtCurrentMediaTime)?vbtCurrentMediaTime:hint.mediaTime,dt=c47(currentMedia-hint.mediaTime,0,.075),mx=(hint.x+(hint.vx||0)*dt)*vbtCanvas.width,my=(hint.y+(hint.vy||0)*dt)*vbtCanvas.height;
+    const maxJump=Math.max(32,(vbtPlateDiameterPx||60)*.62);if(!vbtFocus||Math.hypot(mx-vbtFocus.x,my-vbtFocus.y)<=maxJump){
+      workerConsumed47=hint.seq;const filtered=updateVbtKalmanMeasurement(mx,my,c47(hint.conf*.90,.52,.86));V47.worker.used++;lastValidationConfidence47=Math.max(.70,lastValidationConfidence47*.995);
+      return {x:filtered.x,y:filtered.y,measurementX:mx,measurementY:my,confidence:c47(hint.conf*.90,.52,.86),mode:'worker',templateConfidence:hint.conf,centerFixedConfidence:.58,outerFixedConfidence:c47((hint.c2+1)/2,0,1),shapeConfidence:vbtLastShapeConfidence,motionConfidence:.90,shaftConfidence:.55,speedConfidence:.92,accelConfidence:.88};
+    }
+  }
+  V47.worker.validated++;const out=baseTrack47(now);lastValidationConfidence47=out?.confidence||0;if(out&&hint&&hint.conf>.55){const hx=hint.x*vbtCanvas.width,hy=hint.y*vbtCanvas.height;if(Math.hypot(hx-out.measurementX,hy-out.measurementY)>Math.max(24,(vbtPlateDiameterPx||60)*.42))workerNeedInit47=true;}return out;
+};
+
+/* ---------- adaptive main-thread cost controller ---------- */
+const baseSearch47=searchVbtCandidates;searchVbtCandidates=function(ctx,w,h,predicted,searchX,searchY,step,featureCheck,motion,stageMultiplier=1,searchMode='normal'){
+  let s=step,f=featureCheck;if(searchMode==='normal'&&vbtTrackConfidence>=.80){if(V47.load.level===1)s=Math.max(s,4);else if(V47.load.level>=2){s=Math.max(s,5);f=featureCheck&&(vbtFrameCounter%2===0);}}return baseSearch47(ctx,w,h,predicted,searchX,searchY,s,f,motion,stageMultiplier,searchMode);
+};
+const baseTelemetry47=updateVbtCameraTelemetry;updateVbtCameraTelemetry=function(force){
+  const r=baseTelemetry47(force),now=performance.now();if(now-V47.load.lastUpdate>500){V47.load.lastUpdate=now;const vf=vbtMeasuredVideoFps||vbtActualFps||60,budget=1000/Math.max(20,vf),ratio=vbtAverageProcessingMs>0?vbtAverageProcessingMs/budget:0;
+    if(vbtRunning&&ratio>.84){V47.load.highCount++;V47.load.lowCount=0;}else if(!vbtRunning||ratio<.52){V47.load.lowCount++;V47.load.highCount=Math.max(0,V47.load.highCount-1);}else{V47.load.highCount=Math.max(0,V47.load.highCount-1);V47.load.lowCount=Math.max(0,V47.load.lowCount-1);}
+    if(V47.load.highCount>=2&&V47.load.level<2){V47.load.level++;V47.load.highCount=0;}if(V47.load.lowCount>=5&&V47.load.level>0){V47.load.level--;V47.load.lowCount=0;}
+    if(vbtRunning&&V47.load.level===2&&!workerOk47&&ratio>1.05)V47.camera.prefer30Next=true;
+  }return r;
+};
+
+/* ---------- stable FPS selection: preserve 60 whenever it is genuinely stable ---------- */
+async function evaluateStableFps47(stream){
+  try{if(!stream||stream!==vbtVideo.srcObject)return;const track=stream.getVideoTracks?.()[0];if(!track||track.readyState!=='live'||!track.applyConstraints)return;const settings=track.getSettings?.()||{},caps=track.getCapabilities?.()||{},actual=vbtMeasuredVideoFps||settings.frameRate||0;
+    if(actual>=47){V47.camera.stableTarget=60;V47.camera.lastDecision='stable-60';V47.camera.prefer30Next=false;return;}
+    if(vbtRunning)return;
+    if((settings.frameRate||60)>=45&&actual>0&&actual<42&&caps.frameRate&&caps.frameRate.min<=30){await track.applyConstraints({frameRate:{ideal:30,max:30}});V47.camera.stableTarget=30;V47.camera.downshifts++;V47.camera.lastDecision='unstable-60-to-stable-30';vbtActualFps=track.getSettings?.().frameRate||30;updateVbtCameraTelemetry(true);return;}
+    if(V47.camera.prefer30Next&&caps.frameRate&&caps.frameRate.min<=30){await track.applyConstraints({frameRate:{ideal:30,max:30}});V47.camera.stableTarget=30;V47.camera.downshifts++;V47.camera.lastDecision='load-protected-30';V47.camera.prefer30Next=false;vbtActualFps=track.getSettings?.().frameRate||30;updateVbtCameraTelemetry(true);}
+  }catch(e){V47.camera.lastDecision='keep-current';}
+}
+const baseOpenCamera47=openVbtCamera;openVbtCamera=async function(...args){const s=await baseOpenCamera47(...args);if(s){setTimeout(()=>evaluateStableFps47(s),1800);setTimeout(()=>evaluateStableFps47(s),3200);}return s;};
+
+/* ---------- session resets, preserving current one-button workflow ---------- */
+document.getElementById('vbt-start')?.addEventListener('click',()=>{if(!vbtRunning)return;resetRepMachine47(true);lastAlarmRep47=null;workerValidationCounter47=0;lastValidationConfidence47=1;V47.rep.repsFinalized=0;V47.rep.repsRejected=0;V47.rep.lastQuality=null;updateThresholds47();if(workerOk47&&vbtFocus)workerNeedInit47=true;});
+document.getElementById('vbt-stop')?.addEventListener('click',()=>{resetRepMachine47(false);});
+window.addEventListener('pagehide',()=>{try{worker47?.terminate();}catch(_){}worker47=null;});
+})();
+</script>
+
 </body>
 </html>
