@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.21.52">
-<meta name="sprint-timer-build" content="20260921-v52-sprint-target-crop-tracker">
+<meta name="sprint-timer-version" content="2026.09.25.53">
+<meta name="sprint-timer-build" content="20260925-v53-sprint-seed-discovery-frame-ready">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.21.52";
-window.SPRINT_TIMER_BUILD = "20260921-v52-sprint-target-crop-tracker";
+window.SPRINT_TIMER_VERSION = "2026.09.25.53";
+window.SPRINT_TIMER_BUILD = "20260925-v53-sprint-seed-discovery-frame-ready";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1473,8 +1473,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.21.52</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260921-v52-sprint-target-crop-tracker</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.25.53</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260925-v53-sprint-seed-discovery-frame-ready</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -7302,9 +7302,28 @@ function sprintOfflineBuildFallbackFrameTimes(fps){
     fps=bodyClamp(parseFloat(fps)||30,1,300);sprintOfflineFallbackFps=fps;const d=sprintOfflineVideo.duration||0,n=Math.max(1,Math.floor(d*fps)+1),arr=[];
     for(let i=0;i<n;i++)arr.push(Math.min(d,i/fps));sprintOfflineFrameTimes=arr;sprintOfflineFrameTimesSource=`${fps.toFixed(1)}fps手動/推定`;
 }
-function sprintOfflineSeekTime(t){
-    return new Promise(resolve=>{t=bodyClamp(t,0,Math.max(0,(sprintOfflineVideo.duration||0)-.00001));if(Math.abs((sprintOfflineVideo.currentTime||0)-t)<.00005){sprintOfflineUpdateFrameUi();resolve();return;}
-        const done=()=>{sprintOfflineVideo.removeEventListener("seeked",done);sprintOfflineUpdateFrameUi();resolve();};sprintOfflineVideo.addEventListener("seeked",done,{once:true});sprintOfflineVideo.currentTime=t;});
+async function sprintOfflineSeekTime(t){
+    t=bodyClamp(t,0,Math.max(0,(sprintOfflineVideo.duration||0)-.00001));
+    const changed=Math.abs((sprintOfflineVideo.currentTime||0)-t)>=.00005;
+    if(changed){
+        await new Promise(resolve=>{
+            let settled=false;
+            const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);sprintOfflineVideo.removeEventListener("seeked",finish);resolve();};
+            const timer=setTimeout(finish,2400);
+            sprintOfflineVideo.addEventListener("seeked",finish,{once:true});
+            try{sprintOfflineVideo.currentTime=t;}catch(_){finish();}
+        });
+        /* v53: seeked only means the media timeline moved. On high-resolution
+           mobile video, wait until the new decoded frame has actually been
+           presented before drawing a Crop into Canvas / sending it to Pose. */
+        if(typeof offlineWaitPresentedFrame==="function"){
+            let ok=false;try{ok=await offlineWaitPresentedFrame(sprintOfflineVideo,1200);}catch(_){}
+            if(!ok&&window.__sprintV53TargetTracker?.stats)window.__sprintV53TargetTracker.stats.frameWaitTimeouts++;
+        }else{
+            await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+        }
+    }
+    sprintOfflineUpdateFrameUi();
 }
 function sprintOfflineSeekToFrame(index){
     if(!sprintOfflineFrameTimes.length)return Promise.resolve();index=bodyClamp(Math.round(index),0,sprintOfflineFrameTimes.length-1);return sprintOfflineSeekTime(sprintOfflineFrameTimes[index]);
@@ -7482,8 +7501,13 @@ async function sprintOfflineAnalyze(){
     for(let i=0;i<sprintOfflineFrameTimes.length;i+=stride){const t=sprintOfflineFrameTimes[i];if(t+1e-6>=from&&t-1e-6<=to)indices.push(i);}if(indices.length){const lastCandidate=sprintOfflineFrameTimes.length-1;if(sprintOfflineFrameTimes[lastCandidate]<=to&&indices[indices.length-1]!==lastCandidate)indices.push(lastCandidate);}if(sprintOfflineTrackingSeed.frameIndex!==null){const ri=sprintOfflineTrackingSeed.frameIndex,rt=sprintOfflineFrameTimes[ri];if(Number.isFinite(rt)&&rt>=from-.001&&rt<=to+.001&&!indices.includes(ri))indices.push(ri);}indices.sort((a,b)=>a-b);
     document.getElementById("sprint-offline-analysis-status").innerText=`高精度解析中：${indices.length}フレーム（元動画約${fps.toFixed(1)}fps / Pose解析約${Math.min(fps,maxRate===Infinity?fps:maxRate).toFixed(1)}fps相当）。`;
     try{
-        for(let n=0;n<indices.length;n++){if(sprintOfflineCancelRequested)break;const idx=indices[n],t=sprintOfflineFrameTimes[idx];await sprintOfflineSeekTime(t);let r=null;try{r=await sprintOfflinePoseSendAdaptive();}catch(e){console.warn("sprint offline pose",e);}if(r?.poseLandmarks){const l=startOfflineCloneLandmarks(r.poseLandmarks),scale=bodyCalibrationEstimate(l,sprintOfflineCanvas.width,sprintOfflineCanvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:l,poseQuality:startOfflinePoseQuality(l),scale};sprintOfflinePoseFrames.push(f);sprintOfflinePoseMap.set(idx,f);}
+        const v53ManualSelection=typeof window.__sprintV53Selection==="function"?window.__sprintV53Selection():null;
+        if(v53ManualSelection?.manualLock&&typeof window.__sprintV53RunManualPosePass==="function"){
+            await window.__sprintV53RunManualPosePass({indices,from,to,fps,maxRate,selection:v53ManualSelection});
+        }else{
+            for(let n=0;n<indices.length;n++){if(sprintOfflineCancelRequested)break;const idx=indices[n],t=sprintOfflineFrameTimes[idx];await sprintOfflineSeekTime(t);let r=null;try{r=await sprintOfflinePoseSendAdaptive();}catch(e){console.warn("sprint offline pose",e);}if(r?.poseLandmarks){const l=startOfflineCloneLandmarks(r.poseLandmarks),scale=bodyCalibrationEstimate(l,sprintOfflineCanvas.width,sprintOfflineCanvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:l,poseQuality:startOfflinePoseQuality(l),scale};sprintOfflinePoseFrames.push(f);sprintOfflinePoseMap.set(idx,f);}
             if(n%3===0||n===indices.length-1){const pct=(n+1)/Math.max(1,indices.length)*84;document.getElementById("sprint-offline-progress").style.width=pct.toFixed(1)+"%";document.getElementById("sprint-offline-analysis-status").innerText=`Pose解析 ${n+1}/${indices.length}（${((n+1)/Math.max(1,indices.length)*100).toFixed(1)}%） ／ 有効Pose ${sprintOfflinePoseFrames.length}`;await new Promise(r=>setTimeout(r,0));}}
+        }
         sprintOfflinePoseFrames.sort((a,b)=>a.t-b.t);
         if(!sprintOfflineCancelRequested&&offlineTrackPointCount(sprintOfflineTrackingSeed)>0&&sprintOfflinePoseFrames.length){sprintOfflineTrackingResolvedSeed=offlineTrackResolveSeed(sprintOfflineTrackingSeed,sprintOfflinePoseFrames,sprintOfflineCanvas.width,sprintOfflineCanvas.height);if(sprintOfflineTrackingResolvedSeed){document.getElementById("sprint-offline-analysis-status").innerText="Pose解析完了。初期タップを使って画像パッチ追跡を前後方向に実行しています…";const pr=await offlineRunPatchTracking({video:sprintOfflineVideo,seekTime:sprintOfflineSeekTime,indices,frameTimes:sprintOfflineFrameTimes,seed:sprintOfflineTrackingSeed,resolved:sprintOfflineTrackingResolvedSeed,poseMap:sprintOfflinePoseMap,w:sprintOfflineCanvas.width,h:sprintOfflineCanvas.height,cancelled:()=>sprintOfflineCancelRequested,onProgress:(done,total,dir)=>{const local=total?done/total:1,pct=84+Math.min(15,local*15);document.getElementById("sprint-offline-progress").style.width=pct.toFixed(1)+"%";if(done%12===0)document.getElementById("sprint-offline-analysis-status").innerText=`画像追跡 ${dir==="forward"?"順方向":"逆方向"} ${done}/${total}`;}});sprintOfflinePatchTracks=pr.map;sprintOfflinePatchStats=pr.stats;}}
         sprintOfflineRecomputeDerived();document.getElementById("sprint-offline-progress").style.width=sprintOfflineCancelRequested?document.getElementById("sprint-offline-progress").style.width:"100%";if(sprintOfflineCancelRequested)document.getElementById("sprint-offline-analysis-status").innerText=`解析を中止しました。有効Pose ${sprintOfflinePoseFrames.length}フレーム。取得済み範囲で暫定結果を表示します。`;else{const patchInfo=sprintOfflinePatchStats.enabled?` ／ 画像追跡 ${sprintOfflinePatchStats.frames}フレーム`:"",groundInfo=sprintOfflineGroundModel?.valid?` ／ 地面モデル ${Math.round(sprintOfflineGroundModel.confidence*100)}%`:"",poseRatio=sprintOfflinePoseFrames.length/Math.max(1,indices.length);if(!sprintOfflinePoseFrames.length){document.getElementById("sprint-offline-analysis-status").innerText="⚠ 人体Poseを検出できませんでした。選手が遠い・小さい、または複数人が映っている可能性があります。上の『解析対象選手』を指定して再解析してください。";}else{document.getElementById("sprint-offline-analysis-status").innerText=`解析完了：有効Pose ${sprintOfflinePoseFrames.length}/${indices.length}フレーム ／ 速度サンプル ${sprintOfflineSpeedFrames.length} ／ 接地 ${sprintOfflineContacts.length}件${patchInfo}${groundInfo}${poseRatio<.20?" ／ ⚠ Pose取得率が低いため対象範囲指定を推奨":""}`;}sprintOfflineRoiPostAnalyze(indices.length);}
@@ -7627,7 +7651,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.21.52")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.25.53")}`,{
                 updateViaCache:"none"
             });
 
@@ -9615,8 +9639,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.21.52";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260921-v52-sprint-target-crop-tracker";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.25.53";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260925-v53-sprint-seed-discovery-frame-ready";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -9717,6 +9741,17 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
     return m?.[1]?.trim() || null;
   }
 
+  function compareAppVersions(a,b) {
+    const pa=(String(a||"").match(/\d+/g)||[]).map(Number);
+    const pb=(String(b||"").match(/\d+/g)||[]).map(Number);
+    const n=Math.max(pa.length,pb.length);
+    for(let i=0;i<n;i++){
+      const x=pa[i]||0,y=pb[i]||0;
+      if(x!==y)return x>y?1:-1;
+    }
+    return 0;
+  }
+
   async function fetchServerVersion() {
     /* sw.js is small, so checking it avoids downloading the ~1 MB index.html every time. */
     const url = new URL("sw.js", document.baseURI);
@@ -9780,10 +9815,19 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
         fetchServerVersion(),
         updateServiceWorker()
       ]);
-      if (serverVersion === CURRENT_VERSION) {
+      const versionCmp = compareAppVersions(serverVersion, CURRENT_VERSION);
+      if (versionCmp === 0) {
         hideBanner();
         setStatus(`✓ 最新版です（Version ${CURRENT_VERSION}）`, "ok");
         clearReloadAttempt(CURRENT_VERSION);
+        return;
+      }
+      if (versionCmp < 0) {
+        /* v53: a stale server-side sw.js must never be treated as an update.
+           This prevents v52/v53 -> v51 style reload loops and retry-limit banners. */
+        hideBanner();
+        clearReloadAttempt(serverVersion);
+        setStatus(`✓ Version ${CURRENT_VERSION} を使用中（サーバーの更新情報 ${serverVersion} は旧版）。自動ダウングレードは行いません。`, "ok");
         return;
       }
       setStatus(`更新版 ${serverVersion} を検出（現在 ${CURRENT_VERSION}）`, "update");
@@ -9846,6 +9890,11 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
     if ($("app-build-text")) $("app-build-text").textContent = CURRENT_BUILD;
     buttonEl()?.addEventListener("click", () => checkForUpdate({manual:true, autoReload:true, force:true}));
     installButtonEl()?.addEventListener("click", requestInstall);
+    if (bannerEl()) {
+      bannerEl().title = "タップで閉じる";
+      bannerEl().style.cursor = "pointer";
+      bannerEl().addEventListener("click", hideBanner);
+    }
     refreshInstallUi();
     /* Installed PWA and browser launches both check immediately, not after user interaction. */
     checkForUpdate({manual:false, autoReload:true, force:true});
@@ -10899,7 +10948,7 @@ function fixKeyframesAndContacts41(){if(!startOfflinePoseFrames?.length)return;c
 function stableNote41(){if(!S41.frames)return '';const cls=S41.stableScore>=.72?'':'warn',start=S41.stableStart??'--',end=S41.stableEnd??'--';return `<div class="v41-stable-pose-note ${cls}"><b>正常Pose基準：</b>Frame ${start}〜${end}付近の連続した人体形状を基準に、選手固有の骨長を学習しました。固定物へ張り付いた疑い ${S41.pinnedPoints}点 ／ 再構築 ${S41.repairedPoints}点 ／ 不確実で除外 ${S41.rejectedPoints}点${S41.sequenceAdded?` ／ 接地系列を${S41.sequenceAdded}件補完`:''}${S41.sequenceRelabeled?` ／ 脚判定を${S41.sequenceRelabeled}件再判定`:''}${S41.groundImproved?' ／ 地面モデルを正常Pose区間から再推定':''}。<br>再構築できない点は無理に数値化しません。</div>`;}
 function updateStableUi41(){const el=document.getElementById('start-athlete-track-diagnostics');if(el&&S41.frames){el.querySelector('.v41-stable-pose-note')?.remove();el.insertAdjacentHTML('beforeend',stableNote41());}const src=document.getElementById('start-offline-angle-source');if(src&&S41.keyframeShift>0){let n=document.getElementById('start-v41-keyframe-note');if(!n){n=document.createElement('div');n.id='start-v41-keyframe-note';n.className='v41-keyframe-note';src.insertAdjacentElement('afterend',n);}n.textContent='⚠ 壊れたPoseフレームを角度測定に使わず、直後の人体整合性が高いフレームへ自動補正しています。';}}
 const recompute41Base=startOfflineRecomputeDerived;
-startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.21.52"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
+startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.25.53"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
 document.getElementById('start-offline-analyze')?.addEventListener('click',()=>{S41={frames:0,stableStart:null,stableEnd:null,stableScore:0,reference:new Map(),rawGood:new Set(),repairedPoints:0,rejectedPoints:0,pinnedPoints:0,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:0};window.__startV41StablePose=S41;},{capture:true});
 
 /* ---------- Beginner-friendly contact display ---------- */
@@ -12013,7 +12062,7 @@ setTimeout(ensureUi42,0);
 <script id="performance-diagnostics-v44-stage2">
 (()=>{
   'use strict';
-  const VERSION44='2026.09.21.52';
+  const VERSION44='2026.09.25.53';
   const MAX_FRAME_SAMPLES44=720;
   const MAX_SNAPSHOTS44=240;
   const P44={
@@ -12608,7 +12657,7 @@ setTimeout(ensureUi42,0);
 ============================================================ */
 const c47=(v,a,b)=>Math.max(a,Math.min(b,v));
 const V47={
-  version:'2026.09.21.52',
+  version:'2026.09.25.53',
   rep:{state:'IDLE',noiseSamples:[],startThreshold:.045,endThreshold:.025,startHoldMs:45,endHoldMs:65,repsFinalized:0,repsRejected:0,lastQuality:null,lastCutoff:null,gapResets:0},
   worker:{supported:false,enabled:false,ready:false,busy:false,captureBusy:false,used:0,validated:0,fallbacks:0,errors:0,lastConfidence:0,lastError:null},
   load:{level:0,highCount:0,lowCount:0,lastUpdate:0},
@@ -13134,351 +13183,457 @@ $('sprint-offline-file-input')?.addEventListener('change',()=>clearSelection(),{
 </script>
 
 
-<style id="sprint-v52-target-crop-style">
-/* v52 SPRINTPEAK target-crop verification + source quality guidance */
-#sprint-v52-target-diagnostics{
+<style id="sprint-v53-target-tracker-style">
+/* v53 SPRINTPEAK: seed-centered tracking + independent discovery diagnostics */
+#sprint-v53-target-diagnostics{
   margin-top:8px;padding:9px 10px;border:1px solid #b8c9d9;border-radius:9px;
   background:#f8fbff;color:#334155;font-size:12px;line-height:1.55;text-align:left;
 }
-#sprint-v52-target-diagnostics .v52-ok{color:#15803d;font-weight:800}
-#sprint-v52-target-diagnostics .v52-warn{color:#b45309;font-weight:800}
-#sprint-v52-target-diagnostics .v52-bad{color:#b91c1c;font-weight:800}
-#sprint-v52-shooting-guide{
+#sprint-v53-target-diagnostics .v53-ok{color:#15803d;font-weight:800}
+#sprint-v53-target-diagnostics .v53-warn{color:#b45309;font-weight:800}
+#sprint-v53-target-diagnostics .v53-bad{color:#b91c1c;font-weight:800}
+#sprint-v53-shooting-guide{
   margin:8px 0 10px;padding:9px 10px;border:1px solid #bfdbfe;border-radius:9px;
   background:#eff6ff;color:#1e3a5f;font-size:12px;line-height:1.6;text-align:left;
 }
 </style>
-<script id="sprint-v52-target-crop-tracker">
+<script id="sprint-v53-seed-discovery-tracker">
 (()=>{
 'use strict';
 /* =====================================================================
-   Sprint Timer Pro v52 — SPRINTPEAK target crop tracker
+   Sprint Timer Pro v53 — SPRINTPEAK robust target acquisition
    Scope: SPRINTPEAK offline video analysis only.
 
-   Goals:
-   1) A manually drawn runner rectangle is authoritative.
-   2) The rectangle is actually cropped from the ORIGINAL video frame,
-      enlarged internally, sent to the existing high-precision Pose model,
-      and mapped back to original-video normalized coordinates.
-   3) Old target-state mismatches cannot silently fall back to whole-frame
-      Pose while the UI says a manual target is selected.
-   4) On a miss, progressively wider crops are tried. If still lost, three
-      overlapping vertical search windows are checked. Manual selection
-      strongly favors a person whose image height is close to the selected
-      runner, preventing a small background person from taking over.
-   5) Automatic mode keeps the existing v51 logic first, but receives the
-      same large-runner crop fallback when that logic returns no valid Pose.
-   6) Diagnostics expose source resolution, selected runner pixel size and
-      the ACTUAL crop -> internal Pose input resolution.
+   Changes derived from the three recent field videos:
+   A) Manual target = true temporal seed:
+      preserve selectionId/frame/time, acquire Pose at the selected frame
+      (± nearby frames only), then track Seed -> end and Seed -> start.
+   B) Every analysis seek waits for a newly presented decoded video frame.
+      (Core sprintOfflineSeekTime is patched above.)
+   C) Initial automatic discovery is separated from measurement:
+      low-threshold Discovery Pose searches symmetric crops independently;
+      only a localized candidate is handed to the high-precision Pose.
+   D) Search crops reset Pose state during acquisition/reacquisition so left,
+      center and right crop order cannot inherit stale tracking coordinates.
+   E) Diagnostics separate discovery, measurement, identity match, seed,
+      forward/backward tracking and frame-presentation timeouts.
    ===================================================================== */
 
 const $=id=>document.getElementById(id);
-const previousAdaptive52=window.sprintOfflinePoseSendAdaptive;
-const V52={
-  mode:'idle', targetId:null, manual:false, selection:null,
-  roi:null, center:null, velocity:{x:0,y:0}, hits:0, misses:0,
-  searches:0, cropCalls:0, sourceW:0, sourceH:0,
-  lastInputW:0,lastInputH:0,lastCrop:null,lastAthletePx:0,
-  lastQuality:0,lastFrame:-1,lastMessage:''
+const previousAdaptive53=window.sprintOfflinePoseSendAdaptive;
+
+const V53={
+  mode:'idle',
+  targetId:null,
+  manual:false,
+  selection:null,
+  track:{roi:null,center:null,velocity:{x:0,y:0},locked:false,missStreak:0,lastAthletePx:0,lastQuality:0,lastFrame:-1},
+  sourceW:0,sourceH:0,lastInputW:0,lastInputH:0,lastCrop:null,lastAthletePx:0,lastQuality:0,
+  seed:{requestedFrame:null,requestedTime:null,actualFrame:null,actualTime:null,offset:null,quality:0,attempts:0,failed:false,clamped:false},
+  pass:'idle',
+  seedAthletePx:0,
+  stats:{
+    accepted:0,misses:0,searches:0,cropCalls:0,
+    discoveryCalls:0,discoveryPoseHits:0,measurementCalls:0,measurementPoseHits:0,
+    identityRejects:0,frameWaitTimeouts:0,
+    seedHits:0,forwardHits:0,forwardMisses:0,backwardHits:0,backwardMisses:0,
+    autoReacquires:0,
+    zones:{left:{calls:0,hits:0},center:{calls:0,hits:0},right:{calls:0,hits:0},whole:{calls:0,hits:0}}
+  }
 };
-window.__sprintV52TargetTracker=V52;
+window.__sprintV53TargetTracker=V53;
 
-const poseCanvas52=document.createElement('canvas');
-const poseCtx52=poseCanvas52.getContext('2d',{alpha:false,willReadFrequently:false});
+const measurementCanvas53=document.createElement('canvas');
+const measurementCtx53=measurementCanvas53.getContext('2d',{alpha:false,willReadFrequently:false});
+const discoveryCanvas53=document.createElement('canvas');
+const discoveryCtx53=discoveryCanvas53.getContext('2d',{alpha:false,willReadFrequently:false});
 
-function clamp52(v,a,b){return Math.max(a,Math.min(b,v));}
-function finite52(v){return Number.isFinite(v);}
-function rect52(r){
+function clamp53(v,a,b){return Math.max(a,Math.min(b,v));}
+function finite53(v){return Number.isFinite(v);}
+function rect53(r){
   if(!r)return null;
-  let x=clamp52(+r.x||0,0,1),y=clamp52(+r.y||0,0,1),
-      w=clamp52(+r.w||0,.01,1),h=clamp52(+r.h||0,.01,1);
+  let x=clamp53(+r.x||0,0,1),y=clamp53(+r.y||0,0,1),
+      w=clamp53(+r.w||0,.01,1),h=clamp53(+r.h||0,.01,1);
   if(x+w>1)w=1-x;if(y+h>1)h=1-y;
   return {x,y,w:Math.max(.01,w),h:Math.max(.01,h)};
 }
-function center52(r){return {x:r.x+r.w/2,y:r.y+r.h/2};}
-function around52(c,w,h){return rect52({x:c.x-w/2,y:c.y-h/2,w,h});}
-function expand52(r,mx,my){
-  const c=center52(r);
-  return around52(c,Math.min(1,r.w*mx),Math.min(1,r.h*my));
-}
-function quant52(a,p){
-  const b=a.filter(finite52).sort((x,y)=>x-y);if(!b.length)return NaN;
-  return b[Math.max(0,Math.min(b.length-1,Math.round((b.length-1)*p)))];
-}
-function geom52(lm){
-  if(!lm?.length)return null;
-  const pts=lm.filter((p,i)=>i<33&&p&&finite52(p.x)&&finite52(p.y)&&(p.visibility??1)>=.20);
-  if(pts.length<7)return null;
-  const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
-  const x1=quant52(xs,.04),x2=quant52(xs,.96),y1=quant52(ys,.03),y2=quant52(ys,.97);
-  const torso=[11,12,23,24].map(i=>lm[i]).filter(p=>p&&finite52(p.x)&&finite52(p.y)&&(p.visibility??1)>=.18);
-  const c=torso.length>=2?
-    {x:torso.reduce((s,p)=>s+p.x,0)/torso.length,y:torso.reduce((s,p)=>s+p.y,0)/torso.length}:
-    {x:(x1+x2)/2,y:(y1+y2)/2};
-  return {center:c,bbox:rect52({x:x1,y:y1,w:Math.max(.01,x2-x1),h:Math.max(.02,y2-y1)}),points:pts.length};
-}
-function mapped52(lm,crop){
-  return lm.map(p=>({...p,
-    x:crop.x+p.x*crop.w,
-    y:crop.y+p.y*crop.h,
-    z:finite52(p.z)?p.z*crop.w:p.z
-  }));
-}
-function quality52(lm){
-  try{return typeof startOfflinePoseQuality==='function'?startOfflinePoseQuality(lm):0;}catch(_){return 0;}
-}
-function api52(){return window.__sprintAthleteApiV51||window.__sprintAthleteApiV50||window.__sprintAthleteApiV49||null;}
-function selected52(){
-  try{return api52()?.selection?.()||api52()?.state?.selected||null;}catch(_){return null;}
-}
-function currentFrame52(){
-  try{return typeof sprintOfflineCurrentFrameIndex==='function'?sprintOfflineCurrentFrameIndex():-1;}catch(_){return -1;}
-}
-function video52(){return $('sprint-offline-video');}
-
-function targetKey52(sel){
-  if(sel?.manualLock)return sel.selectionId||`manual:${sel.x}:${sel.y}:${sel.w}:${sel.h}`;
-  return V52.mode==='auto-track'?'auto-track':'none';
-}
-function reset52(sel=null,mode='idle'){
-  V52.mode=mode;V52.targetId=sel?targetKey52(sel):null;V52.manual=!!sel?.manualLock;V52.selection=sel?rect52(sel):null;
-  V52.roi=sel?expand52(rect52(sel),2.25,1.55):null;
-  V52.center=V52.roi?center52(V52.roi):null;V52.velocity={x:0,y:0};
-  V52.hits=0;V52.misses=0;V52.searches=0;V52.cropCalls=0;
-  V52.lastInputW=0;V52.lastInputH=0;V52.lastCrop=null;V52.lastAthletePx=0;V52.lastQuality=0;V52.lastFrame=-1;
-}
-function ensureManualState52(sel){
-  const key=targetKey52(sel);
-  if(V52.targetId!==key||V52.mode!=='manual'){
-    reset52(sel,'manual');
-  }
-}
-
-function setupCrop52(crop){
-  const v=video52();if(!v?.videoWidth||!v?.videoHeight)return null;
-  crop=rect52(crop);if(!crop)return null;
-  const vw=v.videoWidth,vh=v.videoHeight,sx=Math.round(crop.x*vw),sy=Math.round(crop.y*vh),
-        sw=Math.max(2,Math.round(crop.w*vw)),sh=Math.max(2,Math.round(crop.h*vh));
-  const aspect=sw/sh;let dw,dh;
-  if(aspect>=1){dw=1536;dh=Math.max(520,Math.round(dw/aspect));}
-  else{dh=1536;dw=Math.max(520,Math.round(dh*aspect));}
-  const maxSide=Math.max(dw,dh);
-  if(maxSide>1536){const k=1536/maxSide;dw=Math.max(420,Math.round(dw*k));dh=Math.max(420,Math.round(dh*k));}
-  poseCanvas52.width=dw;poseCanvas52.height=dh;
-  poseCtx52.fillStyle='#000';poseCtx52.fillRect(0,0,dw,dh);
-  poseCtx52.imageSmoothingEnabled=true;try{poseCtx52.imageSmoothingQuality='high';}catch(_){}
-  poseCtx52.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);
-  V52.sourceW=vw;V52.sourceH=vh;V52.lastInputW=dw;V52.lastInputH=dh;V52.lastCrop={...crop,sourcePx:{x:sx,y:sy,w:sw,h:sh}};
-  return {canvas:poseCanvas52,crop};
-}
-async function sendCrop52(crop){
-  const prep=setupCrop52(crop);if(!prep)return null;V52.cropCalls++;
-  let out=null;
-  try{out=await startOfflinePoseSend(prep.canvas);}catch(e){console.warn('v52 crop Pose failed',e);return null;}
-  if(!out?.poseLandmarks)return null;
-  const lm=mapped52(out.poseLandmarks,prep.crop),g=geom52(lm);
-  if(!g)return null;
-  const q=quality52(lm),vh=V52.sourceH||1,athletePx=g.bbox.h*vh;
-  return {out:{...out,poseLandmarks:lm},lm,g,q,athletePx,crop:prep.crop};
-}
-function expectedPx52(sel){
-  const vh=video52()?.videoHeight||1;
-  return sel?.h?sel.h*vh:0;
-}
-function manualScore52(c,sel){
-  if(!c?.g||!sel)return -Infinity;
-  const expected=Math.max(40,expectedPx52(sel)),ratio=Math.max(.05,c.athletePx/expected),
-        sizeFit=Math.exp(-Math.abs(Math.log(ratio))*1.35);
-  const ref=V52.center||center52(sel),dx=c.g.center.x-ref.x,dy=c.g.center.y-ref.y,
-        dist=Math.hypot(dx,dy),near=Math.max(0,1-dist/.48);
-  const gate=expand52(sel,3.0,1.8),gc=c.g.center,
-        inGate=gc.x>=gate.x&&gc.x<=gate.x+gate.w&&gc.y>=gate.y&&gc.y<=gate.y+gate.h;
-  if(V52.hits===0&&(!inGate||ratio<.38||ratio>2.8))return -Infinity;
-  if(V52.hits>0&&dist>.58&&ratio<.70)return -Infinity;
-  return (c.q||0)*1.4+sizeFit*2.8+near*1.45+Math.min(1,c.g.points/18)*.45;
-}
-function autoScore52(c){
-  if(!c?.g)return -Infinity;
-  const vh=V52.sourceH||video52()?.videoHeight||1,size=Math.min(2.4,c.athletePx/Math.max(1,vh*.22));
-  return (c.q||0)*1.5+size+Math.min(1,c.g.points/20)*.5;
-}
-function updateTrack52(c,sel,manual){
-  const old=V52.center||c.g.center,dx=c.g.center.x-old.x,dy=c.g.center.y-old.y;
-  V52.velocity.x=V52.velocity.x*.58+dx*.42;V52.velocity.y=V52.velocity.y*.58+dy*.42;
-  V52.center={...c.g.center};V52.hits++;V52.misses=0;V52.lastAthletePx=c.athletePx;V52.lastQuality=c.q||0;V52.lastFrame=currentFrame52();
-  const baseW=manual?Math.max(sel.w*2.15,c.g.bbox.w*2.20):Math.max(c.g.bbox.w*2.20,.24),
-        baseH=manual?Math.max(sel.h*1.45,c.g.bbox.h*1.65):Math.max(c.g.bbox.h*1.65,.55),
-        lead={x:clamp52(c.g.center.x+V52.velocity.x*.90,0,1),y:clamp52(c.g.center.y+V52.velocity.y*.35,0,1)};
-  V52.roi=around52(lead,Math.min(manual?.68:.62,baseW),Math.min(.97,baseH));
-  try{window.__sprintV51SyncTargetBox?.(expand52(c.g.bbox,1.16,1.10),true);}catch(_){}
-  renderDiag52();
-}
-function miss52(){
-  V52.misses++;
-  const c=V52.center||center52(V52.selection||{x:.2,y:.05,w:.6,h:.9}),grow=1+Math.min(.65,V52.misses*.10),
-        w=Math.min(.72,(V52.roi?.w||.35)*grow),h=Math.min(.98,(V52.roi?.h||.72)*grow),
-        lead={x:clamp52(c.x+V52.velocity.x*Math.min(4,V52.misses+1),0,1),y:clamp52(c.y,0,1)};
-  V52.roi=around52(lead,w,h);
-}
-function uniqueRects52(arr){
-  const out=[];for(const r0 of arr){const r=rect52(r0);if(!r)continue;
-    if(out.some(x=>Math.abs(x.x-r.x)<.015&&Math.abs(x.y-r.y)<.015&&Math.abs(x.w-r.w)<.02&&Math.abs(x.h-r.h)<.02))continue;
+function center53(r){return {x:r.x+r.w/2,y:r.y+r.h/2};}
+function around53(c,w,h){return rect53({x:c.x-w/2,y:c.y-h/2,w,h});}
+function expand53(r,mx,my){const c=center53(r);return around53(c,Math.min(1,r.w*mx),Math.min(1,r.h*my));}
+function uniqueRects53(arr){
+  const out=[];for(const r0 of arr){const r=rect53(r0);if(!r)continue;
+    if(out.some(x=>Math.abs(x.x-r.x)<.012&&Math.abs(x.y-r.y)<.012&&Math.abs(x.w-r.w)<.018&&Math.abs(x.h-r.h)<.018))continue;
     out.push(r);
   }return out;
 }
-function searchWindows52(){
+function quant53(a,p){const b=a.filter(finite53).sort((x,y)=>x-y);if(!b.length)return NaN;return b[Math.max(0,Math.min(b.length-1,Math.round((b.length-1)*p)))];}
+function geom53(lm){
+  if(!lm?.length)return null;
+  const pts=lm.filter((p,i)=>i<33&&p&&finite53(p.x)&&finite53(p.y)&&(p.visibility??1)>=.18);
+  if(pts.length<7)return null;
+  const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+  const x1=quant53(xs,.04),x2=quant53(xs,.96),y1=quant53(ys,.03),y2=quant53(ys,.97);
+  const torso=[11,12,23,24].map(i=>lm[i]).filter(p=>p&&finite53(p.x)&&finite53(p.y)&&(p.visibility??1)>=.16);
+  const c=torso.length>=2?{x:torso.reduce((s,p)=>s+p.x,0)/torso.length,y:torso.reduce((s,p)=>s+p.y,0)/torso.length}:{x:(x1+x2)/2,y:(y1+y2)/2};
+  return {center:c,bbox:rect53({x:x1,y:y1,w:Math.max(.01,x2-x1),h:Math.max(.02,y2-y1)}),points:pts.length};
+}
+function mapped53(lm,crop){return lm.map(p=>({...p,x:crop.x+p.x*crop.w,y:crop.y+p.y*crop.h,z:finite53(p.z)?p.z*crop.w:p.z}));}
+function quality53(lm){try{return typeof startOfflinePoseQuality==='function'?startOfflinePoseQuality(lm):0;}catch(_){return 0;}}
+function api53(){return window.__sprintAthleteApiV51||window.__sprintAthleteApiV50||window.__sprintAthleteApiV49||null;}
+function selected53(){try{return api53()?.selection?.()||api53()?.state?.selected||null;}catch(_){return null;}}
+window.__sprintV53Selection=selected53;
+function video53(){return $('sprint-offline-video');}
+function currentFrame53(){try{return typeof sprintOfflineCurrentFrameIndex==='function'?sprintOfflineCurrentFrameIndex():-1;}catch(_){return -1;}}
+
+function cloneSelection53(sel){
+  if(!sel)return null;
+  const r=rect53(sel);if(!r)return null;
+  return {...r,frame:Number.isFinite(+sel.frame)?+sel.frame:null,time:Number.isFinite(+sel.time)?+sel.time:null,
+    selectionId:sel.selectionId||null,manualLock:!!sel.manualLock,manual:!!sel.manual,auto:!!sel.auto};
+}
+function targetKey53(sel){return sel?.manualLock?(sel.selectionId||`manual:${sel.x}:${sel.y}:${sel.w}:${sel.h}`):'auto';}
+function freshStats53(){
+  const oldWait=V53.stats.frameWaitTimeouts||0;
+  V53.stats={accepted:0,misses:0,searches:0,cropCalls:0,discoveryCalls:0,discoveryPoseHits:0,measurementCalls:0,measurementPoseHits:0,identityRejects:0,frameWaitTimeouts:oldWait,seedHits:0,forwardHits:0,forwardMisses:0,backwardHits:0,backwardMisses:0,autoReacquires:0,zones:{left:{calls:0,hits:0},center:{calls:0,hits:0},right:{calls:0,hits:0},whole:{calls:0,hits:0}}};
+}
+function resetTrack53(sel=null,mode='idle',resetStats=false){
+  if(resetStats)freshStats53();
+  V53.mode=mode;V53.targetId=sel?targetKey53(sel):null;V53.manual=!!sel?.manualLock;V53.selection=sel?cloneSelection53(sel):null;
+  const r=sel?rect53(sel):null;
+  V53.track={roi:r?expand53(r,2.15,1.55):null,center:r?center53(r):null,velocity:{x:0,y:0},locked:false,missStreak:0,lastAthletePx:0,lastQuality:0,lastFrame:-1};
+  V53.seed={requestedFrame:null,requestedTime:null,actualFrame:null,actualTime:null,offset:null,quality:0,attempts:0,failed:false,clamped:false};
+  V53.pass='idle';V53.seedAthletePx=0;V53.lastInputW=0;V53.lastInputH=0;V53.lastCrop=null;V53.lastAthletePx=0;V53.lastQuality=0;
+}
+function ensureManualState53(sel){
+  const key=targetKey53(sel);
+  if(V53.mode!=='manual'||V53.targetId!==key)resetTrack53(sel,'manual',false);
+}
+function snapshotTrack53(){
+  const t=V53.track;return {roi:t.roi?{...t.roi}:null,center:t.center?{...t.center}:null,velocity:{...t.velocity},locked:t.locked,missStreak:0,lastAthletePx:t.lastAthletePx,lastQuality:t.lastQuality,lastFrame:t.lastFrame};
+}
+function restoreTrack53(snap,pass){
+  V53.track={roi:snap?.roi?{...snap.roi}:null,center:snap?.center?{...snap.center}:null,velocity:{x:0,y:0},locked:!!snap?.locked,missStreak:0,lastAthletePx:snap?.lastAthletePx||0,lastQuality:snap?.lastQuality||0,lastFrame:snap?.lastFrame??-1};
+  V53.pass=pass||'idle';
+}
+
+function setupCrop53(crop,kind='measurement'){
+  const v=video53();if(!v?.videoWidth||!v?.videoHeight)return null;
+  crop=rect53(crop);if(!crop)return null;
+  const vw=v.videoWidth,vh=v.videoHeight,sx=Math.round(crop.x*vw),sy=Math.round(crop.y*vh),sw=Math.max(2,Math.round(crop.w*vw)),sh=Math.max(2,Math.round(crop.h*vh));
+  const longTarget=kind==='discovery'?1280:1536,canvas=kind==='discovery'?discoveryCanvas53:measurementCanvas53,ctx=kind==='discovery'?discoveryCtx53:measurementCtx53;
+  const aspect=sw/sh;let dw,dh;
+  if(aspect>=1){dw=longTarget;dh=Math.max(kind==='discovery'?360:520,Math.round(dw/aspect));}
+  else{dh=longTarget;dw=Math.max(kind==='discovery'?360:520,Math.round(dh*aspect));}
+  const m=Math.max(dw,dh);if(m>longTarget){const k=longTarget/m;dw=Math.max(320,Math.round(dw*k));dh=Math.max(320,Math.round(dh*k));}
+  canvas.width=dw;canvas.height=dh;ctx.fillStyle='#000';ctx.fillRect(0,0,dw,dh);ctx.imageSmoothingEnabled=true;try{ctx.imageSmoothingQuality='high';}catch(_){}
+  try{ctx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);}catch(e){console.warn('v53 crop draw failed',e);return null;}
+  V53.sourceW=vw;V53.sourceH=vh;V53.lastInputW=dw;V53.lastInputH=dh;V53.lastCrop={...crop,kind,sourcePx:{x:sx,y:sy,w:sw,h:sh}};V53.stats.cropCalls++;
+  return {canvas,crop};
+}
+async function resetPose53(pose){try{if(typeof pose?.reset==='function')await Promise.resolve(pose.reset());}catch(_){}}
+function candidate53(out,prep){
+  if(!out?.poseLandmarks)return null;
+  const lm=mapped53(out.poseLandmarks,prep.crop),g=geom53(lm);if(!g)return null;
+  const q=quality53(lm),vh=V53.sourceH||video53()?.videoHeight||1,athletePx=g.bbox.h*vh;
+  return {out:{...out,poseLandmarks:lm},lm,g,q,athletePx,crop:prep.crop};
+}
+async function sendMeasurement53(crop,{fresh=false}={}){
+  const prep=setupCrop53(crop,'measurement');if(!prep)return null;
+  V53.stats.measurementCalls++;
+  if(fresh)await resetPose53(typeof startOfflinePose!=='undefined'?startOfflinePose:null);
+  let out=null;try{out=await startOfflinePoseSend(prep.canvas);}catch(e){console.warn('v53 measurement Pose failed',e);return null;}
+  const c=candidate53(out,prep);if(c)V53.stats.measurementPoseHits++;
+  return c;
+}
+async function sendDiscovery53(crop,zone='whole'){
+  const prep=setupCrop53(crop,'discovery');if(!prep)return null;
+  V53.stats.discoveryCalls++;if(V53.stats.zones[zone])V53.stats.zones[zone].calls++;
+  try{const p=await ensureAthleteDiscoveryPose();await resetPose53(p);}catch(_){}
+  let out=null;try{out=await athleteDiscoverySend(prep.canvas);}catch(e){console.warn('v53 discovery Pose failed',e);return null;}
+  const c=candidate53(out,prep);
+  if(c){V53.stats.discoveryPoseHits++;if(V53.stats.zones[zone])V53.stats.zones[zone].hits++;}
+  return c;
+}
+function expectedPx53(sel){const vh=video53()?.videoHeight||1;return V53.seedAthletePx||V53.track.lastAthletePx||(sel?.h?sel.h*vh:0);}
+function manualScore53(c,sel,{seed=false}={}){
+  if(!c?.g||!sel)return -Infinity;
+  const expected=Math.max(50,expectedPx53(sel)),ratio=Math.max(.05,c.athletePx/expected),sizeFit=Math.exp(-Math.abs(Math.log(ratio))*1.28);
+  const ref=seed?center53(sel):(V53.track.center||center53(sel)),dist=Math.hypot(c.g.center.x-ref.x,c.g.center.y-ref.y);
+  const miss=V53.track.missStreak||0,allow=seed?.38:Math.min(.68,.30+miss*.055),near=Math.max(0,1-dist/Math.max(.01,allow));
+  const gate=expand53(sel,seed?2.25:Math.min(4.4,2.7+miss*.22),seed?1.60:Math.min(2.35,1.75+miss*.10)),gc=c.g.center;
+  const inGate=gc.x>=gate.x&&gc.x<=gate.x+gate.w&&gc.y>=gate.y&&gc.y<=gate.y+gate.h;
+  if(seed&&(!inGate||ratio<.42||ratio>2.45)){V53.stats.identityRejects++;return -Infinity;}
+  if(!seed&&V53.track.locked&&(!inGate||ratio<.36||ratio>2.75)){V53.stats.identityRejects++;return -Infinity;}
+  if(!seed&&V53.track.locked&&dist>allow&&miss<5){V53.stats.identityRejects++;return -Infinity;}
+  return (c.q||0)*1.55+sizeFit*2.85+near*1.40+Math.min(1,c.g.points/18)*.55;
+}
+function autoScore53(c){
+  if(!c?.g)return -Infinity;
+  const vh=V53.sourceH||video53()?.videoHeight||1,size=Math.min(2.8,c.athletePx/Math.max(1,vh*.18));
+  const centerBias=.12*Math.max(0,1-Math.abs((c.g.center?.x??.5)-.5)*2);
+  return (c.q||0)*1.45+size+Math.min(1,c.g.points/20)*.55+centerBias;
+}
+function updateTrack53(c,sel,manual,{seed=false,reacquire=false}={}){
+  const t=V53.track,old=t.center||c.g.center,gap=Math.max(1,t.missStreak+1),dx=(c.g.center.x-old.x)/gap,dy=(c.g.center.y-old.y)/gap;
+  if(seed)t.velocity={x:0,y:0};else{t.velocity.x=t.velocity.x*.55+dx*.45;t.velocity.y=t.velocity.y*.55+dy*.45;}
+  t.center={...c.g.center};t.locked=true;t.missStreak=0;t.lastAthletePx=c.athletePx;t.lastQuality=c.q||0;t.lastFrame=currentFrame53();
+  V53.stats.accepted++;if(seed)V53.stats.seedHits++;else if(V53.pass==='forward')V53.stats.forwardHits++;else if(V53.pass==='backward')V53.stats.backwardHits++;
+  if(reacquire)V53.stats.autoReacquires++;
+  V53.lastAthletePx=c.athletePx;V53.lastQuality=c.q||0;
+  const selRect=rect53(sel)||c.g.bbox,baseW=manual?Math.max(selRect.w*2.05,c.g.bbox.w*2.25):Math.max(c.g.bbox.w*2.25,.24),baseH=manual?Math.max(selRect.h*1.45,c.g.bbox.h*1.68):Math.max(c.g.bbox.h*1.68,.55);
+  const lead={x:clamp53(c.g.center.x+t.velocity.x*.90,0,1),y:clamp53(c.g.center.y+t.velocity.y*.35,0,1)};
+  t.roi=around53(lead,Math.min(manual?.72:.66,baseW),Math.min(.98,baseH));
+  try{window.__sprintV51SyncTargetBox?.(expand53(c.g.bbox,1.16,1.10),true);}catch(_){}
+  renderDiag53();
+}
+function miss53(){
+  const t=V53.track;t.missStreak++;V53.stats.misses++;if(V53.pass==='forward')V53.stats.forwardMisses++;else if(V53.pass==='backward')V53.stats.backwardMisses++;
+  const c=t.center||center53(V53.selection||{x:.2,y:.05,w:.6,h:.9}),grow=1+Math.min(.75,t.missStreak*.11),w=Math.min(.78,(t.roi?.w||.35)*grow),h=Math.min(.99,(t.roi?.h||.72)*grow);
+  const lead={x:clamp53(c.x+t.velocity.x*Math.min(4,t.missStreak+1),0,1),y:clamp53(c.y+t.velocity.y*Math.min(2,t.missStreak+1),0,1)};
+  t.roi=around53(lead,w,h);renderDiag53();
+}
+function wideWindows53(){
   return [
-    {x:0.00,y:.02,w:.46,h:.96},
-    {x:.27,y:.02,w:.46,h:.96},
-    {x:.54,y:.02,w:.46,h:.96}
+    {zone:'left',rect:{x:0.00,y:.02,w:.52,h:.96}},
+    {zone:'center',rect:{x:.24,y:.02,w:.52,h:.96}},
+    {zone:'right',rect:{x:.48,y:.02,w:.52,h:.96}}
   ];
 }
-async function manualAdaptive52(sel){
-  ensureManualState52(sel);
-  const base=V52.roi||expand52(sel,2.25,1.55);
-  let candidates=uniqueRects52([
-    base,
-    expand52(base,1.22,1.10),
-    V52.misses>=2?expand52(base,1.48,1.18):null
-  ].filter(Boolean));
-  let best=null,bestScore=-Infinity;
-  for(const r of candidates){
-    const c=await sendCrop52(r);if(!c)continue;
-    const s=manualScore52(c,sel);if(s>bestScore){best=c;bestScore=s;}
-    if(s>=4.25)break;
-  }
-  if(!best||bestScore<2.55){
-    V52.searches++;
-    best=null;bestScore=-Infinity;
-    for(const r of searchWindows52()){
-      const c=await sendCrop52(r);if(!c)continue;
-      const s=manualScore52(c,sel);if(s>bestScore){best=c;bestScore=s;}
-    }
-  }
-  if(best&&bestScore>=2.25){updateTrack52(best,sel,true);return best.out;}
-  miss52();renderDiag52();return null;
+function discoveryWindows53(){
+  return [
+    {zone:'center',rect:{x:.20,y:.02,w:.60,h:.96}},
+    {zone:'left',rect:{x:0.00,y:.02,w:.56,h:.96}},
+    {zone:'right',rect:{x:.44,y:.02,w:.56,h:.96}},
+    {zone:'whole',rect:{x:0.00,y:.02,w:1.00,h:.96}}
+  ];
 }
-async function autoFallback52(){
+
+async function manualSeedAttempt53(sel){
+  const r=rect53(sel),crops=uniqueRects53([expand53(r,1.12,1.16),expand53(r,1.55,1.34),expand53(r,2.15,1.58)]);
   let best=null,bestScore=-Infinity;
-  V52.searches++;
-  for(const r of searchWindows52()){
-    const c=await sendCrop52(r);if(!c)continue;
-    const s=autoScore52(c);if(s>bestScore){best=c;bestScore=s;}
+  for(const crop of crops){
+    const c=await sendMeasurement53(crop,{fresh:true});if(!c)continue;
+    const s=manualScore53(c,sel,{seed:true});if(s>bestScore){best=c;bestScore=s;}
   }
-  const vh=video52()?.videoHeight||1;
-  if(best&&best.athletePx>=Math.max(120,vh*.12)&&bestScore>=2.15){
-    if(V52.mode!=='auto-track')reset52(null,'auto-track');
-    V52.roi=expand52(best.g.bbox,2.25,1.65);V52.center={...best.g.center};
-    updateTrack52(best,best.g.bbox,false);
-    return best.out;
+  if(best&&bestScore>=2.15){
+    V53.seedAthletePx=best.athletePx;updateTrack53(best,sel,true,{seed:true});return best.out;
   }
   return null;
 }
-async function autoTrack52(){
-  const base=V52.roi||{x:.18,y:.02,w:.64,h:.96};
+async function manualAdaptive53(sel){
+  ensureManualState53(sel);
+  const t=V53.track,base=t.roi||expand53(rect53(sel),2.15,1.55);
+  const crops=uniqueRects53([base,expand53(base,1.18,1.10),t.missStreak>=2?expand53(base,1.42,1.18):null].filter(Boolean));
   let best=null,bestScore=-Infinity;
-  for(const r of uniqueRects52([base,expand52(base,1.30,1.12)])){
-    const c=await sendCrop52(r);if(!c)continue;const s=autoScore52(c);if(s>bestScore){best=c;bestScore=s;}
+  for(let i=0;i<crops.length;i++){
+    const c=await sendMeasurement53(crops[i],{fresh:i>0&&t.missStreak>0});if(!c)continue;
+    const s=manualScore53(c,sel,{seed:false});if(s>bestScore){best=c;bestScore=s;}
+    if(s>=4.25)break;
   }
-  if(best&&bestScore>=2.0){updateTrack52(best,best.g.bbox,false);return best.out;}
-  miss52();
-  if(V52.misses>=2)return await autoFallback52();
+  if(!best||bestScore<2.30){
+    V53.stats.searches++;best=null;bestScore=-Infinity;
+    for(const w of wideWindows53()){
+      const c=await sendMeasurement53(w.rect,{fresh:true});if(!c)continue;
+      const s=manualScore53(c,sel,{seed:false});if(s>bestScore){best=c;bestScore=s;}
+    }
+  }
+  if(best&&bestScore>=2.18){updateTrack53(best,sel,true,{reacquire:t.missStreak>0});return best.out;}
+  miss53();return null;
+}
+
+async function discoverAuto53(){
+  V53.stats.searches++;
+  const candidates=[];
+  for(const w of discoveryWindows53()){
+    const c=await sendDiscovery53(w.rect,w.zone);if(!c)continue;
+    c.discoveryScore=autoScore53(c);c.zone=w.zone;candidates.push(c);
+  }
+  candidates.sort((a,b)=>b.discoveryScore-a.discoveryScore);
+  const vh=video53()?.videoHeight||1;
+  for(const d of candidates.slice(0,3)){
+    if(d.athletePx<Math.max(115,vh*.105))continue;
+    const g=d.g,crop=around53(g.center,Math.min(.84,Math.max(.26,g.bbox.w*2.35)),Math.min(.98,Math.max(.56,g.bbox.h*1.72)));
+    const m=await sendMeasurement53(crop,{fresh:true});if(!m)continue;
+    if(m.athletePx<Math.max(120,vh*.11)||autoScore53(m)<2.05)continue;
+    if(V53.mode!=='auto-track')resetTrack53(null,'auto-track',false);
+    V53.track.center={...m.g.center};V53.track.roi=expand53(m.g.bbox,2.25,1.65);updateTrack53(m,m.g.bbox,false,{seed:true,reacquire:true});
+    return m.out;
+  }
+  return null;
+}
+async function autoTrack53(){
+  const t=V53.track,base=t.roi||{x:.18,y:.02,w:.64,h:.96};
+  let best=null,bestScore=-Infinity;
+  for(let i=0;i<2;i++){
+    const crop=i===0?base:expand53(base,1.28,1.12),c=await sendMeasurement53(crop,{fresh:i===1&&t.missStreak>0});if(!c)continue;
+    const s=autoScore53(c);if(s>bestScore){best=c;bestScore=s;}
+  }
+  if(best&&bestScore>=1.95){updateTrack53(best,best.g.bbox,false,{reacquire:t.missStreak>0});return best.out;}
+  miss53();
+  if(t.missStreak>=2)return await discoverAuto53();
   return null;
 }
 
-function resolutionAdvice52(){
-  const v=video52(),w=v?.videoWidth||0,h=v?.videoHeight||0;
-  if(!w||!h)return '動画読み込み後に解像度を判定します。';
+function nearestFrameForTime53(t){
+  if(!sprintOfflineFrameTimes?.length)return 0;
+  if(!finite53(t))return currentFrame53();
+  let lo=0,hi=sprintOfflineFrameTimes.length-1;
+  while(lo<hi){const m=(lo+hi)>>1;if(sprintOfflineFrameTimes[m]<t)lo=m+1;else hi=m;}
+  const a=lo,b=Math.max(0,a-1);return Math.abs(sprintOfflineFrameTimes[a]-t)<Math.abs(sprintOfflineFrameTimes[b]-t)?a:b;
+}
+function resolveSeedIndex53(sel,from,to){
+  let idx=finite53(sel?.time)?nearestFrameForTime53(sel.time):(finite53(sel?.frame)?Math.round(sel.frame):currentFrame53());
+  idx=clamp53(idx,0,sprintOfflineFrameTimes.length-1);
+  const t=sprintOfflineFrameTimes[idx],inRange=finite53(t)&&t>=from-.001&&t<=to+.001;
+  if(inRange)return {idx,clamped:false};
+  let best=idx,bd=Infinity;
+  for(let i=0;i<sprintOfflineFrameTimes.length;i++){
+    const x=sprintOfflineFrameTimes[i];if(x<from-.001||x>to+.001)continue;
+    const d=Math.abs(x-(finite53(sel?.time)?sel.time:t));if(d<bd){bd=d;best=i;}
+  }
+  return {idx:best,clamped:true};
+}
+function storePoseFrame53(idx,t,r){
+  if(!r?.poseLandmarks||sprintOfflinePoseMap.has(idx))return false;
+  const l=startOfflineCloneLandmarks(r.poseLandmarks),scale=bodyCalibrationEstimate(l,sprintOfflineCanvas.width,sprintOfflineCanvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:l,poseQuality:startOfflinePoseQuality(l),scale};
+  sprintOfflinePoseFrames.push(f);sprintOfflinePoseMap.set(idx,f);return true;
+}
+async function acquireManualSeed53(sel,from,to){
+  ensureManualState53(sel);V53.track.locked=false;V53.track.velocity={x:0,y:0};V53.track.missStreak=0;V53.seedAthletePx=0;
+  const resolved=resolveSeedIndex53(sel,from,to),requested=resolved.idx,baseTime=sprintOfflineFrameTimes[requested];
+  V53.seed.requestedFrame=requested;V53.seed.requestedTime=baseTime;V53.seed.clamped=resolved.clamped;
+  const offsets=[0,-1,1,-2,2,-3,3,-4,4];
+  for(const off of offsets){
+    const idx=requested+off;if(idx<0||idx>=sprintOfflineFrameTimes.length)continue;
+    const t=sprintOfflineFrameTimes[idx];if(!finite53(t)||t<from-.001||t>to+.001)continue;
+    V53.seed.attempts++;await sprintOfflineSeekTime(t);
+    /* Every nearby-frame attempt starts from the exact manual rectangle.
+       Do not let a failed adjacent frame drift the identity gate. */
+    V53.track.roi=expand53(rect53(sel),2.15,1.55);V53.track.center=center53(rect53(sel));V53.track.velocity={x:0,y:0};V53.track.locked=false;V53.track.missStreak=0;
+    const r=await manualSeedAttempt53(sel);
+    if(r?.poseLandmarks){
+      V53.seed.actualFrame=idx;V53.seed.actualTime=t;V53.seed.offset=idx-requested;V53.seed.quality=V53.track.lastQuality||V53.lastQuality||0;V53.seed.failed=false;
+      renderDiag53();return {idx,t,result:r,snapshot:snapshotTrack53()};
+    }
+  }
+  V53.seed.failed=true;renderDiag53();return null;
+}
+window.__sprintV53RunManualPosePass=async function({indices,from,to,selection}){
+  const sel=cloneSelection53(selection||selected53());if(!sel?.manualLock)return false;
+  resetTrack53(sel,'manual',true);V53.pass='seed';
+  const status=$('sprint-offline-analysis-status'),progress=$('sprint-offline-progress');
+  if(status)status.textContent='手動ターゲットSeedを指定フレーム付近で確認しています…';
+  const seed=await acquireManualSeed53(sel,from,to);
+  if(!seed){
+    if(status)status.textContent=`⚠ 指定フレーム±4Fでも対象走者Poseを取得できませんでした。対象選手を全身が見えるフレームで囲み直してください。`;
+    if(progress)progress.style.width='84%';
+    return true;
+  }
+  if(!indices.includes(seed.idx)){indices.push(seed.idx);indices.sort((a,b)=>a-b);}
+  storePoseFrame53(seed.idx,seed.t,seed.result);
+  const forward=indices.filter(i=>i>seed.idx).sort((a,b)=>a-b),backward=indices.filter(i=>i<seed.idx).sort((a,b)=>b-a),total=Math.max(1,1+forward.length+backward.length);
+  let done=1;if(progress)progress.style.width=(done/total*84).toFixed(1)+'%';
+  restoreTrack53(seed.snapshot,'forward');
+  for(const idx of forward){
+    if(sprintOfflineCancelRequested)break;
+    const t=sprintOfflineFrameTimes[idx];await sprintOfflineSeekTime(t);let r=null;try{r=await manualAdaptive53(sel);}catch(e){console.warn('v53 manual forward',e);}
+    if(r?.poseLandmarks)storePoseFrame53(idx,t,r);done++;
+    if(done%3===0||done===total){if(progress)progress.style.width=(done/total*84).toFixed(1)+'%';if(status)status.textContent=`手動Seed追跡：順方向 ${done}/${total} ／ 有効Pose ${sprintOfflinePoseFrames.length}`;await new Promise(r=>setTimeout(r,0));}
+  }
+  if(!sprintOfflineCancelRequested){
+    restoreTrack53(seed.snapshot,'backward');
+    for(const idx of backward){
+      if(sprintOfflineCancelRequested)break;
+      const t=sprintOfflineFrameTimes[idx];await sprintOfflineSeekTime(t);let r=null;try{r=await manualAdaptive53(sel);}catch(e){console.warn('v53 manual backward',e);}
+      if(r?.poseLandmarks)storePoseFrame53(idx,t,r);done++;
+      if(done%3===0||done===total){if(progress)progress.style.width=(done/total*84).toFixed(1)+'%';if(status)status.textContent=`手動Seed追跡：逆方向 ${done}/${total} ／ 有効Pose ${sprintOfflinePoseFrames.length}`;await new Promise(r=>setTimeout(r,0));}
+    }
+  }
+  V53.pass='complete';renderDiag53();return true;
+};
+
+function resolutionAdvice53(){
+  const v=video53(),w=v?.videoWidth||0,h=v?.videoHeight||0;if(!w||!h)return '動画読み込み後に解像度を判定します。';
   const long=Math.max(w,h),short=Math.min(w,h);
-  if(long>=3000&&short>=1600)return `<span class="v52-ok">元動画 ${w}×${h}：高解像度</span>。遠めの撮影でもCrop拡大を活用できます。`;
-  if(long>=1920&&short>=1080)return `<span class="v52-ok">元動画 ${w}×${h}：1080p級</span>。通常は十分ですが、選手が小さい場合は4Kまたは撮影距離を近づける方が有利です。`;
-  if(long>=1280&&short>=720)return `<span class="v52-warn">元動画 ${w}×${h}：720p級</span>。選手が遠い動画ではPoseが不安定になる場合があります。`;
-  return `<span class="v52-bad">元動画 ${w}×${h}</span>。SPRINTPEAKでは1080p以上を推奨します。`;
+  if(long>=3000&&short>=1600)return `<span class="v53-ok">元動画 ${w}×${h}：高解像度</span>`;
+  if(long>=1920&&short>=1080)return `<span class="v53-ok">元動画 ${w}×${h}：1080p級</span>`;
+  if(long>=1280&&short>=720)return `<span class="v53-warn">元動画 ${w}×${h}：720p級</span>`;
+  return `<span class="v53-bad">元動画 ${w}×${h}</span>`;
 }
-function pixelAdvice52(px){
-  if(!finite52(px)||px<=0)return '';
-  if(px>=300)return `<span class="v52-ok">選手サイズ 約${Math.round(px)}px：推奨域</span>`;
-  if(px>=180)return `<span class="v52-warn">選手サイズ 約${Math.round(px)}px：注意域</span>（内部拡大で補助します）`;
-  return `<span class="v52-bad">選手サイズ 約${Math.round(px)}px：小さめ</span>。撮影距離を近づけるか4K撮影を推奨します。`;
+function pixelAdvice53(px){
+  if(!finite53(px)||px<=0)return '';
+  if(px>=300)return `<span class="v53-ok">選手サイズ 約${Math.round(px)}px：推奨域</span>`;
+  if(px>=180)return `<span class="v53-warn">選手サイズ 約${Math.round(px)}px：注意域</span>`;
+  return `<span class="v53-bad">選手サイズ 約${Math.round(px)}px：小さめ</span>`;
 }
-function ensureUi52(){
+function ensureUi53(){
   const card=$('sprint-offline-roi-card');
-  if(card&&!$('sprint-v52-target-diagnostics')){
-    const d=document.createElement('div');d.id='sprint-v52-target-diagnostics';
-    d.innerHTML='v52：選手指定後、実際にPoseへ渡したCropと内部解像度をここに表示します。';
-    card.appendChild(d);
-  }
+  if(card&&!$('sprint-v53-target-diagnostics')){const d=document.createElement('div');d.id='sprint-v53-target-diagnostics';d.innerHTML='v53：初期探索・Seed・実Pose入力をここに表示します。';card.appendChild(d);}
   const host=$('sprint-offline-file-info');
-  if(host&&!$('sprint-v52-shooting-guide')){
-    const d=document.createElement('div');d.id='sprint-v52-shooting-guide';
-    d.innerHTML='<b>SPRINTPEAK撮影推奨：</b>時間精度は60fps以上（推奨120fps）。空間解像度は1080p以上を基本とし、選手が遠い・小さい撮影では4Kが有利です。動画全体の解像度だけでなく、<b>画面上の選手身長が約300px以上</b>あることを実用上の推奨目安にします（180〜300pxは注意、180px未満は撮影距離・画角の見直し推奨）。これは絶対的な測定基準ではなく、Pose安定性のための撮影目安です。';
-    host.insertAdjacentElement('afterend',d);
-  }
+  if(host&&!$('sprint-v53-shooting-guide')){const d=document.createElement('div');d.id='sprint-v53-shooting-guide';d.innerHTML='<b>SPRINTPEAK撮影推奨：</b>60fps以上（推奨120fps）、1080p以上。v53では画角左右の進入方向に依存しない初期探索と、手動指定フレームをSeedにした双方向追跡を行います。';host.insertAdjacentElement('afterend',d);}
 }
-function renderDiag52(){
-  ensureUi52();const d=$('sprint-v52-target-diagnostics');if(!d)return;
-  const sel=selected52(),manual=!!sel?.manualLock,selPx=manual?expectedPx52(sel):V52.lastAthletePx;
-  const crop=V52.lastCrop?.sourcePx;
-  let parts=[resolutionAdvice52()];
-  if(manual)parts.push(`✓ 手動ターゲット固定 ／ 指定範囲 ${Math.round(sel.w*(video52()?.videoWidth||0))}×${Math.round(sel.h*(video52()?.videoHeight||0))}px`);
-  if(selPx)parts.push(pixelAdvice52(selPx));
-  if(crop&&V52.lastInputW)parts.push(`実Pose入力：元動画Crop ${crop.w}×${crop.h}px → 内部 ${V52.lastInputW}×${V52.lastInputH}px`);
-  if(V52.mode!=='idle')parts.push(`追跡：${V52.mode==='manual'?'手動指定':'自動Crop'} ／ 成功 ${V52.hits}F ／ 見失い ${V52.misses}F ／ 再探索 ${V52.searches}回`);
-  if(manual&&!crop)parts.push('<span class="v52-warn">解析を開始すると、実際にPoseへ渡したCrop解像度を表示します。</span>');
+function renderDiag53(){
+  ensureUi53();const d=$('sprint-v53-target-diagnostics');if(!d)return;
+  const sel=selected53(),manual=!!sel?.manualLock,crop=V53.lastCrop?.sourcePx,selPx=manual?(rect53(sel)?.h||0)*(video53()?.videoHeight||0):V53.lastAthletePx,s=V53.stats,z=s.zones;
+  const parts=[resolutionAdvice53()];
+  if(manual)parts.push(`✓ 手動ターゲット固定 ／ 指定 ${Math.round(rect53(sel).w*(video53()?.videoWidth||0))}×${Math.round(rect53(sel).h*(video53()?.videoHeight||0))}px`);
+  if(selPx)parts.push(pixelAdvice53(selPx));
+  if(crop&&V53.lastInputW)parts.push(`実入力：${V53.lastCrop.kind==='discovery'?'Discovery':'測定Pose'} Crop ${crop.w}×${crop.h}px → ${V53.lastInputW}×${V53.lastInputH}px`);
+  parts.push(`Pose診断：Discovery ${s.discoveryPoseHits}/${s.discoveryCalls} ／ 測定Pose ${s.measurementPoseHits}/${s.measurementCalls} ／ 対象一致 ${s.accepted}F ／ identity拒否 ${s.identityRejects}`);
+  if(!manual)parts.push(`探索領域：左 ${z.left.hits}/${z.left.calls} ／ 中央 ${z.center.hits}/${z.center.calls} ／ 右 ${z.right.hits}/${z.right.calls} ／ 全体 ${z.whole.hits}/${z.whole.calls}`);
+  if(manual&&V53.seed.requestedFrame!==null){
+    const actual=V53.seed.actualFrame!==null?` → 実Seed Frame ${V53.seed.actualFrame}（${V53.seed.offset>=0?'+':''}${V53.seed.offset}F）`:'';
+    parts.push(`手動Seed：指定 Frame ${V53.seed.requestedFrame}${actual} ／ 試行 ${V53.seed.attempts}回${V53.seed.failed?' ／ <span class="v53-bad">Seed未取得</span>':''}`);
+    parts.push(`双方向：順方向 成功${s.forwardHits} / 失敗${s.forwardMisses} ／ 逆方向 成功${s.backwardHits} / 失敗${s.backwardMisses}`);
+  }else if(V53.mode==='auto-track')parts.push(`自動追跡：対象一致 ${s.accepted}F ／ 見失い ${s.misses}F ／ 再探索 ${s.searches}回`);
+  if(s.frameWaitTimeouts)parts.push(`<span class="v53-warn">フレーム提示待ちタイムアウト ${s.frameWaitTimeouts}回</span>`);
   d.innerHTML=parts.join('<br>');
 }
 
-/* Authoritative late override. The original v51 function is retained and used
-   only when there is no manual target and v52 has not acquired its own runner. */
+/* v53 authoritative adaptive override.
+   Auto: independent Discovery first, then high-precision measurement.
+   Manual: normal calls use the same target identity rules; the main analyzer
+   itself uses __sprintV53RunManualPosePass for seed-centered bidirectional order. */
 window.sprintOfflinePoseSendAdaptive=async function(){
-  ensureUi52();
-  const sel=selected52();
-  if(sel?.manualLock){
-    return await manualAdaptive52(rect52(sel));
+  ensureUi53();const sel=selected53();
+  if(sel?.manualLock)return await manualAdaptive53(cloneSelection53(sel));
+  if(V53.mode==='manual')resetTrack53(null,'idle',false);
+  if(V53.mode==='auto-track'){
+    const tracked=await autoTrack53();if(tracked?.poseLandmarks)return tracked;
   }
-  if(V52.mode==='manual')reset52(null,'idle');
-  if(V52.mode==='auto-track'){
-    const tracked=await autoTrack52();if(tracked?.poseLandmarks)return tracked;
-  }
-  let original=null;
-  try{original=await previousAdaptive52();}catch(e){console.warn('v52 base adaptive',e);}
+  const discovered=await discoverAuto53();if(discovered?.poseLandmarks)return discovered;
+  let original=null;try{original=await previousAdaptive53();}catch(e){console.warn('v53 legacy adaptive fallback',e);}
   if(original?.poseLandmarks){
-    const g=geom52(original.poseLandmarks),vh=video52()?.videoHeight||1,px=g?.bbox?.h*vh||0;
-    /* Accept the existing result when it is clearly a substantial foreground
-       person. Small candidates still go through crop search. */
-    if(px>=Math.max(140,vh*.18)){V52.lastAthletePx=px;V52.lastQuality=quality52(original.poseLandmarks);renderDiag52();return original;}
+    const g=geom53(original.poseLandmarks),vh=video53()?.videoHeight||1,px=g?.bbox?.h*vh||0;
+    if(px>=Math.max(140,vh*.16)){V53.lastAthletePx=px;V53.lastQuality=quality53(original.poseLandmarks);renderDiag53();return original;}
   }
-  const fallback=await autoFallback52();
-  return fallback||null;
+  return null;
 };
 
-/* Selection must remain authoritative at analysis start. Reset only v52 runtime
-   motion state; never clear the user's rectangle. */
 $('sprint-offline-analyze')?.addEventListener('click',()=>{
-  const sel=selected52();
-  if(sel?.manualLock)reset52(rect52(sel),'manual');
-  else reset52(null,'idle');
-  renderDiag52();
+  const sel=selected53();
+  if(sel?.manualLock)resetTrack53(cloneSelection53(sel),'manual',true);
+  else resetTrack53(null,'idle',true);
+  renderDiag53();
 },{capture:true});
+$('sprint-offline-file-input')?.addEventListener('change',()=>{resetTrack53(null,'idle',true);setTimeout(renderDiag53,0);},{capture:true});
+video53()?.addEventListener('loadedmetadata',renderDiag53);
 
-/* New video invalidates runtime tracking. The existing v51 selection controller
-   already clears the rectangle itself. */
-$('sprint-offline-file-input')?.addEventListener('change',()=>{reset52(null,'idle');setTimeout(renderDiag52,0);},{capture:true});
-video52()?.addEventListener('loadedmetadata',renderDiag52);
-
-const post52=window.sprintOfflineRoiPostAnalyze;
+const post53Base=window.sprintOfflineRoiPostAnalyze;
 window.sprintOfflineRoiPostAnalyze=function(total){
-  if(typeof post52==='function')post52(total);
-  renderDiag52();
-  const sel=selected52(),status=$('sprint-offline-analysis-status');
-  if(sel?.manualLock&&V52.hits===0&&status){
-    status.textContent='⚠ 手動指定した走者範囲を内部Cropして解析しましたが、有効Poseを取得できませんでした。指定枠を頭〜足先より少し広めに取り直してください。元動画解像度・内部Crop解像度は「解析する選手」欄で確認できます。';
-  }else if(sel?.manualLock&&V52.hits>0&&status&&typeof sprintOfflinePoseFrames!=='undefined'&&sprintOfflinePoseFrames.length){
-    status.textContent += ` ／ v52手動ターゲット追跡 ${V52.hits}F`;
+  if(typeof post53Base==='function')post53Base(total);
+  renderDiag53();
+  const sel=selected53(),status=$('sprint-offline-analysis-status');
+  if(sel?.manualLock&&V53.seed.failed&&status){
+    status.textContent=`⚠ 手動指定したFrame ${V53.seed.requestedFrame??'--'} の±4Fで対象走者Poseを取得できませんでした。指定フレームで頭〜足先まで見えるように囲み直してください。Discovery/測定Poseの内訳は「解析する選手」欄で確認できます。`;
+  }else if(sel?.manualLock&&V53.stats.accepted>0&&status&&typeof sprintOfflinePoseFrames!=='undefined'&&sprintOfflinePoseFrames.length){
+    status.textContent += ` ／ v53手動Seed追跡 ${sprintOfflinePoseFrames.length}F`;
+  }else if(!sel?.manualLock&&!sprintOfflinePoseFrames?.length&&status){
+    status.textContent='⚠ 自動探索で対象走者Poseを確定できませんでした。「解析する選手」のDiscovery/測定Pose内訳を確認するか、全身が明瞭なフレームで手動指定してください。';
   }
 };
 
-ensureUi52();renderDiag52();
+ensureUi53();renderDiag53();
 })();
 </script>
 
