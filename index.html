@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.25.53">
-<meta name="sprint-timer-build" content="20260925-v53-sprint-seed-discovery-frame-ready">
+<meta name="sprint-timer-version" content="2026.09.25.55">
+<meta name="sprint-timer-build" content="20260925-v55-start-contact-evidence-local-reanalysis">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.25.53";
-window.SPRINT_TIMER_BUILD = "20260925-v53-sprint-seed-discovery-frame-ready";
+window.SPRINT_TIMER_VERSION = "2026.09.25.55";
+window.SPRINT_TIMER_BUILD = "20260925-v55-start-contact-evidence-local-reanalysis";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1473,8 +1473,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.25.53</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260925-v53-sprint-seed-discovery-frame-ready</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.25.55</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20260925-v55-start-contact-evidence-local-reanalysis</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -3408,13 +3408,26 @@ function startOfflineSeekToFrame(index){
     if(!startOfflineFrameTimes.length)return Promise.resolve();
     index=bodyClamp(Math.round(index),0,startOfflineFrameTimes.length-1);return startOfflineSeekTime(startOfflineFrameTimes[index]);
 }
-function startOfflineSeekTime(t){
-    return new Promise(resolve=>{
-        t=bodyClamp(t,0,Math.max(0,(startOfflineVideo.duration||0)-.00001));
-        if(Math.abs((startOfflineVideo.currentTime||0)-t)<.00005){startOfflineUpdateFrameUi();resolve();return;}
-        const done=()=>{startOfflineVideo.removeEventListener("seeked",done);startOfflineUpdateFrameUi();resolve();};
-        startOfflineVideo.addEventListener("seeked",done,{once:true});startOfflineVideo.currentTime=t;
-    });
+async function startOfflineSeekTime(t){
+    t=bodyClamp(t,0,Math.max(0,(startOfflineVideo.duration||0)-.00001));
+    const changed=Math.abs((startOfflineVideo.currentTime||0)-t)>=.00005;
+    if(changed){
+        await new Promise(resolve=>{
+            let settled=false;
+            const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);startOfflineVideo.removeEventListener("seeked",finish);resolve();};
+            const timer=setTimeout(finish,2200);
+            startOfflineVideo.addEventListener("seeked",finish,{once:true});
+            try{startOfflineVideo.currentTime=t;}catch(_){finish();}
+        });
+    }
+    /* v55: seeked only moves the media timeline.  On paused Android/high-res
+       video wait until the newly decoded frame can actually be drawn. */
+    if(typeof offlineWaitPresentedFrame==="function"){
+        try{await offlineWaitPresentedFrame(startOfflineVideo,1200);}catch(_){}
+    }else{
+        await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    }
+    startOfflineUpdateFrameUi();
 }
 
 /* ---------- 接地アンカー：解析前後どちらでも登録できる強い時刻基準 ---------- */
@@ -3453,8 +3466,18 @@ function startOfflineRenderQuickContactUi(){
 function startOfflineLogContactAnchor(a,action){
     try{if(typeof TrainingDataLogger==="undefined")return;const sess=TrainingDataLogger.sessionForVideo(startOfflineVideo,"start-offline");TrainingDataLogger.record({module:"start",type:"manual_contact_anchor",sessionId:sess.sessionId,video:TrainingDataLogger.videoMeta(startOfflineVideo,startOfflineEffectiveFps(),startOfflineFrameTimesSource||"offline-frame"),action,manual:{frame:a?.index??null,timeSec:Number.isFinite(a?.t)?TrainingDataLogger.round(a.t,5):null,sidePreference:a?.sidePref||null}});}catch(_){ }
 }
-function startOfflineAddQuickContactAnchor(){
-    if(!startOfflineVideo.src||!startOfflineFrameTimes.length)return;startOfflineVideo.pause();const index=startOfflineCurrentFrameIndex(),t=startOfflineFrameTime(index),sidePref=document.getElementById("start-offline-quick-contact-side")?.value||"auto";let a=startOfflineContactAnchors.find(x=>x.index===index);if(a){a.sidePref=sidePref;a.t=t;a.resolvedSide=null;a.used=false;startOfflineLogContactAnchor(a,"update");}else{a={index,t,sidePref,resolvedSide:null,sideConfidence:0,used:false,addedAt:Date.now()};startOfflineContactAnchors.push(a);startOfflineLogContactAnchor(a,"add");}startOfflineContactAnchors.sort((x,y)=>x.t-y.t);if(startOfflinePoseFrames.length)startOfflineRecomputeDerived(true);else startOfflineRenderQuickContactUi();
+async function startOfflineAddQuickContactAnchor(){
+    if(!startOfflineVideo.src||!startOfflineFrameTimes.length)return;
+    startOfflineVideo.pause();
+    const index=startOfflineCurrentFrameIndex(),t=startOfflineFrameTime(index),sidePref=document.getElementById("start-offline-quick-contact-side")?.value||"auto";
+    let a=startOfflineContactAnchors.find(x=>x.index===index);
+    if(a){a.sidePref=sidePref;a.t=t;a.resolvedSide=null;a.used=false;startOfflineLogContactAnchor(a,"update");}
+    else{a={index,t,sidePref,resolvedSide:null,sideConfidence:0,used:false,addedAt:Date.now()};startOfflineContactAnchors.push(a);startOfflineLogContactAnchor(a,"add");}
+    startOfflineContactAnchors.sort((x,y)=>x.t-y.t);
+    if(typeof window.startOfflineLocalReanalyzeManualContactV55==="function"){
+        try{const handled=await window.startOfflineLocalReanalyzeManualContactV55(a);if(handled)return;}catch(e){console.warn("v55 START local contact reanalysis",e);}
+    }
+    if(startOfflinePoseFrames.length)startOfflineRecomputeDerived(true);else startOfflineRenderQuickContactUi();
 }
 function startOfflineUndoQuickContactAnchor(){if(!startOfflineContactAnchors.length)return;const a=startOfflineContactAnchors.splice(startOfflineContactAnchors.length-1,1)[0];startOfflineLogContactAnchor(a,"undo");if(startOfflinePoseFrames.length)startOfflineRecomputeDerived(true);else startOfflineRenderQuickContactUi();}
 function startOfflineClearQuickContactAnchors(){if(!startOfflineContactAnchors.length)return;const old=[...startOfflineContactAnchors];startOfflineContactAnchors=[];for(const a of old)startOfflineLogContactAnchor(a,"clear");if(startOfflinePoseFrames.length)startOfflineRecomputeDerived(true);else startOfflineRenderQuickContactUi();}
@@ -7651,7 +7674,7 @@ if("serviceWorker" in navigator) {
                 window.location.reload();
             });
 
-            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.25.53")}`,{
+            const registration=await navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(window.SPRINT_TIMER_VERSION || "2026.09.25.55")}`,{
                 updateViaCache:"none"
             });
 
@@ -7756,6 +7779,7 @@ async function startShowEvidence(kind){
     startEvidenceSetPanel(`<b>${title}</b> ／ Frame ${frame} ／ ${Number.isFinite(t)?t.toFixed(3):"--"} s<br>${q}を映像上に強調表示しています。黄色の線・円弧・測定点ラベルが実際の算出根拠です。`,contact);
     evidenceFocusWrap(document.getElementById("start-offline-video-wrap"));drawStartOfflineOverlay();
 }
+window.__startShowEvidenceV55Base=startShowEvidence;
 function startClearanceEvidenceGeometry(kind){
     const fi=startEvidenceClearanceFrame();if(fi===null)return null;const fr=startOfflineFrameRecord(fi)||startOfflineFrameRecord(startOfflineNearestPoseIndexByTime(startOfflineFrameTime(fi),.15));if(!fr)return null;const l=startOfflineCorrectedLandmarks(fr);if(!l)return null;const w=startOfflineCanvas.width,h=startOfflineCanvas.height,px=i=>l?.[i]?{x:l[i].x*w,y:l[i].y*h}:null;
     const sh={x:(l[11].x+l[12].x)/2*w,y:(l[11].y+l[12].y)/2*h},hipMid={x:(l[23].x+l[24].x)/2*w,y:(l[23].y+l[24].y)/2*h},pm=startOfflinePostureMetrics(fi),fwd=startOfflineForwardUnit();
@@ -7817,6 +7841,12 @@ document.getElementById("start-offline-evidence-liftoff")?.addEventListener("cli
    SPRINTPEAK：手動接地/離地アンカー
 ============================================================ */
 let sprintManualContacts=[],sprintManualLiftoffs=[],sprintManualHistory=[],sprintEvidence={kind:null,frame:null,eventIndex:null};
+window.__sprintManualStateV55={
+    get contacts(){return sprintManualContacts;},set contacts(v){sprintManualContacts=Array.isArray(v)?v:[];},
+    get liftoffs(){return sprintManualLiftoffs;},set liftoffs(v){sprintManualLiftoffs=Array.isArray(v)?v:[];},
+    get history(){return sprintManualHistory;},set history(v){sprintManualHistory=Array.isArray(v)?v:[];},
+    render:()=>sprintRenderManualUi(),resolve:()=>sprintResolveManualContacts()
+};
 const sprintEvidencePanel=document.getElementById("sprint-offline-evidence-panel"),sprintEvidenceStatus=document.getElementById("sprint-offline-evidence-status");
 function sprintSideMap(){return sprintOfflineTrackingResolvedSeed?.mapping||null;}
 function sprintSideLabel(side){const m=sprintSideMap();if(m?.near===side)return "手前脚";if(m?.far===side)return "奥脚";return side==="left"?"MediaPipe左":"MediaPipe右";}
@@ -7828,7 +7858,10 @@ function sprintAutoSideAt(tSec,prevSide=null){
 }
 function sprintResolveManualContacts(){
     if(!sprintOfflinePoseFrames?.length)return [];const out=[],ordered=[...sprintManualContacts].sort((a,b)=>a.tSec-b.tSec);let prevSide=null;
-    for(const a of ordered){let side=sprintPrefMappedSide(a.sidePref),choice=null;if(side){const hit=sprintNearestSignal(side,a.tSec);if(hit){const arr=sprintOfflineFootSignals[side]||[],ev=offlineContactEvidence(hit.q,arr[hit.index-1],arr[hit.index+1],"sprint");choice={side,hit,score:evidenceClamp(.65+ev*.25,0,1)};}}if(!choice)choice=sprintAutoSideAt(a.tSec,prevSide);a.resolvedSide=choice?.side||null;a.sideConfidence=choice?.score||0;a.used=false;if(!choice)continue;const arr=sprintOfflineFootSignals[choice.side]||[],q=choice.hit.q,end=offlineContactEndStatus(arr,choice.hit.index,.50,.035),event={side:choice.side,index:a.index,frame:a.index,t:a.tSec,x:q.p.x,y:q.p.y,visibility:q.p.visibility??q.confidence,confidence:evidenceClamp(.78+choice.score*.20,.78,.99),source:"manual-anchor",liftoff:end.liftoff?.t??null,duration:end.duration,durationInvalid:!!end.invalidReason,durationInvalidReason:end.invalidReason,method:q.scale?.method||"手動接地アンカー",manualAnchor:true,timingConfidence:1,sideConfidence:choice.score,contactEvidence:offlineContactEvidence(q,arr[choice.hit.index-1],arr[choice.hit.index+1],"sprint")};a.used=true;prevSide=choice.side;out.push(event);}return out;
+    for(const a of ordered){let side=sprintPrefMappedSide(a.sidePref),choice=null;if(side){const hit=sprintNearestSignal(side,a.tSec);if(hit){const arr=sprintOfflineFootSignals[side]||[],ev=offlineContactEvidence(hit.q,arr[hit.index-1],arr[hit.index+1],"sprint");choice={side,hit,score:evidenceClamp(.65+ev*.25,0,1)};}}if(!choice)choice=sprintAutoSideAt(a.tSec,prevSide);a.resolvedSide=choice?.side||null;a.sideConfidence=choice?.score||0;a.used=false;if(!choice){
+        const fallbackSide=side||(a.sidePref==="near"?"near":a.sidePref==="far"?"far":"unknown");
+        a.used=true;out.push({side:fallbackSide,index:a.index,frame:a.index,t:a.tSec,x:NaN,y:NaN,visibility:0,confidence:.98,timingConfidence:1,sideConfidence:0,source:"manual-timing-only",liftoff:null,duration:null,durationInvalid:false,durationInvalidReason:null,method:"手動指定（接地時刻のみ）",manualAnchor:true,timingOnly:true,positionAvailable:false,contactEvidence:0});prevSide=(fallbackSide==="left"||fallbackSide==="right")?fallbackSide:prevSide;continue;
+    }const arr=sprintOfflineFootSignals[choice.side]||[],q=choice.hit.q,end=offlineContactEndStatus(arr,choice.hit.index,.50,.035),event={side:choice.side,index:a.index,frame:a.index,t:a.tSec,x:q.p.x,y:q.p.y,visibility:q.p.visibility??q.confidence,confidence:evidenceClamp(.78+choice.score*.20,.78,.99),source:"manual-anchor",liftoff:end.liftoff?.t??null,duration:end.duration,durationInvalid:!!end.invalidReason,durationInvalidReason:end.invalidReason,method:q.scale?.method||"手動接地アンカー",manualAnchor:true,timingConfidence:1,sideConfidence:choice.score,contactEvidence:offlineContactEvidence(q,arr[choice.hit.index-1],arr[choice.hit.index+1],"sprint")};a.used=true;prevSide=choice.side;out.push(event);}return out;
 }
 function sprintRecoverContactSequenceSec(contacts,anchors){
     let out=(contacts||[]).map(c=>({...c})),fps=Math.max(1,sprintOfflineEffectiveFps()),mergeTol=Math.max(.040,1.6/fps);const series=sprintOfflineFootSignals,manual=(anchors||[]).sort((a,b)=>a.t-b.t);sprintOfflineContactRecoveryStats.manualAnchorsUsed=manual.length;
@@ -7854,8 +7887,8 @@ function sprintRenderManualUi(){
     const status=document.getElementById("sprint-offline-manual-status"),list=document.getElementById("sprint-offline-manual-list"),idx=sprintOfflineCurrentFrameIndex?.()??0,n=sprintManualContacts.length,l=sprintManualLiftoffs.length,used=sprintManualContacts.filter(a=>a.used).length,unresolved=sprintOfflinePoseFrames?.length?sprintManualContacts.filter(a=>!a.resolvedSide).length:0;if(status)status.innerText=(n||l)?`手動補正：接地 ${n}件（解析採用 ${used}件${unresolved?`・脚未解決 ${unresolved}件`:""}）／ 離地 ${l}件。手動値は自動値より優先し、前後の接地系列を再探索します。`:`手動補正：未指定。自動解析のみでも使用できます。低信頼度イベントだけ補正する運用を推奨します。`;
     if(list){const rows=[...sprintManualContacts.map((a,i)=>({kind:"C",i,a})),...sprintManualLiftoffs.map((a,i)=>({kind:"L",i,a}))].sort((x,y)=>x.a.tSec-y.a.tSec);list.innerHTML=rows.map(x=>{const a=x.a,res=a.resolvedSide?`→${sprintSideLabel(a.resolvedSide)}`:"",cls=Math.abs((a.index??-999)-idx)<=0?"btn-green":x.kind==="C"?"btn-orange":"btn-blue";return `<button type="button" class="action-btn ${cls} offline-contact-anchor-chip" data-sprint-manual-frame="${a.index}">${x.kind}${x.i+1} F${a.index} ${sprintPrefLabel(a.sidePref)}${res}</button>`;}).join("");}
 }
-function sprintAddManualContact(){if(!sprintOfflineVideo.src||!sprintOfflineFrameTimes.length)return;sprintOfflineVideo.pause();const index=sprintOfflineCurrentFrameIndex(),tSec=(sprintOfflineFrameTimes[index]??sprintOfflineVideo.currentTime??0),sidePref=document.getElementById("sprint-offline-manual-side")?.value||"auto";let a=sprintManualContacts.find(x=>x.index===index);if(a){a.tSec=tSec;a.sidePref=sidePref;a.resolvedSide=null;a.used=false;sprintLogManual("manual_contact_anchor",a,"update");}else{a={index,tSec,sidePref,resolvedSide:null,used:false,addedAt:Date.now()};sprintManualContacts.push(a);sprintManualHistory.push({kind:"contact",ref:a});sprintLogManual("manual_contact_anchor",a,"add");}sprintManualContacts.sort((x,y)=>x.tSec-y.tSec);if(sprintOfflinePoseFrames.length)sprintOfflineRecomputeDerived();else sprintRenderManualUi();}
-function sprintAddManualLiftoff(){if(!sprintOfflineVideo.src||!sprintOfflineFrameTimes.length)return;sprintOfflineVideo.pause();const index=sprintOfflineCurrentFrameIndex(),tSec=(sprintOfflineFrameTimes[index]??sprintOfflineVideo.currentTime??0),sidePref=document.getElementById("sprint-offline-manual-side")?.value||"auto",a={index,tSec,sidePref,resolvedSide:null,used:false,addedAt:Date.now()};sprintManualLiftoffs=sprintManualLiftoffs.filter(x=>!(x.index===index&&x.sidePref===sidePref));sprintManualLiftoffs.push(a);sprintManualHistory.push({kind:"liftoff",ref:a});sprintLogManual("manual_liftoff_anchor",a,"add");if(sprintOfflinePoseFrames.length)sprintOfflineRecomputeDerived();else sprintRenderManualUi();}
+async function sprintAddManualContact(){if(!sprintOfflineVideo.src||!sprintOfflineFrameTimes.length)return;sprintOfflineVideo.pause();const index=sprintOfflineCurrentFrameIndex(),tSec=(sprintOfflineFrameTimes[index]??sprintOfflineVideo.currentTime??0),sidePref=document.getElementById("sprint-offline-manual-side")?.value||"auto";let a=sprintManualContacts.find(x=>x.index===index);if(a){a.tSec=tSec;a.sidePref=sidePref;a.resolvedSide=null;a.used=false;sprintLogManual("manual_contact_anchor",a,"update");}else{a={index,tSec,sidePref,resolvedSide:null,used:false,addedAt:Date.now()};sprintManualContacts.push(a);sprintManualHistory.push({kind:"contact",ref:a});sprintLogManual("manual_contact_anchor",a,"add");}sprintManualContacts.sort((x,y)=>x.tSec-y.tSec);if(typeof window.__sprintV55OnManualAnchor==="function"){try{const handled=await window.__sprintV55OnManualAnchor(a,"contact");if(handled)return;}catch(e){console.warn("v55 SPRINT local contact reanalysis",e);}}if(sprintOfflinePoseFrames.length)sprintOfflineRecomputeDerived();else sprintRenderManualUi();}
+async function sprintAddManualLiftoff(){if(!sprintOfflineVideo.src||!sprintOfflineFrameTimes.length)return;sprintOfflineVideo.pause();const index=sprintOfflineCurrentFrameIndex(),tSec=(sprintOfflineFrameTimes[index]??sprintOfflineVideo.currentTime??0),sidePref=document.getElementById("sprint-offline-manual-side")?.value||"auto",a={index,tSec,sidePref,resolvedSide:null,used:false,addedAt:Date.now()};sprintManualLiftoffs=sprintManualLiftoffs.filter(x=>!(x.index===index&&x.sidePref===sidePref));sprintManualLiftoffs.push(a);sprintManualHistory.push({kind:"liftoff",ref:a});sprintLogManual("manual_liftoff_anchor",a,"add");if(typeof window.__sprintV55OnManualAnchor==="function"){try{const handled=await window.__sprintV55OnManualAnchor(a,"liftoff");if(handled)return;}catch(e){console.warn("v55 SPRINT local liftoff reanalysis",e);}}if(sprintOfflinePoseFrames.length)sprintOfflineRecomputeDerived();else sprintRenderManualUi();}
 function sprintUndoManual(){const h=sprintManualHistory.pop();if(!h)return;if(h.kind==="contact")sprintManualContacts=sprintManualContacts.filter(x=>x!==h.ref);else sprintManualLiftoffs=sprintManualLiftoffs.filter(x=>x!==h.ref);sprintLogManual(h.kind==="contact"?"manual_contact_anchor":"manual_liftoff_anchor",h.ref,"undo");if(sprintOfflinePoseFrames.length)sprintOfflineRecomputeDerived();else sprintRenderManualUi();}
 function sprintClearManual(){for(const a of sprintManualContacts)sprintLogManual("manual_contact_anchor",a,"clear");for(const a of sprintManualLiftoffs)sprintLogManual("manual_liftoff_anchor",a,"clear");sprintManualContacts=[];sprintManualLiftoffs=[];sprintManualHistory=[];if(sprintOfflinePoseFrames.length)sprintOfflineRecomputeDerived();else sprintRenderManualUi();}
 
@@ -8987,7 +9020,7 @@ const AT={
     video:()=>sprintOfflineVideo,canvas:()=>sprintOfflineCanvas,ctx:()=>sprintOfflineCtx,
     frame:()=>sprintOfflineCurrentFrameIndex(),time:()=>sprintOfflineVideo?.currentTime||0,
     seek:t=>sprintOfflineSeekTime(t),rangeStart:()=>sprintOfflineRangeStartSelected?sprintOfflineRangeStart:null,
-    poseFrames:()=>sprintOfflinePoseFrames||[],contacts:()=>sprintOfflineContacts||[],manual:()=>sprintManualContacts||[],
+    poseFrames:()=>sprintOfflinePoseFrames||[],contacts:()=>sprintOfflineContacts||[],manual:()=>window.__sprintManualStateV55?.contacts||[],
     draw:()=>sprintOfflineDrawOverlay(),baseSend:img=>startOfflinePoseSend(img),zoomKey:'sprintoffline',
     wrapId:'sprint-offline-video-wrap',workspaceId:'sprint-offline-workspace',analysisStatusId:'sprint-offline-analysis-status',
     analyzeId:'sprint-offline-analyze',manualPanelId:'sprint-offline-manual-contact-panel'
@@ -9319,7 +9352,7 @@ function installManualGesture(prefix){const cfg=AT[prefix],wrap=document.getElem
 
 /* ---------- SPRINTPEAK manual-contact timing fallback ---------- */
 function sprintManualFallbackEvents(){
-  const cs=[...(sprintManualContacts||[])].sort((a,b)=>a.tSec-b.tSec),ls=[...(sprintManualLiftoffs||[])].sort((a,b)=>a.tSec-b.tSec);
+  const cs=[...(window.__sprintManualStateV55?.contacts||[])].sort((a,b)=>a.tSec-b.tSec),ls=[...(window.__sprintManualStateV55?.liftoffs||[])].sort((a,b)=>a.tSec-b.tSec);
   const out=cs.map((a,i)=>{a.used=true;let side=a.sidePref==='near'?'near':a.sidePref==='far'?'far':'unknown',lo=ls.find(x=>x.tSec>a.tSec&&x.tSec-a.tSec<=.50&&(x.sidePref==='auto'||a.sidePref==='auto'||x.sidePref===a.sidePref)),d=lo?(lo.tSec-a.tSec)*1000:null;if(lo)lo.used=Number.isFinite(d)&&d>=35&&d<=500;return {side,index:a.index,frame:a.index,t:a.tSec*1000,x:NaN,y:NaN,visibility:0,confidence:.98,source:'manual-timing-only',manualAnchor:true,timingOnly:true,manualSidePref:a.sidePref,liftoff:Number.isFinite(d)&&d>=35&&d<=500?lo.tSec*1000:null,duration:Number.isFinite(d)&&d>=35&&d<=500?d:null};});return out;
 }
 function median(a){const b=a.filter(Number.isFinite).sort((x,y)=>x-y);if(!b.length)return 0;const m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2;}
@@ -9331,7 +9364,7 @@ function sprintRenderTimingOnly(){
   const es=document.getElementById('sprint-offline-evaluation-summary'),ed=document.getElementById('sprint-offline-evaluation-detail'),eq=document.getElementById('sprint-offline-evaluation-quality');if(es)es.innerText=pitch?`手動接地からピッチ ${pitch.toFixed(2)}歩/秒を算出しました。`:'手動接地をタイミング系列として採用しました。';if(ed)ed.innerHTML=`Poseを取得できていないため、<b>接地時刻・接地間隔${contact?'・手動離地からの接地時間':''}</b>だけを結果へ使用しています。ステップ長・速度・接地位置・膝角・体幹姿勢は算出していません。`;if(eq)eq.innerText=`手動接地 ${c.length}件 ／ Pose 0フレーム ／ タイミング系のみ`;
   sprintOfflineLastResult={valid:false,reason:'Pose未取得・手動接地タイミングのみ',manualTimingOnly:true,pitch,contact};
 }
-const sprintRecomputeV30=sprintOfflineRecomputeDerived;sprintOfflineRecomputeDerived=function(){if(!sprintOfflinePoseFrames?.length&&sprintManualContacts?.length){sprintOfflineContacts=sprintManualFallbackEvents();sprintOfflineContactDurations=sprintOfflineContacts.filter(c=>Number.isFinite(c.duration)).map(c=>({side:c.side,start:c.t,end:c.liftoff,duration:c.duration,confidence:.98,manual:true}));sprintRenderTimingOnly();sprintRenderManualUi?.();mandatoryRenderSprintSequence?.();mandatoryApplySprintGate?.();sprintOfflineDrawOverlay();diag('sprint');return;}const r=sprintRecomputeV30();diag('sprint');return r;};
+const sprintRecomputeV30=sprintOfflineRecomputeDerived;sprintOfflineRecomputeDerived=function(){if(!sprintOfflinePoseFrames?.length&&(window.__sprintManualStateV55?.contacts?.length||0)){sprintOfflineContacts=sprintManualFallbackEvents();sprintOfflineContactDurations=sprintOfflineContacts.filter(c=>Number.isFinite(c.duration)).map(c=>({side:c.side,start:c.t,end:c.liftoff,duration:c.duration,confidence:.98,manual:true}));sprintRenderTimingOnly();sprintRenderManualUi?.();mandatoryRenderSprintSequence?.();mandatoryApplySprintGate?.();sprintOfflineDrawOverlay();diag('sprint');return;}const r=sprintRecomputeV30();diag('sprint');return r;};
 
 /* Manual edits must update timing-only results even when Pose is zero. */
 for(const id of ['sprint-offline-manual-contact','sprint-offline-manual-liftoff','sprint-offline-manual-undo','sprint-offline-manual-clear'])document.getElementById(id)?.addEventListener('click',()=>setTimeout(()=>{if(!sprintOfflinePoseFrames?.length)sprintOfflineRecomputeDerived();},0));
@@ -9346,7 +9379,7 @@ const mandatorySprintSideV30=mandatorySprintSide;mandatorySprintSide=function(si
 window.sprintOfflineUpdateRequiredFold=function(){const outer=document.getElementById('sprint-offline-required-details'),seq=document.getElementById('sprint-offline-sequence-details'),badge=document.getElementById('sprint-offline-required-summary-status'),panel=document.getElementById('sprint-offline-sequence-panel');if(!outer||!badge)return;badge.classList.remove('warn','ok');if(sprintOfflineAnalyzing){badge.textContent='解析中';return;}const poses=sprintOfflinePoseFrames?.length||0,contacts=sprintOfflineContacts?.length||0,confirmed=!!panel?.classList.contains('sequence-confirmed');if(contacts&&confirmed){badge.textContent=poses?'✓ 接地系列確認済み':'✓ 手動接地確認済み';badge.classList.add('ok');return;}if(contacts){badge.textContent=poses?'⚠ 接地系列を確認':'⚠ 手動接地を確認';badge.classList.add('warn');outer.open=true;if(seq)seq.open=true;return;}if(!poses){badge.textContent='解析前：必要時のみ展開';return;}badge.textContent='⚠ 接地を確認';badge.classList.add('warn');outer.open=true;};
 
 /* Post-analysis status + diagnostics. This supersedes the old static ROI message. */
-window.sprintOfflineRoiPostAnalyze=function(total){const st=ATS.sprint,run=st.run,poses=sprintOfflinePoseFrames?.length||0,contacts=sprintOfflineContacts?.length||0,man=sprintManualContacts?.length||0,rate=total?Math.round(poses/total*100):0,e=ui('sprint');if(!poses&&man){document.getElementById('sprint-offline-analysis-status').innerText=`⚠ Pose 0/${total}フレーム。ただし手動指定 ${contacts}接地をタイミング系列として反映しました。位置・姿勢・速度などPoseが必要な項目は算出していません。`;e.card?.classList.add('attention');}else if(!poses){e.card?.classList.add('error');document.getElementById('sprint-offline-analysis-status').innerText=`⚠ Poseを検出できませんでした（0/${total}）。解析開始付近で選手を囲い直して再解析してください。`;}else if(rate<50){e.card?.classList.add('attention');}render('sprint');diag('sprint');sprintOfflineUpdateRequiredFold();};
+window.sprintOfflineRoiPostAnalyze=function(total){const st=ATS.sprint,run=st.run,poses=sprintOfflinePoseFrames?.length||0,contacts=sprintOfflineContacts?.length||0,man=window.__sprintManualStateV55?.contacts?.length||0,rate=total?Math.round(poses/total*100):0,e=ui('sprint');if(!poses&&man){document.getElementById('sprint-offline-analysis-status').innerText=`⚠ Pose 0/${total}フレーム。ただし手動指定 ${contacts}接地をタイミング系列として反映しました。位置・姿勢・速度などPoseが必要な項目は算出していません。`;e.card?.classList.add('attention');}else if(!poses){e.card?.classList.add('error');document.getElementById('sprint-offline-analysis-status').innerText=`⚠ Poseを検出できませんでした（0/${total}）。解析開始付近で選手を囲い直して再解析してください。`;}else if(rate<50){e.card?.classList.add('attention');}render('sprint');diag('sprint');sprintOfflineUpdateRequiredFold();};
 
 /* Draw tracking overlays last, after all legacy evidence/ROI layers. */
 const startDrawV30=drawStartOfflineOverlay;drawStartOfflineOverlay=function(){startDrawV30();drawTracker('start');};
@@ -9544,9 +9577,9 @@ function v32FootScore(side,tSec){
   return {side,hit,score:Math.max(0,Math.min(1,ev*.52+h*.20+conf*.18+near*.10))};
 }
 function v32ExplicitManualSide(c){
-  if(!c?.manualAnchor||typeof sprintManualContacts==='undefined')return false;
+  if(!c?.manualAnchor||!window.__sprintManualStateV55)return false;
   const tSec=v32Finite(c.t)?c.t/1000:NaN,frame=c.frame??c.index;
-  const a=(sprintManualContacts||[]).find(x=>(v32Finite(frame)&&x.index===frame)||(v32Finite(tSec)&&Math.abs(x.tSec-tSec)<.025));
+  const a=(window.__sprintManualStateV55?.contacts||[]).find(x=>(v32Finite(frame)&&x.index===frame)||(v32Finite(tSec)&&Math.abs(x.tSec-tSec)<.025));
   return !!(a&&a.sidePref&&a.sidePref!=='auto');
 }
 function v32StabilizeSprintSides(){
@@ -9639,8 +9672,8 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 <script id="app-version-manager-v35">
 (() => {
   "use strict";
-  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.25.53";
-  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260925-v53-sprint-seed-discovery-frame-ready";
+  const CURRENT_VERSION = window.SPRINT_TIMER_VERSION || "2026.09.25.55";
+  const CURRENT_BUILD = window.SPRINT_TIMER_BUILD || "20260925-v55-start-contact-evidence-local-reanalysis";
   const EVENT_CHECK_INTERVAL_MS = 45 * 1000;
   const PERIODIC_CHECK_MS = 3 * 60 * 1000;
   const MAX_AUTO_RELOAD_ATTEMPTS = 3;
@@ -10948,7 +10981,7 @@ function fixKeyframesAndContacts41(){if(!startOfflinePoseFrames?.length)return;c
 function stableNote41(){if(!S41.frames)return '';const cls=S41.stableScore>=.72?'':'warn',start=S41.stableStart??'--',end=S41.stableEnd??'--';return `<div class="v41-stable-pose-note ${cls}"><b>正常Pose基準：</b>Frame ${start}〜${end}付近の連続した人体形状を基準に、選手固有の骨長を学習しました。固定物へ張り付いた疑い ${S41.pinnedPoints}点 ／ 再構築 ${S41.repairedPoints}点 ／ 不確実で除外 ${S41.rejectedPoints}点${S41.sequenceAdded?` ／ 接地系列を${S41.sequenceAdded}件補完`:''}${S41.sequenceRelabeled?` ／ 脚判定を${S41.sequenceRelabeled}件再判定`:''}${S41.groundImproved?' ／ 地面モデルを正常Pose区間から再推定':''}。<br>再構築できない点は無理に数値化しません。</div>`;}
 function updateStableUi41(){const el=document.getElementById('start-athlete-track-diagnostics');if(el&&S41.frames){el.querySelector('.v41-stable-pose-note')?.remove();el.insertAdjacentHTML('beforeend',stableNote41());}const src=document.getElementById('start-offline-angle-source');if(src&&S41.keyframeShift>0){let n=document.getElementById('start-v41-keyframe-note');if(!n){n=document.createElement('div');n.id='start-v41-keyframe-note';n.className='v41-keyframe-note';src.insertAdjacentElement('afterend',n);}n.textContent='⚠ 壊れたPoseフレームを角度測定に使わず、直後の人体整合性が高いフレームへ自動補正しています。';}}
 const recompute41Base=startOfflineRecomputeDerived;
-startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.25.53"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
+startOfflineRecomputeDerived=function(...args){if(window.__startV42Test||window.SPRINT_TIMER_VERSION==="2026.09.14.42"||window.SPRINT_TIMER_VERSION==="2026.09.14.43"||window.SPRINT_TIMER_VERSION==="2026.09.25.55"){const r=recompute41Base(...args);queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;}prepareStablePose41();const r=recompute41Base(...args);fixKeyframesAndContacts41();updateStableUi41();queueMicrotask(()=>{compactSequence41();compactSteps41();});return r;};
 document.getElementById('start-offline-analyze')?.addEventListener('click',()=>{S41={frames:0,stableStart:null,stableEnd:null,stableScore:0,reference:new Map(),rawGood:new Set(),repairedPoints:0,rejectedPoints:0,pinnedPoints:0,keyframeShift:0,sequenceAdded:0,sequenceRelabeled:0,groundImproved:false,lastRun:0};window.__startV41StablePose=S41;},{capture:true});
 
 /* ---------- Beginner-friendly contact display ---------- */
@@ -12062,7 +12095,7 @@ setTimeout(ensureUi42,0);
 <script id="performance-diagnostics-v44-stage2">
 (()=>{
   'use strict';
-  const VERSION44='2026.09.25.53';
+  const VERSION44='2026.09.25.55';
   const MAX_FRAME_SAMPLES44=720;
   const MAX_SNAPSHOTS44=240;
   const P44={
@@ -12657,7 +12690,7 @@ setTimeout(ensureUi42,0);
 ============================================================ */
 const c47=(v,a,b)=>Math.max(a,Math.min(b,v));
 const V47={
-  version:'2026.09.25.53',
+  version:'2026.09.25.55',
   rep:{state:'IDLE',noiseSamples:[],startThreshold:.045,endThreshold:.025,startHoldMs:45,endHoldMs:65,repsFinalized:0,repsRejected:0,lastQuality:null,lastCutoff:null,gapResets:0},
   worker:{supported:false,enabled:false,ready:false,busy:false,captureBusy:false,used:0,validated:0,fallbacks:0,errors:0,lastConfidence:0,lastError:null},
   load:{level:0,highCount:0,lowCount:0,lastUpdate:0},
@@ -13568,9 +13601,9 @@ function pixelAdvice53(px){
 }
 function ensureUi53(){
   const card=$('sprint-offline-roi-card');
-  if(card&&!$('sprint-v53-target-diagnostics')){const d=document.createElement('div');d.id='sprint-v53-target-diagnostics';d.innerHTML='v53：初期探索・Seed・実Pose入力をここに表示します。';card.appendChild(d);}
+  if(card&&!$('sprint-v53-target-diagnostics')){const d=document.createElement('div');d.id='sprint-v53-target-diagnostics';d.innerHTML='v54：初期探索・Seed・実Pose入力＋実走補正を表示します。';card.appendChild(d);}
   const host=$('sprint-offline-file-info');
-  if(host&&!$('sprint-v53-shooting-guide')){const d=document.createElement('div');d.id='sprint-v53-shooting-guide';d.innerHTML='<b>SPRINTPEAK撮影推奨：</b>60fps以上（推奨120fps）、1080p以上。v53では画角左右の進入方向に依存しない初期探索と、手動指定フレームをSeedにした双方向追跡を行います。';host.insertAdjacentElement('afterend',d);}
+  if(host&&!$('sprint-v53-shooting-guide')){const d=document.createElement('div');d.id='sprint-v53-shooting-guide';d.innerHTML='<b>SPRINTPEAK撮影推奨：</b>60fps以上（推奨120fps）、1080p以上。v54では画角左右に依存しない初期探索、手動Seed双方向追跡、欠落Poseの第2パス復元を行います。';host.insertAdjacentElement('afterend',d);}
 }
 function renderDiag53(){
   ensureUi53();const d=$('sprint-v53-target-diagnostics');if(!d)return;
@@ -13627,13 +13660,441 @@ window.sprintOfflineRoiPostAnalyze=function(total){
   if(sel?.manualLock&&V53.seed.failed&&status){
     status.textContent=`⚠ 手動指定したFrame ${V53.seed.requestedFrame??'--'} の±4Fで対象走者Poseを取得できませんでした。指定フレームで頭〜足先まで見えるように囲み直してください。Discovery/測定Poseの内訳は「解析する選手」欄で確認できます。`;
   }else if(sel?.manualLock&&V53.stats.accepted>0&&status&&typeof sprintOfflinePoseFrames!=='undefined'&&sprintOfflinePoseFrames.length){
-    status.textContent += ` ／ v53手動Seed追跡 ${sprintOfflinePoseFrames.length}F`;
+    status.textContent += ` ／ v54手動Seed追跡 ${sprintOfflinePoseFrames.length}F`;
   }else if(!sel?.manualLock&&!sprintOfflinePoseFrames?.length&&status){
     status.textContent='⚠ 自動探索で対象走者Poseを確定できませんでした。「解析する選手」のDiscovery/測定Pose内訳を確認するか、全身が明瞭なフレームで手動指定してください。';
   }
 };
 
 ensureUi53();renderDiag53();
+})();
+</script>
+
+
+<style id="sprint-v54-field-fix-style">
+#sprint-offline-events.v54-all-events,
+#sprint-offline-sequence-table.v54-all-events{max-height:460px;overflow:auto;-webkit-overflow-scrolling:touch;border-radius:8px;}
+#sprint-offline-events.v54-all-events .metric-table,
+#sprint-offline-sequence-table.v54-all-events .metric-table{min-width:660px;}
+.v54-field-note{margin-top:7px;padding:8px 10px;border:1px solid #bee3f8;border-radius:8px;background:#f7fcff;color:#234e52;font-size:12px;line-height:1.55;}
+.v54-field-warn{color:#9c4221;font-weight:700;}
+</style>
+<script id="sprint-v54-field-video-fixes">
+(()=>{
+'use strict';
+/* =====================================================================
+   Sprint Timer Pro v54 — field-video fixes based on 2633 / 2634 / 2635
+
+   1) Contact frame type normalization
+      - contact.frame may contain a Pose-frame object in v53.
+      - UI/evidence always consumes one numeric frame index.
+      - timestamp -> nearest frame is the final fallback.
+
+   2) Unified evidence navigation
+      - contact-event !, sequence !, and form-evidence buttons use the same
+        numeric resolver and move the main video to the adopted frame.
+
+   3) Required-section navigation
+      - open both <details> ancestors before scrollIntoView().
+
+   4) Show every detected contact
+      - no silent 18-event display cap; the table itself scrolls.
+
+   5) Mobile paused-video frame readiness
+      - requestVideoFrameCallback is not reliable on every Android device
+        after a paused seek.  seeked + readyState + two RAFs is accepted as
+        a drawable frame instead of waiting 1200 ms and counting false timeouts.
+
+   6) Manual-target second-pass Pose gap recovery
+      - after v53 bidirectional tracking, holes between trusted Pose frames are
+        re-evaluated with an interpolated athlete crop.
+      - conservative identity checks prevent a wide-crop person switch.
+
+   7) Conservative sparse-contact recovery
+      - only fills an alternating contact inside a clearly oversized cadence gap
+        when foot-signal evidence exists near the predicted contact time.
+   ===================================================================== */
+
+const $54=id=>document.getElementById(id);
+const clamp54=(v,a,b)=>Math.max(a,Math.min(b,v));
+const finite54=v=>Number.isFinite(Number(v));
+
+/* ---------- 1. Numeric contact-frame resolver ---------- */
+function nearestSprintFrame54(tSec){
+  if(!Array.isArray(sprintOfflineFrameTimes)||!sprintOfflineFrameTimes.length||!Number.isFinite(tSec))return null;
+  let lo=0,hi=sprintOfflineFrameTimes.length-1;
+  while(lo<hi){const m=(lo+hi)>>1;if(sprintOfflineFrameTimes[m]<tSec)lo=m+1;else hi=m;}
+  const a=lo,b=Math.max(0,a-1);
+  return Math.abs(sprintOfflineFrameTimes[a]-tSec)<Math.abs(sprintOfflineFrameTimes[b]-tSec)?a:b;
+}
+function sprintResolveContactFrame54(c){
+  if(!c)return null;
+  const direct=[c.frameIndex,c.index,typeof c.frame==='number'?c.frame:null,c.frame?.index];
+  for(const v of direct){const n=Number(v);if(Number.isFinite(n))return Math.max(0,Math.round(n));}
+  const ms=Number(c.t);
+  if(Number.isFinite(ms))return nearestSprintFrame54(ms/1000);
+  return null;
+}
+window.sprintResolveContactFrame54=sprintResolveContactFrame54;
+function normalizeContact54(c){
+  if(!c)return c;
+  const original=(c.frame&&typeof c.frame==='object')?c.frame:null;
+  const fi=sprintResolveContactFrame54(c);
+  if(original&&!c.frameRecord)c.frameRecord=original;
+  if(Number.isFinite(fi)){
+    c.frameIndex=fi;
+    c.frame=fi;
+    if(!Number.isFinite(Number(c.index)))c.index=fi;
+  }
+  return c;
+}
+function normalizeAllContacts54(){
+  if(Array.isArray(sprintOfflineContacts))sprintOfflineContacts.forEach(normalizeContact54);
+}
+
+/* ---------- 2. Reliable paused seek readiness ---------- */
+const waitPresentedV53=typeof offlineWaitPresentedFrame==='function'?offlineWaitPresentedFrame:null;
+offlineWaitPresentedFrame=function(video,timeoutMs=1800){
+  return new Promise(resolve=>{
+    if(!video){resolve(false);return;}
+    let done=false,rvfc=null,timer=null;
+    const finish=ok=>{if(done)return;done=true;if(timer)clearTimeout(timer);if(rvfc!==null&&typeof video.cancelVideoFrameCallback==='function'){try{video.cancelVideoFrameCallback(rvfc);}catch(_){}}resolve(!!ok);};
+    const drawable=()=>video.readyState>=2&&video.videoWidth>0&&video.videoHeight>0&&Number.isFinite(video.currentTime);
+    if(typeof video.requestVideoFrameCallback==='function'){
+      try{rvfc=video.requestVideoFrameCallback(()=>finish(true));}catch(_){}
+    }
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      if(drawable())finish(true);
+    }));
+    /* A short fallback is deliberate: after `seeked`, Chromium on some paused
+       Android videos can withhold rVFC despite drawImage already returning the
+       new seeked frame.  Treat that as ready, not as a 1.2 s hard timeout. */
+    timer=setTimeout(()=>finish(drawable()),Math.min(Math.max(140,timeoutMs*.22),360));
+  });
+};
+
+/* ---------- 3. Manual Pose hole-recovery pass ---------- */
+const recoveryCanvas54=document.createElement('canvas');
+const recoveryCtx54=recoveryCanvas54.getContext('2d',{alpha:false,willReadFrequently:false});
+function poseBox54(lm){
+  if(!lm?.length)return null;
+  const pts=lm.slice(0,33).filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&(p.visibility??1)>=.20);
+  if(pts.length<8)return null;
+  const xs=pts.map(p=>p.x).sort((a,b)=>a-b),ys=pts.map(p=>p.y).sort((a,b)=>a-b);
+  const q=(a,p)=>a[Math.max(0,Math.min(a.length-1,Math.round((a.length-1)*p)))];
+  const x1=q(xs,.04),x2=q(xs,.96),y1=q(ys,.03),y2=q(ys,.97);
+  if(![x1,x2,y1,y2].every(Number.isFinite)||x2<=x1||y2<=y1)return null;
+  return {x:x1,y:y1,w:x2-x1,h:y2-y1,cx:(x1+x2)/2,cy:(y1+y2)/2};
+}
+function rectAround54(cx,cy,w,h){
+  w=clamp54(w,.12,1);h=clamp54(h,.35,1);
+  let x=clamp54(cx-w/2,0,1-w),y=clamp54(cy-h/2,0,1-h);
+  return {x,y,w,h};
+}
+function interpBox54(idx,frames,selection){
+  let P=null,N=null;
+  for(const f of frames){if(f.index<idx)P=f;else if(f.index>idx){N=f;break;}else return poseBox54(f.landmarks);}
+  const pb=P?poseBox54(P.landmarks):null,nb=N?poseBox54(N.landmarks):null;
+  if(pb&&nb&&N.index>P.index){
+    const a=clamp54((idx-P.index)/(N.index-P.index),0,1);
+    return {x:pb.x+(nb.x-pb.x)*a,y:pb.y+(nb.y-pb.y)*a,w:pb.w+(nb.w-pb.w)*a,h:pb.h+(nb.h-pb.h)*a,cx:pb.cx+(nb.cx-pb.cx)*a,cy:pb.cy+(nb.cy-pb.cy)*a};
+  }
+  const b=pb||nb;
+  if(b)return b;
+  if(selection)return {x:selection.x,y:selection.y,w:selection.w,h:selection.h,cx:selection.x+selection.w/2,cy:selection.y+selection.h/2};
+  return null;
+}
+function cropForBox54(box,selection,wide=false){
+  if(!box)return null;
+  const selH=Number(selection?.h)||0,selW=Number(selection?.w)||0;
+  const w=Math.max(wide?.34:.22,box.w*(wide?3.25:2.45),selW*(wide?1.50:1.15));
+  const h=Math.max(wide?.72:.55,box.h*(wide?2.00:1.62),selH*(wide?1.42:1.10));
+  return rectAround54(box.cx,box.cy,w,h);
+}
+function drawRecoveryCrop54(crop){
+  const v=sprintOfflineVideo;if(!v?.videoWidth||!v?.videoHeight||!crop)return null;
+  const sx=Math.round(crop.x*v.videoWidth),sy=Math.round(crop.y*v.videoHeight),sw=Math.max(2,Math.round(crop.w*v.videoWidth)),sh=Math.max(2,Math.round(crop.h*v.videoHeight));
+  const long=1400,aspect=sw/sh;let dw,dh;
+  if(aspect>=1){dw=long;dh=Math.max(480,Math.round(long/aspect));}else{dh=long;dw=Math.max(480,Math.round(long*aspect));}
+  const m=Math.max(dw,dh);if(m>long){const k=long/m;dw=Math.max(420,Math.round(dw*k));dh=Math.max(420,Math.round(dh*k));}
+  recoveryCanvas54.width=dw;recoveryCanvas54.height=dh;recoveryCtx54.fillStyle='#000';recoveryCtx54.fillRect(0,0,dw,dh);recoveryCtx54.imageSmoothingEnabled=true;
+  try{recoveryCtx54.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);}catch(_){return null;}
+  return {crop,canvas:recoveryCanvas54};
+}
+function mapCropPose54(lm,crop){return lm?.map(p=>({...p,x:crop.x+p.x*crop.w,y:crop.y+p.y*crop.h,z:Number.isFinite(p.z)?p.z*crop.w:p.z}))||null;}
+function candidateOk54(mapped,pred,crop,wide=false){
+  const b=poseBox54(mapped);if(!b||!pred)return false;
+  const dist=Math.hypot(b.cx-pred.cx,b.cy-pred.cy),ratio=b.h/Math.max(.02,pred.h),q=typeof startOfflinePoseQuality==='function'?startOfflinePoseQuality(mapped):.5;
+  const maxDist=wide?Math.max(.24,crop.w*.48):Math.max(.15,crop.w*.38);
+  return dist<=maxDist&&ratio>=(wide?.38:.50)&&ratio<=(wide?2.45:2.00)&&q>=(wide?.16:.20);
+}
+async function tryRecoverPose54(idx,pred,selection,wide=false){
+  const t=sprintOfflineFrameTimes[idx];if(!Number.isFinite(t))return null;
+  const crop=cropForBox54(pred,selection,wide),prep=crop&&drawRecoveryCrop54(crop);if(!prep)return null;
+  if(wide&&typeof startOfflinePose?.reset==='function'){try{await Promise.resolve(startOfflinePose.reset());}catch(_){}}
+  let r=null;try{r=await startOfflinePoseSend(prep.canvas);}catch(_){return null;}
+  if(!r?.poseLandmarks)return null;
+  const mapped=mapCropPose54(r.poseLandmarks,crop);if(!candidateOk54(mapped,pred,crop,wide))return null;
+  return mapped;
+}
+async function recoverManualPoseHoles54(indices,selection){
+  if(!selection?.manualLock||!Array.isArray(indices)||!indices.length||!sprintOfflinePoseFrames?.length)return {attempts:0,hits:0};
+  const have=new Set(sprintOfflinePoseFrames.map(f=>f.index)),good=[...sprintOfflinePoseFrames].sort((a,b)=>a.index-b.index);
+  const first=good[0]?.index,last=good[good.length-1]?.index;if(!Number.isFinite(first)||!Number.isFinite(last)||last<=first)return {attempts:0,hits:0};
+  let missing=indices.filter(i=>i>first&&i<last&&!have.has(i));
+  /* Accuracy-first but bounded for long 120/240 fps clips. */
+  const MAX=160;if(missing.length>MAX){const step=missing.length/MAX;missing=Array.from({length:MAX},(_,k)=>missing[Math.min(missing.length-1,Math.floor(k*step))]);}
+  let attempts=0,hits=0,lastIdx=-999;
+  const status=$54('sprint-offline-analysis-status');
+  for(let n=0;n<missing.length;n++){
+    if(sprintOfflineCancelRequested)break;
+    const idx=missing[n],frames=[...sprintOfflinePoseFrames].sort((a,b)=>a.index-b.index),pred=interpBox54(idx,frames,selection);if(!pred)continue;
+    attempts++;await sprintOfflineSeekTime(sprintOfflineFrameTimes[idx]);
+    let mapped=await tryRecoverPose54(idx,pred,selection,false);
+    if(!mapped){mapped=await tryRecoverPose54(idx,pred,selection,true);}
+    if(mapped&&!sprintOfflinePoseMap.has(idx)){
+      const t=sprintOfflineFrameTimes[idx],scale=bodyCalibrationEstimate(mapped,sprintOfflineCanvas.width,sprintOfflineCanvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:startOfflineCloneLandmarks(mapped),poseQuality:startOfflinePoseQuality(mapped),scale};
+      sprintOfflinePoseFrames.push(f);sprintOfflinePoseMap.set(idx,f);hits++;have.add(idx);
+    }
+    if(status&&(n%8===0||n===missing.length-1))status.textContent=`v54 欠落Pose再探索 ${n+1}/${missing.length} ／ 復元 ${hits}F`;
+    if(n%6===0)await new Promise(r=>setTimeout(r,0));
+    lastIdx=idx;
+  }
+  if(window.__sprintV53TargetTracker?.stats){window.__sprintV53TargetTracker.stats.v54GapAttempts=attempts;window.__sprintV53TargetTracker.stats.v54GapHits=hits;}
+  return {attempts,hits};
+}
+const manualPassV53=window.__sprintV53RunManualPosePass;
+if(typeof manualPassV53==='function'){
+  window.__sprintV53RunManualPosePass=async function(args){
+    const ret=await manualPassV53(args);
+    if(!sprintOfflineCancelRequested){
+      try{await recoverManualPoseHoles54(args?.indices||[],args?.selection||null);}catch(e){console.warn('v54 Pose gap recovery',e);}
+    }
+    return ret;
+  };
+}
+
+/* ---------- 4. Conservative sparse-contact recovery ---------- */
+function median54(a){const x=a.filter(Number.isFinite).sort((a,b)=>a-b);if(!x.length)return NaN;const m=x.length>>1;return x.length%2?x[m]:(x[m-1]+x[m])/2;}
+function candidateContact54(side,expectedMs,halfMs,groundQ){
+  const arr=sprintOfflineFootSignals?.[side]||[];let best=null,bestScore=-Infinity;
+  const maxH=groundQ<.35?.052:.044,evMin=groundQ<.35?.27:.31;
+  for(let i=1;i<arr.length-1;i++){
+    const q=arr[i],dt=Math.abs(q.tMs-expectedMs);if(dt>halfMs||!Number.isFinite(q.contactHeightM)||q.contactHeightM>maxH||(q.confidence||0)<.18)continue;
+    const ev=offlineContactEvidence(q,arr[i-1],arr[i+1],'sprint');if(ev<evMin)continue;
+    const timeQ=1-dt/Math.max(1,halfMs),heightQ=1-clamp54(q.contactHeightM/maxH,0,1),score=ev*.46+(q.confidence||0)*.25+timeQ*.20+heightQ*.09;
+    if(score>bestScore){bestScore=score;best={q,i,ev,score};}
+  }
+  return best;
+}
+function recoverSparseContacts54(){
+  if(!Array.isArray(sprintOfflineContacts)||sprintOfflineContacts.length<2)return 0;
+  normalizeAllContacts54();const src=[...sprintOfflineContacts].sort((a,b)=>a.t-b.t),ints=[];
+  for(let i=1;i<src.length;i++){const d=src[i].t-src[i-1].t;if(d>=90&&d<=380&&src[i].side!==src[i-1].side)ints.push(d);}
+  let typical=median54(ints);if(!(typical>=110&&typical<=340))return 0;
+  const groundQ=Number(sprintOfflineGroundModel?.confidence)||0,adds=[];
+  for(let i=1;i<src.length;i++){
+    const A=src[i-1],B=src[i],gap=B.t-A.t;if(gap<Math.max(280,typical*1.52)||gap>760)continue;
+    let n=Math.round(gap/typical)-1;n=clamp54(n,1,2);let side=A.side==='left'?'right':'left';
+    for(let k=1;k<=n;k++){
+      const expected=A.t+gap*k/(n+1),half=Math.min(78,Math.max(45,typical*.28));
+      if(src.some(c=>Math.abs(c.t-expected)<55)||adds.some(c=>Math.abs(c.t-expected)<55)){side=side==='left'?'right':'left';continue;}
+      const hit=candidateContact54(side,expected,half,groundQ);if(!hit){side=side==='left'?'right':'left';continue;}
+      const q=hit.q,lift=offlineFindLiftoff(sprintOfflineFootSignals[side]||[],hit.i,.31),dur=lift?(lift.t-q.t)*1000:null,conf=clamp54((q.confidence||0)*.50+hit.ev*.34+hit.score*.16,.25,.68);
+      const ev={side,t:q.tMs,x:q.p?.x,y:q.p?.y,frameIndex:q.index,frame:q.index,index:q.index,confidence:conf,source:'auto-v54-gap-recovered',liftoff:null,duration:null,contactEvidence:hit.ev,recovered:true,v54Recovered:true};
+      if(Number.isFinite(dur)&&dur>=35&&dur<=320){ev.liftoff=lift.tMs;ev.duration=dur;}
+      adds.push(ev);side=side==='left'?'right':'left';
+    }
+  }
+  if(adds.length){
+    sprintOfflineContacts=[...sprintOfflineContacts,...adds].sort((a,b)=>a.t-b.t);
+    /* Merge only near-identical timestamps. */
+    const merged=[];for(const c of sprintOfflineContacts){const p=merged[merged.length-1];if(p&&Math.abs(c.t-p.t)<50){if((c.confidence||0)>(p.confidence||0))merged[merged.length-1]=c;continue;}merged.push(c);}sprintOfflineContacts=merged;
+    for(const c of adds)if(Number.isFinite(c.duration))sprintOfflineContactDurations.push({side:c.side,start:c.t,end:c.liftoff,duration:c.duration,confidence:c.confidence});
+    if(sprintOfflineContactRecoveryStats){sprintOfflineContactRecoveryStats.v54SparseRecovered=(sprintOfflineContactRecoveryStats.v54SparseRecovered||0)+adds.length;sprintOfflineContactRecoveryStats.recoveredContacts=(sprintOfflineContactRecoveryStats.recoveredContacts||0)+adds.length;}
+  }
+  normalizeAllContacts54();return adds.length;
+}
+const detectV53Current=sprintOfflineDetectContacts;
+sprintOfflineDetectContacts=function(...args){
+  const ret=detectV53Current(...args);normalizeAllContacts54();recoverSparseContacts54();normalizeAllContacts54();return ret;
+};
+
+/* ---------- 5. Render all detected contacts ---------- */
+function sideLabel54(c){try{return sprintSideLabel(c.side);}catch(_){return c.side==='left'?'左':'右';}}
+function confidence54(c){try{return mandatoryConfidence(c);}catch(_){return Number(c?.confidence)||0;}}
+function refreshContactTables54(){
+  normalizeAllContacts54();const a=Array.isArray(sprintOfflineContacts)?sprintOfflineContacts:[];
+  const events=$54('sprint-offline-events');if(events){events.classList.add('v54-all-events');if(!a.length)events.innerHTML='接地イベント：検出できませんでした。';else{
+    const low=a.filter(e=>confidence54(e)<.55&&!e.manualAnchor).length;
+    events.innerHTML=`<div class="evidence-event-summary">接地イベント ${a.length}件${low?` ／ <b style="color:#b42318;">⚠ 低信頼度 ${low}件</b>`:' ／ 低信頼度イベントなし'} ／ <b>全件表示</b></div><table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>信頼度</th><th>根拠</th></tr>${a.map((e,i)=>{const f=sprintResolveContactFrame54(e);return `<tr class="${confidence54(e)<.55&&!e.manualAnchor?'evidence-low-confidence':''}"><td>${i+1}</td><td>${sideLabel54(e)}${e.manualAnchor?' ✓':''}</td><td>F${Number.isFinite(f)?f:'--'}<br>${Number.isFinite(e.t)?(e.t/1000).toFixed(3):'--'}s</td><td>${Number.isFinite(e.duration)?e.duration.toFixed(0)+' ms':'--'}${e.manualLiftoff?' ✓':''}</td><td>${Math.round(confidence54(e)*100)}%${confidence54(e)<.55&&!e.manualAnchor?' ⚠':''}</td><td><button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" data-sprint-event-index="${i}" aria-label="接地イベント${i+1}の根拠を見る">!</button></td></tr>`;}).join('')}</table>`;
+  }}
+  const table=$54('sprint-offline-sequence-table');if(table&&a.length&&sprintOfflinePoseFrames?.length){table.classList.add('v54-all-events');table.innerHTML=`<table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>信頼度</th><th>確認</th></tr>${a.map((c,i)=>{const f=sprintResolveContactFrame54(c),cf=confidence54(c);return `<tr class="${cf<.55&&!c.manualAnchor?'evidence-low-confidence':''}"><td>C${i+1}</td><td>${sideLabel54(c)}${c.manualAnchor?' ✓手動':''}</td><td>F${Number.isFinite(f)?f:'--'}<br>${Number.isFinite(c.t)?(c.t/1000).toFixed(3):'--'}s</td><td>${Number.isFinite(c.duration)?c.duration.toFixed(0)+' ms':'--'}${c.manualLiftoff?' ✓':''}</td><td>${Math.round(cf*100)}%${cf<.55?' ⚠':''}${c.v54Recovered?'<br><small>系列再探索</small>':''}</td><td><button type="button" class="analysis-evidence-btn sequence-contact-view" data-mandatory-sprint-contact="${i}" aria-label="C${i+1}を見る">!</button></td></tr>`;}).join('')}</table>`;}
+  const q=$54('sprint-offline-evaluation-quality');if(q&&sprintOfflineGroundModel?.valid&&(sprintOfflineGroundModel.confidence||0)<.35&&!q.querySelector('.v54-field-note')){
+    q.insertAdjacentHTML('beforeend',`<div class="v54-field-note"><span class="v54-field-warn">地面モデル信頼度 ${Math.round((sprintOfflineGroundModel.confidence||0)*100)}%</span>：接地判定は足部時系列・左右交互性による慎重な再探索も併用しています。接地時間が極端な場合は［!］で実フレームを確認してください。</div>`);
+  }
+}
+const renderResultsV53Current=sprintOfflineRenderResults;
+sprintOfflineRenderResults=function(...args){const r=renderResultsV53Current(...args);refreshContactTables54();return r;};
+
+/* ---------- 6. Unified evidence jump ---------- */
+async function openSprintEvidence54(kind,eventIndex=null){
+  if(!sprintOfflineFrameTimes?.length||!sprintOfflineVideo?.src)return;
+  normalizeAllContacts54();let c=null,frame=null,title='SPRINTPEAK測定根拠';const r=sprintOfflineLastResult;
+  if(kind==='sprint-vmax'||kind==='sprint-trunk'){
+    const raw=r?.maxSample?.frame;frame=Number.isFinite(Number(raw))?Math.round(Number(raw)):Number.isFinite(Number(raw?.index))?Math.round(Number(raw.index)):sprintOfflineNearestPoseFrameByMs(r?.peakT??0,160)?.index??null;
+    title=kind==='sprint-trunk'?'最高速度付近の体幹角':'最高速度';
+  }else{
+    c=Number.isInteger(eventIndex)?sprintOfflineContacts[eventIndex]:sprintNearestContactToPeak();frame=sprintResolveContactFrame54(c);
+    title=kind==='sprint-knee'?'支持脚膝角':kind==='sprint-contact-placement'?'接地点と腰の位置':'接地・離地';
+  }
+  if(!Number.isFinite(frame)){
+    try{sprintSetEvidencePanel(`${title}：根拠フレームを確定できません。接地時刻・解析範囲・手動補正を確認してください。`,c);}catch(_){ }
+    return;
+  }
+  frame=clamp54(Math.round(frame),0,sprintOfflineFrameTimes.length-1);sprintOfflineVideo.pause();
+  try{sprintEvidence={kind,frame,eventIndex:c?sprintOfflineContacts.indexOf(c):null};}catch(_){ }
+  await sprintOfflineSeekToFrame(frame);try{sprintOfflineDrawOverlay();}catch(_){ }
+  const t=sprintOfflineFrameTimes[frame]??sprintOfflineVideo.currentTime;
+  try{sprintSetEvidencePanel(`<b>${title}</b> ／ Frame ${frame} ／ ${Number.isFinite(t)?t.toFixed(3):'--'} s${c?`<br>${sideLabel54(c)} ／ 接地信頼度 ${Math.round(confidence54(c)*100)}%${c.manualAnchor?' ／ ✓手動接地':''}${c.manualLiftoff?' ／ ✓手動離地':''}`:''}<br>このフレームへ動画を移動しました。`,c);}catch(_){ }
+  const wrap=$54('sprint-offline-video-wrap');wrap?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+window.openSprintEvidence54=openSprintEvidence54;
+function openSequence54(){
+  const outer=$54('sprint-offline-required-details'),seq=$54('sprint-offline-sequence-details'),panel=$54('sprint-offline-sequence-panel');if(outer)outer.open=true;if(seq)seq.open=true;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>panel?.scrollIntoView({behavior:'smooth',block:'center'})));
+}
+document.addEventListener('click',e=>{
+  const seqNav=e.target.closest("[data-mandatory-scroll='sprint-sequence'],[data-v36-goto-sequence='sprint'],.v36-goto-sequence");
+  if(seqNav&&seqNav.closest('#sprint-offline-analysis-area')){e.preventDefault();e.stopImmediatePropagation();openSequence54();return;}
+  const sb=e.target.closest('[data-mandatory-sprint-contact]');
+  if(sb){e.preventDefault();e.stopImmediatePropagation();const i=parseInt(sb.dataset.mandatorySprintContact,10);openSprintEvidence54('sprint-contact',Number.isFinite(i)?i:null);return;}
+  const b=e.target.closest('[data-sprint-evidence]');
+  if(b&&b.closest('#sprint-offline-analysis-area')){e.preventDefault();e.stopImmediatePropagation();const i=b.dataset.sprintEventIndex!==undefined?parseInt(b.dataset.sprintEventIndex,10):null;openSprintEvidence54(b.dataset.sprintEvidence,Number.isFinite(i)?i:null);}
+},true);
+
+/* ---------- 7. Diagnostics ---------- */
+function addV54Diagnostics(){
+  const d=$54('sprint-v53-target-diagnostics');if(!d)return;
+  let row=$54('sprint-v54-field-diagnostics');if(!row){row=document.createElement('div');row.id='sprint-v54-field-diagnostics';row.className='v54-field-note';d.insertAdjacentElement('afterend',row);}
+  const s=window.__sprintV53TargetTracker?.stats||{},contacts=sprintOfflineContacts?.length||0,recovered=sprintOfflineContactRecoveryStats?.v54SparseRecovered||0;
+  row.innerHTML=`<b>v54 実走改善：</b> 数値Frame正規化 ／ 根拠フレーム移動統一 ／ 接地全件表示${Number.isFinite(s.v54GapAttempts)?`<br>欠落Pose再探索：${s.v54GapHits||0}/${s.v54GapAttempts}F 復元`:''}${recovered?` ／ 接地系列追加復元 ${recovered}件`:''} ／ 最終接地 ${contacts}件`;
+}
+const postAnalyzeV53Current=window.sprintOfflineRoiPostAnalyze;
+window.sprintOfflineRoiPostAnalyze=function(total){if(typeof postAnalyzeV53Current==='function')postAnalyzeV53Current(total);normalizeAllContacts54();refreshContactTables54();addV54Diagnostics();};
+
+window.addEventListener('DOMContentLoaded',()=>{refreshContactTables54();addV54Diagnostics();});
+})();
+</script>
+
+<style id="v55-start-contact-evidence-style">
+#start-offline-video-wrap.v55-evidence-focus,#sprint-offline-video-wrap.v55-evidence-focus{scroll-margin-top:8px;outline:3px solid rgba(255,191,0,.72);outline-offset:3px}
+.v55-local-reanalysis-note{margin:7px 0;padding:7px 9px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1e3a5f;font-size:12px;line-height:1.55;text-align:left}
+</style>
+<script id="v55-start-contact-evidence-local-reanalysis">
+(()=>{
+'use strict';
+/* =====================================================================
+   Sprint Timer Pro v55 — START manual-contact local reanalysis +
+   evidence navigation reliability.
+
+   1) START evidence navigation waits for an actually presented decoded frame.
+   2) Any START evidence button is routed in capture phase, including the
+      4-panel hub, then scrolls the main video to the top of the viewport.
+   3) A manual START contact becomes a full analysis anchor: nearby missing
+      Pose frames are locally reacquired, then foot signals/contact/liftoff,
+      step metrics and evaluation are rebuilt.
+   4) The same local Pose recovery is available to SPRINTPEAK manual anchors.
+   5) No spatial metric is invented when local Pose recovery fails; the manual
+      timing event remains authoritative and is explicitly timing-only.
+   ===================================================================== */
+const $55=id=>document.getElementById(id);
+const clamp55=(v,a,b)=>Math.max(a,Math.min(b,v));
+const finite55=Number.isFinite;
+const localBusy55={start:false,sprint:false};
+
+function box55(lm){
+  if(!lm?.length)return null;
+  const pts=lm.slice(0,33).filter(p=>p&&finite55(p.x)&&finite55(p.y)&&(p.visibility??1)>=.18);
+  if(pts.length<7)return null;
+  const xs=pts.map(p=>p.x).sort((a,b)=>a-b),ys=pts.map(p=>p.y).sort((a,b)=>a-b),q=(a,p)=>a[Math.max(0,Math.min(a.length-1,Math.round((a.length-1)*p)))];
+  const x1=q(xs,.04),x2=q(xs,.96),y1=q(ys,.03),y2=q(ys,.97);if(![x1,x2,y1,y2].every(finite55)||x2<=x1||y2<=y1)return null;
+  return {x:x1,y:y1,w:x2-x1,h:y2-y1,cx:(x1+x2)/2,cy:(y1+y2)/2};
+}
+function around55(cx,cy,w,h){w=clamp55(w,.12,1);h=clamp55(h,.30,1);return {x:clamp55(cx-w/2,0,1-w),y:clamp55(cy-h/2,0,1-h),w,h};}
+function nearestBox55(frames,t){
+  let best=null,bd=.38;for(const f of frames||[]){const d=Math.abs((f?.t??Infinity)-t);if(d<bd){const b=box55(f.landmarks);if(b){best=b;bd=d;}}}return best;
+}
+function crop55(box,wide=false){if(!box)return null;return around55(box.cx,box.cy,Math.max(wide?.34:.22,box.w*(wide?3.25:2.45)),Math.max(wide?.68:.50,box.h*(wide?2.0:1.62)));}
+function map55(lm,c){return lm?.map(p=>({...p,x:c.x+p.x*c.w,y:c.y+p.y*c.h,z:finite55(p.z)?p.z*c.w:p.z}))||null;}
+function identityOk55(lm,pred,crop,wide=false){const b=box55(lm);if(!b||!pred)return !!b;const d=Math.hypot(b.cx-pred.cx,b.cy-pred.cy),ratio=b.h/Math.max(.02,pred.h),q=typeof startOfflinePoseQuality==='function'?startOfflinePoseQuality(lm):.5;return d<=Math.max(wide?.25:.17,crop.w*(wide?.50:.39))&&ratio>=(wide?.36:.48)&&ratio<=(wide?2.55:2.05)&&q>=(wide?.15:.20);}
+
+const localCanvas55=document.createElement('canvas'),localCtx55=localCanvas55.getContext('2d',{alpha:false,willReadFrequently:false});
+function prepareCrop55(video,crop){
+  if(!video?.videoWidth||!video?.videoHeight||!crop)return null;
+  const sx=Math.round(crop.x*video.videoWidth),sy=Math.round(crop.y*video.videoHeight),sw=Math.max(2,Math.round(crop.w*video.videoWidth)),sh=Math.max(2,Math.round(crop.h*video.videoHeight));
+  const lim=1400,ar=sw/sh;let dw,dh;if(ar>=1){dw=lim;dh=Math.max(460,Math.round(lim/ar));}else{dh=lim;dw=Math.max(460,Math.round(lim*ar));}const m=Math.max(dw,dh);if(m>lim){const k=lim/m;dw=Math.max(420,Math.round(dw*k));dh=Math.max(420,Math.round(dh*k));}
+  localCanvas55.width=dw;localCanvas55.height=dh;localCtx55.fillStyle='#000';localCtx55.fillRect(0,0,dw,dh);localCtx55.imageSmoothingEnabled=true;
+  try{localCtx55.drawImage(video,sx,sy,sw,sh,0,0,dw,dh);}catch(_){return null;}return localCanvas55;
+}
+async function poseAt55(cfg,idx,pred,wide=false){
+  const t=cfg.times[idx];if(!finite55(t))return null;await cfg.seek(t);let r=null;
+  if(pred){const c=crop55(pred,wide),canvas=prepareCrop55(cfg.video,c);if(!canvas)return null;try{r=await startOfflinePoseSend(canvas);}catch(_){return null;}if(!r?.poseLandmarks)return null;const mapped=map55(r.poseLandmarks,c);return identityOk55(mapped,pred,c,wide)?mapped:null;}
+  try{r=await startOfflinePoseSend(cfg.video);}catch(_){return null;}return r?.poseLandmarks?startOfflineCloneLandmarks(r.poseLandmarks):null;
+}
+function targetIndices55(times,center,before=.065,after=.38,max=48){
+  const t0=times[center];if(!finite55(t0))return [center];let a=[];for(let i=0;i<times.length;i++){if(times[i]>=t0-before&&times[i]<=t0+after)a.push(i);}if(a.length>max){const src=a,step=(src.length-1)/(max-1);a=Array.from({length:max},(_,k)=>src[Math.round(k*step)]);if(!a.includes(center))a.push(center);a=[...new Set(a)].sort((x,y)=>x-y);}return a;
+}
+async function recoverLocal55(cfg,center){
+  const indices=targetIndices55(cfg.times,center),have=new Set((cfg.frames||[]).map(f=>f.index)),todo=indices.filter(i=>!have.has(i));if(!todo.length)return {attempted:0,recovered:0};
+  let recovered=0,attempted=0;try{if(typeof startOfflinePose?.reset==='function')await Promise.resolve(startOfflinePose.reset());}catch(_){}
+  for(const idx of todo){
+    const t=cfg.times[idx],pred=nearestBox55(cfg.frames,t);attempted++;let lm=await poseAt55(cfg,idx,pred,false);if(!lm&&pred)lm=await poseAt55(cfg,idx,pred,true);if(!lm)continue;
+    const l=startOfflineCloneLandmarks(lm),scale=bodyCalibrationEstimate(l,cfg.canvas.width,cfg.canvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:l,poseQuality:startOfflinePoseQuality(l),scale};cfg.frames.push(f);cfg.map.set(idx,f);recovered++;
+    if(attempted%6===0)await new Promise(r=>setTimeout(r,0));
+  }
+  cfg.frames.sort((a,b)=>a.t-b.t);return {attempted,recovered};
+}
+function note55(id,text){let el=$55(id);if(!el){const host=id.startsWith('start')?$55('start-offline-quick-contact-status'):$55('sprint-offline-manual-status');if(!host)return;el=document.createElement('div');el.id=id;el.className='v55-local-reanalysis-note';host.insertAdjacentElement('afterend',el);}el.textContent=text;}
+
+window.startOfflineLocalReanalyzeManualContactV55=async function(anchor){
+  if(!anchor||localBusy55.start)return false;localBusy55.start=true;const status=$55('start-offline-analysis-status'),oldFrame=startOfflineCurrentFrameIndex();
+  try{
+    if(status)status.textContent=`手動接地 F${anchor.index} 周辺を局所再解析しています…`;
+    const r=await recoverLocal55({video:startOfflineVideo,canvas:startOfflineCanvas,times:startOfflineFrameTimes,frames:startOfflinePoseFrames,map:startOfflinePoseMap,seek:startOfflineSeekTime},anchor.index);
+    startOfflineRecomputeDerived(true);window.startOfflineRenderUnifiedManualUi?.();
+    const c=(startOfflineContacts||[]).filter(x=>x.manualAnchor&&Math.abs((x.t??Infinity)-anchor.t)<.035).sort((a,b)=>Math.abs(a.t-anchor.t)-Math.abs(b.t-anchor.t))[0],dur=finite55(c?.duration)?`${(c.duration*1000).toFixed(0)}ms`:'離地未確定';
+    const spatial=c&&!c.timingOnly&&finite55(c.x)&&finite55(c.y);note55('start-v55-local-note',`v55 局所再解析：F${anchor.index} ／ Pose復元 ${r.recovered}/${r.attempted}F ／ ${spatial?'足部位置を反映':'接地時刻のみ保持'} ／ 接地時間 ${dur}`);
+    if(status)status.textContent=`手動接地 F${anchor.index} を再計算しました。Pose復元 ${r.recovered}/${r.attempted}F ／ 接地時間 ${dur}。`;
+    await startOfflineSeekToFrame(anchor.index);drawStartOfflineOverlay();return true;
+  }catch(e){console.warn('v55 START local analysis failed',e);return false;}finally{localBusy55.start=false;}
+};
+
+window.__sprintV55OnManualAnchor=async function(anchor,kind){
+  if(!anchor||localBusy55.sprint)return false;localBusy55.sprint=true;const status=$55('sprint-offline-analysis-status');
+  try{
+    if(status)status.textContent=`手動${kind==='liftoff'?'離地':'接地'} F${anchor.index} 周辺を局所再解析しています…`;
+    const r=await recoverLocal55({video:sprintOfflineVideo,canvas:sprintOfflineCanvas,times:sprintOfflineFrameTimes,frames:sprintOfflinePoseFrames,map:sprintOfflinePoseMap,seek:sprintOfflineSeekTime},anchor.index);
+    sprintOfflineRecomputeDerived();window.__sprintManualStateV55?.render?.();
+    note55('sprint-v55-local-note',`v55 局所再解析：F${anchor.index} ／ Pose復元 ${r.recovered}/${r.attempted}F ／ 手動${kind==='liftoff'?'離地':'接地'}を再計算`);
+    if(status)status.textContent=`手動${kind==='liftoff'?'離地':'接地'} F${anchor.index} を再計算しました。Pose復元 ${r.recovered}/${r.attempted}F。`;
+    await sprintOfflineSeekToFrame(anchor.index);sprintOfflineDrawOverlay();return true;
+  }catch(e){console.warn('v55 SPRINT local analysis failed',e);return false;}finally{localBusy55.sprint=false;}
+};
+
+function openAncestorDetails55(el){for(let p=el?.parentElement;p;p=p.parentElement){if(p.tagName==='DETAILS')p.open=true;}}
+function focusWrap55(id){const w=$55(id);if(!w)return;w.classList.remove('offline-sticky-compact');w.classList.add('v55-evidence-focus');requestAnimationFrame(()=>requestAnimationFrame(()=>w.scrollIntoView({behavior:'smooth',block:'start'})));setTimeout(()=>w.classList.remove('v55-evidence-focus'),1500);}
+
+/* Capture-phase routing means dynamically rebuilt result tables and the 4-panel
+   hub cannot lose navigation just because their innerHTML was regenerated. */
+document.addEventListener('click',async e=>{
+  const b=e.target.closest?.('[data-start-evidence]');if(!b||!b.closest('#start-offline-analysis-area'))return;
+  e.preventDefault();e.stopImmediatePropagation();openAncestorDetails55(b);startOfflineVideo?.pause?.();
+  try{if(typeof window.__startShowEvidenceV55Base==='function')await window.__startShowEvidenceV55Base(b.dataset.startEvidence);}catch(err){console.warn('v55 START evidence navigation',err);}
+  focusWrap55('start-offline-video-wrap');
+},true);
+
+window.__SPRINT_TIMER_V55={build:'20260925-v55-start-contact-evidence-local-reanalysis',features:['START presented-frame seek','START capture-phase evidence navigation','manual-contact local Pose recovery','manual liftoff auto-rebuild','timing-only fallback preserved']};
 })();
 </script>
 
