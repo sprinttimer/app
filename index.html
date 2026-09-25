@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.25.56">
+<meta name="sprint-timer-version" content="2026.09.25.57">
 <meta name="sprint-timer-build" content="20260925-v56-start-contact-angle-evidence-reliability">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.25.56";
+window.SPRINT_TIMER_VERSION = "2026.09.25.57";
 window.SPRINT_TIMER_BUILD = "20260925-v56-start-contact-angle-evidence-reliability";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
@@ -1372,7 +1372,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
                 <h3>動画解析結果 <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="results" aria-label="動画解析結果の説明">?</button></h3>
                 <div class="results-grid" id="sprint-offline-results-grid">
-                    <div class="data-card"><div class="data-label">最高速度 <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-vmax" aria-label="最高速度の根拠フレームを見る">!</button></div><div class="data-value" id="sprint-offline-vmax">0.00 <span class="unit">m/s</span></div></div>
+                    <div class="data-card"><div class="data-label">解析区間内の最高推定速度 <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-vmax" aria-label="解析区間内の最高推定速度の根拠フレームを見る">!</button></div><div class="data-value" id="sprint-offline-vmax">0.00 <span class="unit">m/s</span></div></div>
                     <div class="data-card"><div class="data-label">ピッチ <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" aria-label="ピッチの接地根拠を見る">!</button></div><div class="data-value" id="sprint-offline-pitch">0.00 <span class="unit">歩/秒</span></div></div>
                     <div class="data-card"><div class="data-label">推定ストライド <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-vmax" aria-label="推定ストライドの根拠を見る">!</button></div><div class="data-value" id="sprint-offline-stride">0.00 <span class="unit">m</span></div></div>
                     <div class="data-card"><div class="data-label">接地時間 <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" aria-label="接地時間の根拠を見る">!</button></div><div class="data-value" id="sprint-offline-contact">0.0 <span class="unit">ms</span></div></div>
@@ -3915,7 +3915,7 @@ function startOfflineCalculateSteps(contacts){
     return rows;
 }
 
-function startOfflineJointAngle(a,b,c){if(!a||!b||!c)return null;const v1={x:a.x-b.x,y:a.y-b.y},v2={x:c.x-b.x,y:c.y-b.y},n1=Math.hypot(v1.x,v1.y),n2=Math.hypot(v2.x,v2.y);if(!n1||!n2)return null;return Math.acos(bodyClamp((v1.x*v2.x+v1.y*v2.y)/(n1*n2),-1,1))*180/Math.PI;}
+function startOfflineJointAngle(a,b,c){if(!a||!b||!c)return null;const w=Math.max(1,startOfflineCanvas?.width||startOfflineVideo?.videoWidth||1),h=Math.max(1,startOfflineCanvas?.height||startOfflineVideo?.videoHeight||1),ar=w/h,A={x:a.x*ar,y:a.y},B={x:b.x*ar,y:b.y},C={x:c.x*ar,y:c.y},v1={x:A.x-B.x,y:A.y-B.y},v2={x:C.x-B.x,y:C.y-B.y},n1=Math.hypot(v1.x,v1.y),n2=Math.hypot(v2.x,v2.y);if(!n1||!n2)return null;return Math.acos(bodyClamp((v1.x*v2.x+v1.y*v2.y)/(n1*n2),-1,1))*180/Math.PI;}
 function startOfflinePostureMetrics(frameIndex){
     const f=startOfflineFrameRecord(frameIndex)||startOfflineFrameRecord(startOfflineNearestPoseIndexByTime(startOfflineFrameTime(frameIndex),.15));if(!f)return null;const l=startOfflineCorrectedLandmarks(f),p=i=>l[i]?{x:l[i].x,y:l[i].y}:null,sh={x:(l[11].x+l[12].x)/2,y:(l[11].y+l[12].y)/2},hip={x:(l[23].x+l[24].x)/2,y:(l[23].y+l[24].y)/2};const dir=startOfflineDirection()||1,g=startOfflineGroundAxis(),up={x:g.y,y:-g.x},fwd={x:g.x*(dir<0?-1:1),y:g.y*(dir<0?-1:1)},tv={x:sh.x-hip.x,y:sh.y-hip.y},trunk=Math.atan2(Math.abs(tv.x*up.x+tv.y*up.y),Math.abs(tv.x*fwd.x+tv.y*fwd.y))*180/Math.PI;
     return {frame:f.index,t:f.t,trunk,leftHip:startOfflineJointAngle(sh,p(23),p(25)),rightHip:startOfflineJointAngle(sh,p(24),p(26)),leftKnee:startOfflineJointAngle(p(23),p(25),p(27)),rightKnee:startOfflineJointAngle(p(24),p(26),p(28)),leftAnkle:startOfflineJointAngle(p(25),p(27),p(31)),rightAnkle:startOfflineJointAngle(p(26),p(28),p(32)),quality:f.poseQuality};
@@ -7346,7 +7346,7 @@ async function sprintOfflineSeekTime(t){
             await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
         }
     }
-    sprintOfflineUpdateFrameUi();
+    if(window.__sprintAnalysisState57?.running){const now=performance.now(),st=window.__sprintAnalysisState57;if(!st.lastUiAt||now-st.lastUiAt>=125){st.lastUiAt=now;sprintOfflineUpdateFrameUi();}}else sprintOfflineUpdateFrameUi();
 }
 function sprintOfflineSeekToFrame(index){
     if(!sprintOfflineFrameTimes.length)return Promise.resolve();index=bodyClamp(Math.round(index),0,sprintOfflineFrameTimes.length-1);return sprintOfflineSeekTime(sprintOfflineFrameTimes[index]);
@@ -7477,8 +7477,9 @@ function sprintOfflineCalculateMetrics(){
     const poseQ=sprintOfflineMedian(sprintOfflinePoseFrames.map(f=>f.poseQuality).filter(Number.isFinite)),scaleQ=sprintOfflineScaleSummary?.confidence||0,eventQ=bodyClamp(Math.min(nearby.length,6)/6*.6+Math.min(durations.length,4)/4*.4,0,1),confidence=bodyClamp(scaleQ*.38+(maxSample.confidence||0)*.28+poseQ*.19+eventQ*.15,0,1);
     return {valid:true,vmax,pitch,stride,contact,peakT,confidence,poseQ,scaleQ,eventQ,nearby,durations,maxSample};
 }
-function sprintOfflineNearestPoseFrameByMs(ms,maxGap=120){let best=null,d=Infinity;for(const f of sprintOfflinePoseFrames){const x=Math.abs(f.t*1000-ms);if(x<d){d=x;best=f;}if(f.t*1000>ms&&x>d)break;}return d<=maxGap?best:null;}
-function sprintOfflineKneeMetrics(result){const out=[];for(const c of result?.nearby||[]){const f=sprintOfflineNearestPoseFrameByMs(c.t,100);if(!f)continue;const side=c.side,hi=side==="left"?23:24,ki=side==="left"?25:26,ai=side==="left"?27:28,l=sprintOfflineTrackedLandmarks(f),hip=l?.[hi],knee=l?.[ki],ank=l?.[ai];if(!hip||!knee||!ank||(knee.visibility??0)<.28)continue;const contactAngle=startOfflineJointAngle(hip,knee,ank);if(!Number.isFinite(contactAngle))continue;const end=c.duration?Math.min(c.t+c.duration,c.t+180):c.t+160,angles=[];let inferred=!!knee._inferredKnee;for(const q of sprintOfflinePoseFrames){const ms=q.t*1000;if(ms<c.t||ms>end)continue;const lm=sprintOfflineTrackedLandmarks(q),H=lm?.[hi],K=lm?.[ki],A=lm?.[ai];if(!H||!K||!A||(K.visibility??0)<.25)continue;const a=startOfflineJointAngle(H,K,A);if(Number.isFinite(a)){angles.push(a);if(K._inferredKnee)inferred=true;}}const minAngle=angles.length?Math.min(...angles):contactAngle,flex=Math.max(0,contactAngle-minAngle);out.push({side,t:c.t,contactAngle,minAngle,flex,inferred,confidence:Math.min(c.confidence||0,knee.visibility??0,f.poseQuality||0)});}return out;}
+function sprintOfflineNearestPoseFrameByMs(ms,maxGap=120){let best=null,d=Infinity;for(const f of sprintOfflinePoseFrames){const x=Math.abs(f.t*1000-ms);if(x<d){d=x;best=f;}if(f.t*1000>ms&&x>d)break;}const fps=Math.max(1,sprintOfflineEffectiveFps()),frameGapMs=1000/fps,allowed=Math.min(maxGap,Math.max(frameGapMs*1.55,18));return d<=allowed?best:null;}
+function sprintOfflineJointAngle57(a,b,c){if(!a||!b||!c)return null;const w=Math.max(1,sprintOfflineCanvas?.width||sprintOfflineVideo?.videoWidth||1),h=Math.max(1,sprintOfflineCanvas?.height||sprintOfflineVideo?.videoHeight||1),ar=w/h,A={x:a.x*ar,y:a.y},B={x:b.x*ar,y:b.y},C={x:c.x*ar,y:c.y},v1={x:A.x-B.x,y:A.y-B.y},v2={x:C.x-B.x,y:C.y-B.y},n1=Math.hypot(v1.x,v1.y),n2=Math.hypot(v2.x,v2.y);if(!n1||!n2)return null;return Math.acos(bodyClamp((v1.x*v2.x+v1.y*v2.y)/(n1*n2),-1,1))*180/Math.PI;}
+function sprintOfflineKneeMetrics(result){const out=[];for(const c of result?.nearby||[]){const f=sprintOfflineNearestPoseFrameByMs(c.t,100);if(!f)continue;const side=c.side,hi=side==="left"?23:24,ki=side==="left"?25:26,ai=side==="left"?27:28,l=sprintOfflineTrackedLandmarks(f),hip=l?.[hi],knee=l?.[ki],ank=l?.[ai];if(!hip||!knee||!ank||(knee.visibility??0)<.28)continue;const contactAngle=sprintOfflineJointAngle57(hip,knee,ank);if(!Number.isFinite(contactAngle))continue;const end=c.duration?Math.min(c.t+c.duration,c.t+180):c.t+160,angles=[];let inferred=!!knee._inferredKnee;for(const q of sprintOfflinePoseFrames){const ms=q.t*1000;if(ms<c.t||ms>end)continue;const lm=sprintOfflineTrackedLandmarks(q),H=lm?.[hi],K=lm?.[ki],A=lm?.[ai];if(!H||!K||!A||(K.visibility??0)<.25)continue;const a=sprintOfflineJointAngle57(H,K,A);if(Number.isFinite(a)){angles.push(a);if(K._inferredKnee)inferred=true;}}const minAngle=angles.length?Math.min(...angles):contactAngle,flex=Math.max(0,contactAngle-minAngle);out.push({side,t:c.t,contactAngle,minAngle,flex,inferred,confidence:Math.min(c.confidence||0,knee.visibility??0,f.poseQuality||0)});}return out;}
 function sprintOfflinePeakFormInsight(result){
     const f=sprintOfflineNearestPoseFrameByMs(result?.peakT??0,120);if(!f)return null;const l=sprintOfflineTrackedLandmarks(f),hip=sprintOfflineHipPoint(l),shA=l?.[11],shB=l?.[12];if(!hip||!shA||!shB)return null;const sh={x:(shA.x+shB.x)/2*sprintOfflineCanvas.width,y:(shA.y+shB.y)/2*sprintOfflineCanvas.height},g=sceneGroundAxis("sprintoffline"),up={x:g.y,y:-g.x},v={x:sh.x-hip.x,y:sh.y-hip.y},vn=Math.hypot(v.x,v.y)||1,vertical=Math.abs((v.x*up.x+v.y*up.y)/vn),trunkFromVertical=Math.acos(bodyClamp(vertical,0,1))*180/Math.PI;return {trunkFromVertical,frame:f.index,quality:f.poseQuality||0};
 }
@@ -7520,8 +7521,12 @@ async function sprintOfflineAnalyze(){
     if(sprintOfflineAnalyzing||!sprintOfflineVideo.src||!sprintOfflineFrameTimes.length)return;if(startOfflineAnalyzing){alert("スタート動画の高精度解析が実行中です。完了後にSPRINTPEAK動画解析を開始してください。");return;}if(sprintRunning){alert("リアルタイムSPRINTPEAK解析を終了してから動画解析を開始してください。");return;}
     sprintOfflineAnalyzing=true;sprintOfflineCancelRequested=false;const analyzeBtn=document.getElementById("sprint-offline-analyze"),cancelBtn=document.getElementById("sprint-offline-cancel"),startOfflineBtn=document.getElementById("start-offline-analyze"),liveBtn=document.getElementById("sprint-start");analyzeBtn.disabled=true;cancelBtn.disabled=false;if(startOfflineBtn)startOfflineBtn.disabled=true;if(liveBtn)liveBtn.disabled=true;
     sprintOfflinePoseFrames=[];sprintOfflinePoseMap=new Map();sprintOfflinePositions=[];sprintOfflineSpeedFrames=[];sprintOfflineContacts=[];sprintOfflineContactDurations=[];sprintOfflinePatchTracks=new Map();sprintOfflinePatchStats={enabled:false,points:0,frames:0,reanchored:0,failed:0,forward:0,backward:0};sprintOfflineGroundModel=null;sprintOfflineFootDetail=new Map();sprintOfflineFootDetailStats={left:0,right:0,total:0,ankle:0,heel:0,toe:0};sprintOfflineFootSignals={left:[],right:[]};sprintOfflineContactRecoveryStats={inferredFootFrames:0,recoveredContacts:0,suspiciousGaps:0};sprintOfflineInferredKnees=new Map();sprintOfflineTrackingResolvedSeed=null;sprintOfflineTrackingStats={left:0,right:0,total:0,bidirectional:0,supportInterpolated:0,rejectedLongGap:0};
-    const fps=sprintOfflineEffectiveFps(),density=document.getElementById("sprint-offline-analysis-density").value,maxRate=density==="all"?Infinity:parseFloat(density),stride=maxRate===Infinity?1:Math.max(1,Math.ceil(fps/maxRate)),from=sprintOfflineRangeStart||0,to=sprintOfflineRangeEnd??sprintOfflineVideo.duration??0,indices=[];
-    for(let i=0;i<sprintOfflineFrameTimes.length;i+=stride){const t=sprintOfflineFrameTimes[i];if(t+1e-6>=from&&t-1e-6<=to)indices.push(i);}if(indices.length){const lastCandidate=sprintOfflineFrameTimes.length-1;if(sprintOfflineFrameTimes[lastCandidate]<=to&&indices[indices.length-1]!==lastCandidate)indices.push(lastCandidate);}if(sprintOfflineTrackingSeed.frameIndex!==null){const ri=sprintOfflineTrackingSeed.frameIndex,rt=sprintOfflineFrameTimes[ri];if(Number.isFinite(rt)&&rt>=from-.001&&rt<=to+.001&&!indices.includes(ri))indices.push(ri);}indices.sort((a,b)=>a-b);
+    const fps=sprintOfflineEffectiveFps(),density=document.getElementById("sprint-offline-analysis-density").value,maxRate=density==="all"?Infinity:parseFloat(density),from=sprintOfflineRangeStart||0,to=sprintOfflineRangeEnd??sprintOfflineVideo.duration??0,indices=[];
+    if(maxRate===Infinity||!Number.isFinite(maxRate)||maxRate>=fps*.985){for(let i=0;i<sprintOfflineFrameTimes.length;i++){const t=sprintOfflineFrameTimes[i];if(t+1e-6>=from&&t-1e-6<=to)indices.push(i);}}
+    else{const period=1/Math.max(1,maxRate);let nextT=from;for(let i=0;i<sprintOfflineFrameTimes.length;i++){const t=sprintOfflineFrameTimes[i];if(t+1e-6<from||t-1e-6>to)continue;if(t+1e-6>=nextT){indices.push(i);while(nextT<=t+1e-6)nextT+=period;}}}
+    if(indices.length){let lastInRange=null;for(let i=sprintOfflineFrameTimes.length-1;i>=0;i--){if(sprintOfflineFrameTimes[i]<=to+1e-6&&sprintOfflineFrameTimes[i]>=from-1e-6){lastInRange=i;break;}}if(lastInRange!==null&&indices[indices.length-1]!==lastInRange)indices.push(lastInRange);}
+    if(sprintOfflineTrackingSeed.frameIndex!==null){const ri=sprintOfflineTrackingSeed.frameIndex,rt=sprintOfflineFrameTimes[ri];if(Number.isFinite(rt)&&rt>=from-.001&&rt<=to+.001&&!indices.includes(ri))indices.push(ri);}indices.sort((a,b)=>a-b);
+    window.__sprintAnalysisState57={...(window.__sprintAnalysisState57||{}),running:true,targetIndices:indices.slice(),targetFrameCount:indices.length,from,to,sourceFps:fps,requestedRate:maxRate,lastUiAt:0,startedAt:performance.now()};
     document.getElementById("sprint-offline-analysis-status").innerText=`高精度解析中：${indices.length}フレーム（元動画約${fps.toFixed(1)}fps / Pose解析約${Math.min(fps,maxRate===Infinity?fps:maxRate).toFixed(1)}fps相当）。`;
     try{
         const v53ManualSelection=typeof window.__sprintV53Selection==="function"?window.__sprintV53Selection():null;
@@ -7535,7 +7540,7 @@ async function sprintOfflineAnalyze(){
         if(!sprintOfflineCancelRequested&&offlineTrackPointCount(sprintOfflineTrackingSeed)>0&&sprintOfflinePoseFrames.length){sprintOfflineTrackingResolvedSeed=offlineTrackResolveSeed(sprintOfflineTrackingSeed,sprintOfflinePoseFrames,sprintOfflineCanvas.width,sprintOfflineCanvas.height);if(sprintOfflineTrackingResolvedSeed){document.getElementById("sprint-offline-analysis-status").innerText="Pose解析完了。初期タップを使って画像パッチ追跡を前後方向に実行しています…";const pr=await offlineRunPatchTracking({video:sprintOfflineVideo,seekTime:sprintOfflineSeekTime,indices,frameTimes:sprintOfflineFrameTimes,seed:sprintOfflineTrackingSeed,resolved:sprintOfflineTrackingResolvedSeed,poseMap:sprintOfflinePoseMap,w:sprintOfflineCanvas.width,h:sprintOfflineCanvas.height,cancelled:()=>sprintOfflineCancelRequested,onProgress:(done,total,dir)=>{const local=total?done/total:1,pct=84+Math.min(15,local*15);document.getElementById("sprint-offline-progress").style.width=pct.toFixed(1)+"%";if(done%12===0)document.getElementById("sprint-offline-analysis-status").innerText=`画像追跡 ${dir==="forward"?"順方向":"逆方向"} ${done}/${total}`;}});sprintOfflinePatchTracks=pr.map;sprintOfflinePatchStats=pr.stats;}}
         sprintOfflineRecomputeDerived();document.getElementById("sprint-offline-progress").style.width=sprintOfflineCancelRequested?document.getElementById("sprint-offline-progress").style.width:"100%";if(sprintOfflineCancelRequested)document.getElementById("sprint-offline-analysis-status").innerText=`解析を中止しました。有効Pose ${sprintOfflinePoseFrames.length}フレーム。取得済み範囲で暫定結果を表示します。`;else{const patchInfo=sprintOfflinePatchStats.enabled?` ／ 画像追跡 ${sprintOfflinePatchStats.frames}フレーム`:"",groundInfo=sprintOfflineGroundModel?.valid?` ／ 地面モデル ${Math.round(sprintOfflineGroundModel.confidence*100)}%`:"",poseRatio=sprintOfflinePoseFrames.length/Math.max(1,indices.length);if(!sprintOfflinePoseFrames.length){document.getElementById("sprint-offline-analysis-status").innerText="⚠ 人体Poseを検出できませんでした。選手が遠い・小さい、または複数人が映っている可能性があります。上の『解析対象選手』を指定して再解析してください。";}else{document.getElementById("sprint-offline-analysis-status").innerText=`解析完了：有効Pose ${sprintOfflinePoseFrames.length}/${indices.length}フレーム ／ 速度サンプル ${sprintOfflineSpeedFrames.length} ／ 接地 ${sprintOfflineContacts.length}件${patchInfo}${groundInfo}${poseRatio<.20?" ／ ⚠ Pose取得率が低いため対象範囲指定を推奨":""}`;}sprintOfflineRoiPostAnalyze(indices.length);}
         await sprintOfflineSeekTime(from);
-    }finally{sprintOfflineAnalyzing=false;analyzeBtn.disabled=false;cancelBtn.disabled=true;if(startOfflineBtn)startOfflineBtn.disabled=false;if(liveBtn)liveBtn.disabled=false;}
+    }finally{if(window.__sprintAnalysisState57){window.__sprintAnalysisState57.running=false;window.__sprintAnalysisState57.finishedAt=performance.now();window.__sprintAnalysisState57.elapsedMs=window.__sprintAnalysisState57.finishedAt-(window.__sprintAnalysisState57.startedAt||window.__sprintAnalysisState57.finishedAt);}sprintOfflineAnalyzing=false;analyzeBtn.disabled=false;cancelBtn.disabled=true;if(startOfflineBtn)startOfflineBtn.disabled=false;if(liveBtn)liveBtn.disabled=false;}
 }
 const sprintOfflineTrackingLabels={"near:hip":"手前脚 腰・股関節","near:knee":"手前脚 膝","near:ankle":"手前脚 足首","near:heel":"手前脚 踵","near:toe":"手前脚 つま先","far:hip":"奥脚 腰・股関節","far:knee":"奥脚 膝","far:ankle":"奥脚 足首","far:heel":"奥脚 踵","far:toe":"奥脚 つま先"};
 function sprintOfflineRenderTrackingUi(){const ref=document.getElementById("sprint-offline-tracking-reference");if(!ref)return;const hasRef=sprintOfflineTrackingSeed.frameIndex!==null;offlineTrackingButtonState(ref,hasRef?"done":"idle",hasRef?`初期追跡基準 Frame ${sprintOfflineTrackingSeed.frameIndex}`:"現在フレームを初期追跡基準にする");document.querySelectorAll("[data-sprint-offline-track-leg]").forEach(btn=>{const leg=btn.dataset.sprintOfflineTrackLeg,joint=btn.dataset.sprintOfflineTrackJoint,key=`${leg}:${joint}`,done=!!sprintOfflineTrackingSeed.points?.[leg]?.[joint],active=sprintOfflineTrackingActive?.leg===leg&&sprintOfflineTrackingActive?.joint===joint;offlineTrackingButtonState(btn,active?"active":done?"done":"idle",sprintOfflineTrackingLabels[key]);});const el=document.getElementById("sprint-offline-tracking-status"),count=offlineTrackPointCount(sprintOfflineTrackingSeed),map=sprintOfflineTrackingResolvedSeed?.mapping,mp=map?` ／ 対応：手前→${map.near==="left"?"MediaPipe左":map.near==="right"?"MediaPipe右":"--"}、奥→${map.far==="left"?"MediaPipe左":map.far==="right"?"MediaPipe右":"--"}`:"",knee=sprintOfflinePoseFrames.length?` ／ 膝補完 ${sprintOfflineTrackingStats.total}F（双方向 ${sprintOfflineTrackingStats.bidirectional||0}F）`:"",patch=sprintOfflinePatchStats.enabled?` ／ 画像追跡 ${sprintOfflinePatchStats.frames}F・${sprintOfflinePatchStats.points}点`:"",ground=sprintOfflineGroundModel?.valid?` ／ 地面 ${Math.round(sprintOfflineGroundModel.confidence*100)}%`:"";if(sprintOfflineTrackingActive){el.innerText=`${sprintOfflineTrackingLabels[`${sprintOfflineTrackingActive.leg}:${sprintOfflineTrackingActive.joint}`]}：映像上の正しい位置をタップしてください。`;return;}if(!hasRef){el.innerText="任意機能：未指定。通常のMediaPipe解析をそのまま実行できます。";return;}el.innerText=`初期基準 Frame ${sprintOfflineTrackingSeed.frameIndex} ／ 指定 ${count}/10点${mp}${knee}${patch}${ground}${sprintOfflinePoseFrames.length&&count&&!sprintOfflinePatchStats.enabled?" ／ ※画像追跡を反映するには高精度解析を再実行":""}`;}
@@ -9633,10 +9638,10 @@ function v32EnsureQualityCard(){
 function v32RefreshQuality(){
   const card=v32EnsureQualityCard();if(!card||typeof sprintOfflineContacts==='undefined')return;
   const contacts=sprintOfflineContacts||[],total=contacts.length,manual=contacts.filter(c=>c.manualAnchor||String(c.source||'').includes('manual-contact')).length,auto=Math.max(0,total-manual),manualLift=contacts.filter(c=>c.manualLiftoff).length,durationN=contacts.filter(c=>v32Finite(c.duration)).length,sideAdj=window.__sprintV32SideStats?.adjusted||0,sideWarn=window.__sprintV32SideStats?.warnings||0;
-  const poseN=(typeof sprintOfflinePoseFrames!=='undefined'&&sprintOfflinePoseFrames?.length)||0,attempts=(typeof ATS!=='undefined'&&ATS?.sprint?.run?.attempts)||poseN,poseRate=attempts?Math.round(poseN/attempts*100):0,autoPct=total?Math.round(auto/total*100):0,manualPct=total?Math.round(manual/total*100):0;
+  const poseN=(typeof sprintOfflinePoseFrames!=='undefined'&&new Set((sprintOfflinePoseFrames||[]).map(f=>f.index)).size)||0,attempts=window.__sprintAnalysisState57?.targetFrameCount||(typeof ATS!=='undefined'&&ATS?.sprint?.run?.attempts)||poseN,poseRate=attempts?Math.round(Math.min(1,poseN/attempts)*100):0,poseVis=(typeof sprintOfflinePoseFrames!=='undefined'&&sprintOfflinePoseFrames?.length)?Math.round(offlineTrackMedian(sprintOfflinePoseFrames.map(f=>f.poseQuality).filter(Number.isFinite))*100):0,autoPct=total?Math.round(auto/total*100):0,manualPct=total?Math.round(manual/total*100):0;
   card.classList.remove('attention','good');if(total&&manualPct>=50)card.classList.add('attention');else if(total&&poseRate>=70&&manualPct<35)card.classList.add('good');
   if(!total){card.innerHTML='<div class="v32-quality-title">解析データの内訳</div><div class="v32-quality-note">接地系列が確定すると、自動検出・手動補正・離地確定数を表示します。</div>';return;}
-  const chips=[`Pose ${poseN}/${attempts||'--'}F (${poseRate}%)`,`最終接地 ${total}件`,`自動確定 ${auto}件 (${autoPct}%)`,`手動接地 ${manual}件 (${manualPct}%)`,`接地時間確定 ${durationN}/${total}`,manualLift?`手動離地 ${manualLift}件`:null,sideAdj?`脚系列補正 ${sideAdj}件`:null,sideWarn?`脚系列要確認 ${sideWarn}件`:null].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
+  const chips=[`Pose取得 ${poseN}/${attempts||'--'}F (${poseRate}%)`,`可視性中央値 ${poseVis}%`,`最終接地 ${total}件`,`自動確定 ${auto}件 (${autoPct}%)`,`手動接地 ${manual}件 (${manualPct}%)`,`接地時間確定 ${durationN}/${total}`,manualLift?`手動離地 ${manualLift}件`:null,sideAdj?`脚系列補正 ${sideAdj}件`:null,sideWarn?`脚系列要確認 ${sideWarn}件`:null].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
   let note='自動確定率は「最終接地系列のうち自動のまま採用できた割合」であり、解析精度そのものを表す数値ではありません。';
   if(manualPct>=50)note+=` 今回は手動接地が${manualPct}%を占めるため、接地時刻は補正後データを優先し、Pose由来の姿勢・位置指標はPose取得率も併せて確認してください。`;
   if(sideWarn)note+=` 同じ脚が短い間隔で連続し、反対脚の画像根拠が不足した箇所が${sideWarn}件あります。接地系列を目視確認してください。`;
@@ -12547,33 +12552,11 @@ setTimeout(ensureUi42,0);
     try{if(frames===sprintOfflinePoseFrames&&typeof sprintOfflineTrackedLandmarks==='function')return sprintOfflineTrackedLandmarks;}catch(_){}
     return null;
   }
-  function temporallyFilterFootMap46(frames,map,w,h){
-    if(!frames?.length||!map?.size)return {map,series:0,points:0};
-    const frameByIndex=new Map(frames.map(f=>[f.index,f])),diag=Math.hypot(w||1,h||1),fs=clamp46(fps46(frames),10,240),fc=Math.min(fs*.43,Math.max(7.5,Math.min(22,fs*.22)));
-    const getter=landmarkGetter46(frames);let seriesCount=0,pointCount=0;
-    const parts=['ankle','heel','toe'];
-    for(const side of ['left','right'])for(const part of parts){
-      const rows=[];for(const f of frames){const p=map.get(f.index)?.[side]?.[part];if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y))rows.push({f,p});}
-      if(rows.length<7)continue;
-      const times=rows.map(r=>r.f.t),confs=rows.map(r=>r.p.visibility??.35),xs=rows.map(r=>r.p.x),ys=rows.map(r=>r.p.y);
-      const kx=kalman1D46(xs,times,confs,diag),ky=kalman1D46(ys,times,confs,diag),bx=zeroPhaseButter46(kx,fs,fc),by=zeroPhaseButter46(ky,fs,fc);
-      for(let i=0;i<rows.length;i++){
-        const r=rows[i],p=r.p;let manual=false;
-        try{const lm=getter?.(r.f),idx=OFFLINE_TRACK_DEFS?.[side]?.[part],raw=Number.isFinite(idx)?lm?.[idx]:null;manual=!!(raw?._manualCorrection||raw?._trackingSeed);}catch(_){}
-        if(manual)continue;
-        const vis=clamp46(p.visibility??.35,0,1),source=String(p.source||'');let weight=vis>=.84?.58:vis>=.60?.70:.84;if(p._inferredPart||source.includes('inferred'))weight=.88;if(p._patchTracked||source.includes('patch'))weight=Math.min(weight,.68);
-        const rawX=p.x,rawY=p.y;p.x=rawX*(1-weight)+bx[i]*weight;p.y=rawY*(1-weight)+by[i]*weight;p._v46RawX=rawX;p._v46RawY=rawY;p._v46TemporalFiltered=true;p._v46FilterWeight=weight;pointCount++;
-      }
-      seriesCount++;
-    }
-    /* Foot center must be rebuilt after the component trajectories move. */
-    for(const [idx,rec] of map){for(const side of ['left','right']){const d=rec?.[side];if(!d)continue;const heel=d.heel,toe=d.toe,ankle=d.ankle;let center=null;if(heel&&toe)center={x:(heel.x+toe.x)/2,y:(heel.y+toe.y)/2,visibility:Math.min(heel.visibility??0,toe.visibility??0),source:(heel._patchTracked||toe._patchTracked)?'patch/fused':(heel._inferredPart||toe._inferredPart)?'part-inferred':'pose',_inferredFoot:!!(heel._inferredPart||toe._inferredPart),_v46TemporalFiltered:true};else if(ankle&&heel)center={x:heel.x*.65+ankle.x*.35,y:heel.y*.65+ankle.y*.35,visibility:Math.min(heel.visibility??0,ankle.visibility??0)*.72,source:'partial',_inferredFoot:true,_v46TemporalFiltered:true};else if(ankle&&toe)center={x:toe.x*.65+ankle.x*.35,y:toe.y*.65+ankle.y*.35,visibility:Math.min(toe.visibility??0,ankle.visibility??0)*.72,source:'partial',_inferredFoot:true,_v46TemporalFiltered:true};if(center)d.center=center;}}
-    V46.temporal.runs++;V46.temporal.series+=seriesCount;V46.temporal.points+=pointCount;V46.temporal.lastFps=fs;V46.temporal.lastCutoff=fc;return {map,series:seriesCount,points:pointCount,fs,fc};
-  }
+  function temporallyFilterFootMap46(frames,map,w,h){if(!frames?.length||!map?.size)return {map,series:0,points:0};const diag=Math.hypot(w||1,h||1),fs=clamp46(fps46(frames),10,240),fc=Math.min(fs*.43,Math.max(7.5,Math.min(22,fs*.22))),maxBridge=Math.max((1/fs)*2.4,.045),getter=landmarkGetter46(frames);let seriesCount=0,pointCount=0,splitCount=0;const parts=['ankle','heel','toe'];for(const side of ['left','right'])for(const part of parts){const all=[];for(const f of frames){const p=map.get(f.index)?.[side]?.[part];if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y))all.push({f,p});}if(all.length<7)continue;const segments=[];let seg=[];for(const row of all){if(seg.length&&row.f.t-seg[seg.length-1].f.t>maxBridge){segments.push(seg);seg=[];splitCount++;}seg.push(row);}if(seg.length)segments.push(seg);for(const rows of segments){if(rows.length<5)continue;const times=rows.map(r=>r.f.t),confs=rows.map(r=>r.p.visibility??.35),xs=rows.map(r=>r.p.x),ys=rows.map(r=>r.p.y),kx=kalman1D46(xs,times,confs,diag),ky=kalman1D46(ys,times,confs,diag),bx=zeroPhaseButter46(kx,fs,fc),by=zeroPhaseButter46(ky,fs,fc);for(let i=0;i<rows.length;i++){const r=rows[i],p=r.p;let manual=false;try{const lm=getter?.(r.f),idx=OFFLINE_TRACK_DEFS?.[side]?.[part],raw=Number.isFinite(idx)?lm?.[idx]:null;manual=!!(raw?._manualCorrection||raw?._trackingSeed);}catch(_){}if(manual)continue;const vis=clamp46(p.visibility??.35,0,1),source=String(p.source||'');let weight=vis>=.84?.52:vis>=.60?.64:.76;if(p._inferredPart||source.includes('inferred'))weight=.84;if(p._patchTracked||source.includes('patch'))weight=Math.min(weight,.62);if(i>0&&i<rows.length-1){const dt=Math.max(.001,rows[i+1].f.t-rows[i-1].f.t),vx=(rows[i+1].p.x-rows[i-1].p.x)/dt,vy=(rows[i+1].p.y-rows[i-1].p.y)/dt,speed=Math.hypot(vx,vy);if(speed>.9)weight*=.62;else if(speed>.55)weight*=.78;}const rawX=p.x,rawY=p.y;p.x=rawX*(1-weight)+bx[i]*weight;p.y=rawY*(1-weight)+by[i]*weight;p._v46RawX=rawX;p._v46RawY=rawY;p._v46TemporalFiltered=true;p._v46FilterWeight=weight;p._v57SegmentedFilter=true;pointCount++;}seriesCount++;}}for(const [idx,rec] of map){for(const side of ['left','right']){const d=rec?.[side];if(!d)continue;const heel=d.heel,toe=d.toe,ankle=d.ankle;let center=null;if(heel&&toe)center={x:(heel.x+toe.x)/2,y:(heel.y+toe.y)/2,visibility:Math.min(heel.visibility??0,toe.visibility??0),source:(heel._patchTracked||toe._patchTracked)?'patch/fused':(heel._inferredPart||toe._inferredPart)?'part-inferred':'pose',_inferredFoot:!!(heel._inferredPart||toe._inferredPart),_v46TemporalFiltered:true,_v57SegmentedFilter:true};else if(ankle&&heel)center={x:heel.x*.65+ankle.x*.35,y:heel.y*.65+ankle.y*.35,visibility:Math.min(heel.visibility??0,ankle.visibility??0)*.72,source:'partial',_inferredFoot:true,_v46TemporalFiltered:true,_v57SegmentedFilter:true};else if(ankle&&toe)center={x:toe.x*.65+ankle.x*.35,y:toe.y*.65+ankle.y*.35,visibility:Math.min(toe.visibility??0,ankle.visibility??0)*.72,source:'partial',_inferredFoot:true,_v46TemporalFiltered:true,_v57SegmentedFilter:true};if(center)d.center=center;}}V46.temporal.runs++;V46.temporal.series+=seriesCount;V46.temporal.points+=pointCount;V46.temporal.lastFps=fs;V46.temporal.lastCutoff=fc;V46.temporal.lastSplitCount=splitCount;return {map,series:seriesCount,points:pointCount,fs,fc,splitCount};}
   const baseFootDetail46=offlineBuildResilientFootDetail;
   offlineBuildResilientFootDetail=function(frames,w,h,landmarkGetter,maxGapSec=.16){
     const r=baseFootDetail46(frames,w,h,landmarkGetter,maxGapSec);
-    try{const f=temporallyFilterFootMap46(frames,r.map,w,h);r.map=f.map;r.stats={...(r.stats||{}),temporalFilter:'kalman+zero-phase-butterworth',temporalFilteredPoints:f.points,temporalSeries:f.series,temporalCutoffHz:f.fc||null};}catch(e){console.warn('v46 temporal foot filter fallback',e);}return r;
+    try{const f=temporallyFilterFootMap46(frames,r.map,w,h);r.map=f.map;r.stats={...(r.stats||{}),temporalFilter:'gap-aware kalman+zero-phase-butterworth',temporalFilteredPoints:f.points,temporalSeries:f.series,temporalCutoffHz:f.fc||null};}catch(e){console.warn('v46 temporal foot filter fallback',e);}return r;
   };
 
   /* ---------- B) FootNet-inspired extra kinematic signals ---------- */
@@ -13358,7 +13341,7 @@ function setupCrop53(crop,kind='measurement'){
   if(aspect>=1){dw=longTarget;dh=Math.max(kind==='discovery'?360:520,Math.round(dw/aspect));}
   else{dh=longTarget;dw=Math.max(kind==='discovery'?360:520,Math.round(dh*aspect));}
   const m=Math.max(dw,dh);if(m>longTarget){const k=longTarget/m;dw=Math.max(320,Math.round(dw*k));dh=Math.max(320,Math.round(dh*k));}
-  canvas.width=dw;canvas.height=dh;ctx.fillStyle='#000';ctx.fillRect(0,0,dw,dh);ctx.imageSmoothingEnabled=true;try{ctx.imageSmoothingQuality='high';}catch(_){}
+  if(canvas.width!==dw)canvas.width=dw;if(canvas.height!==dh)canvas.height=dh;ctx.fillStyle='#000';ctx.fillRect(0,0,dw,dh);ctx.imageSmoothingEnabled=true;try{ctx.imageSmoothingQuality='high';}catch(_){}
   try{ctx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);}catch(e){console.warn('v53 crop draw failed',e);return null;}
   V53.sourceW=vw;V53.sourceH=vh;V53.lastInputW=dw;V53.lastInputH=dh;V53.lastCrop={...crop,kind,sourcePx:{x:sx,y:sy,w:sw,h:sh}};V53.stats.cropCalls++;
   return {canvas,crop};
@@ -13370,36 +13353,10 @@ function candidate53(out,prep){
   const q=quality53(lm),vh=V53.sourceH||video53()?.videoHeight||1,athletePx=g.bbox.h*vh;
   return {out:{...out,poseLandmarks:lm},lm,g,q,athletePx,crop:prep.crop};
 }
-async function sendMeasurement53(crop,{fresh=false}={}){
-  const prep=setupCrop53(crop,'measurement');if(!prep)return null;
-  V53.stats.measurementCalls++;
-  if(fresh)await resetPose53(typeof startOfflinePose!=='undefined'?startOfflinePose:null);
-  let out=null;try{out=await startOfflinePoseSend(prep.canvas);}catch(e){console.warn('v53 measurement Pose failed',e);return null;}
-  const c=candidate53(out,prep);if(c)V53.stats.measurementPoseHits++;
-  return c;
-}
-async function sendDiscovery53(crop,zone='whole'){
-  const prep=setupCrop53(crop,'discovery');if(!prep)return null;
-  V53.stats.discoveryCalls++;if(V53.stats.zones[zone])V53.stats.zones[zone].calls++;
-  try{const p=await ensureAthleteDiscoveryPose();await resetPose53(p);}catch(_){}
-  let out=null;try{out=await athleteDiscoverySend(prep.canvas);}catch(e){console.warn('v53 discovery Pose failed',e);return null;}
-  const c=candidate53(out,prep);
-  if(c){V53.stats.discoveryPoseHits++;if(V53.stats.zones[zone])V53.stats.zones[zone].hits++;}
-  return c;
-}
+async function sendMeasurement53(crop,{fresh=false}={}){V53.stats.timing=V53.stats.timing||{cropMs:0,poseMs:0,discoveryPoseMs:0,calls:0};const f=currentFrame53();V53.stats.frameAttempts=V53.stats.frameAttempts||{};V53.stats.frameAttempts[f]=(V53.stats.frameAttempts[f]||0)+1;const tc=performance.now(),prep=setupCrop53(crop,'measurement');V53.stats.timing.cropMs+=performance.now()-tc;if(!prep)return null;V53.stats.measurementCalls++;if(fresh)await resetPose53(typeof startOfflinePose!=='undefined'?startOfflinePose:null);let out=null;const tp=performance.now();try{out=await startOfflinePoseSend(prep.canvas);}catch(e){console.warn('v57 measurement Pose failed',e);return null;}finally{V53.stats.timing.poseMs+=performance.now()-tp;V53.stats.timing.calls++;}const c=candidate53(out,prep);if(c)V53.stats.measurementPoseHits++;return c;}
+async function sendDiscovery53(crop,zone='whole'){V53.stats.timing=V53.stats.timing||{cropMs:0,poseMs:0,discoveryPoseMs:0,calls:0};const f=currentFrame53();V53.stats.frameAttempts=V53.stats.frameAttempts||{};V53.stats.frameAttempts[f]=(V53.stats.frameAttempts[f]||0)+1;const tc=performance.now(),prep=setupCrop53(crop,'discovery');V53.stats.timing.cropMs+=performance.now()-tc;if(!prep)return null;V53.stats.discoveryCalls++;if(V53.stats.zones[zone])V53.stats.zones[zone].calls++;try{const p=await ensureAthleteDiscoveryPose();await resetPose53(p);}catch(_){}let out=null;const tp=performance.now();try{out=await athleteDiscoverySend(prep.canvas);}catch(e){console.warn('v57 discovery Pose failed',e);return null;}finally{V53.stats.timing.discoveryPoseMs+=performance.now()-tp;V53.stats.timing.calls++;}const c=candidate53(out,prep);if(c){V53.stats.discoveryPoseHits++;if(V53.stats.zones[zone])V53.stats.zones[zone].hits++;}return c;}
 function expectedPx53(sel){const vh=video53()?.videoHeight||1;return V53.seedAthletePx||V53.track.lastAthletePx||(sel?.h?sel.h*vh:0);}
-function manualScore53(c,sel,{seed=false}={}){
-  if(!c?.g||!sel)return -Infinity;
-  const expected=Math.max(50,expectedPx53(sel)),ratio=Math.max(.05,c.athletePx/expected),sizeFit=Math.exp(-Math.abs(Math.log(ratio))*1.28);
-  const ref=seed?center53(sel):(V53.track.center||center53(sel)),dist=Math.hypot(c.g.center.x-ref.x,c.g.center.y-ref.y);
-  const miss=V53.track.missStreak||0,allow=seed?.38:Math.min(.68,.30+miss*.055),near=Math.max(0,1-dist/Math.max(.01,allow));
-  const gate=expand53(sel,seed?2.25:Math.min(4.4,2.7+miss*.22),seed?1.60:Math.min(2.35,1.75+miss*.10)),gc=c.g.center;
-  const inGate=gc.x>=gate.x&&gc.x<=gate.x+gate.w&&gc.y>=gate.y&&gc.y<=gate.y+gate.h;
-  if(seed&&(!inGate||ratio<.42||ratio>2.45)){V53.stats.identityRejects++;return -Infinity;}
-  if(!seed&&V53.track.locked&&(!inGate||ratio<.36||ratio>2.75)){V53.stats.identityRejects++;return -Infinity;}
-  if(!seed&&V53.track.locked&&dist>allow&&miss<5){V53.stats.identityRejects++;return -Infinity;}
-  return (c.q||0)*1.55+sizeFit*2.85+near*1.40+Math.min(1,c.g.points/18)*.55;
-}
+function manualScore53(c,sel,{seed=false}={}){if(!c?.g||!sel)return -Infinity;const expected=Math.max(50,expectedPx53(sel)),ratio=Math.max(.05,c.athletePx/expected),sizeFit=Math.exp(-Math.abs(Math.log(ratio))*1.28),t=V53.track||{},miss=t.missStreak||0,curF=currentFrame53(),lastF=Number.isFinite(t.lastFrame)?t.lastFrame:curF,frameGap=Math.max(1,Math.abs(curF-lastF)),baseCenter=t.center||center53(sel),pred=seed?center53(sel):{x:clamp53(baseCenter.x+(t.velocity?.x||0)*Math.min(4,frameGap+miss*.35),0,1),y:clamp53(baseCenter.y+(t.velocity?.y||0)*Math.min(2.5,frameGap+miss*.20),0,1)},dist=Math.hypot(c.g.center.x-pred.x,c.g.center.y-pred.y),allow=seed?.38:Math.min(.46,.16+frameGap*.045+miss*.050),near=Math.max(0,1-dist/Math.max(.01,allow));let gate;if(seed)gate=expand53(sel,2.25,1.60);else{const roi=t.roi||expand53(c.g.bbox,2.2,1.6),gw=Math.min(.90,Math.max(roi.w*(1.08+miss*.10),c.g.bbox.w*2.7,.24)),gh=Math.min(.99,Math.max(roi.h*(1.06+miss*.07),c.g.bbox.h*1.85,.52));gate=around53(pred,gw,gh);}const gc=c.g.center,inGate=gc.x>=gate.x&&gc.x<=gate.x+gate.w&&gc.y>=gate.y&&gc.y<=gate.y+gate.h,reject=reason=>{V53.stats.identityRejects++;V53.stats.rejectReasons=V53.stats.rejectReasons||{};V53.stats.rejectReasons[reason]=(V53.stats.rejectReasons[reason]||0)+1;return -Infinity;};if(seed&&(!inGate||ratio<.42||ratio>2.45))return reject(!inGate?'seed-gate':'seed-size');if(!seed&&t.locked&&(!inGate||ratio<.40||ratio>2.55))return reject(!inGate?'track-predicted-gate':'track-size');if(!seed&&t.locked&&dist>allow&&miss<4)return reject('track-motion');return (c.q||0)*1.60+sizeFit*2.90+near*1.55+Math.min(1,c.g.points/18)*.55;}
 function autoScore53(c){
   if(!c?.g)return -Infinity;
   const vh=V53.sourceH||video53()?.videoHeight||1,size=Math.min(2.8,c.athletePx/Math.max(1,vh*.18));
@@ -13441,71 +13398,11 @@ function discoveryWindows53(){
   ];
 }
 
-async function manualSeedAttempt53(sel){
-  const r=rect53(sel),crops=uniqueRects53([expand53(r,1.12,1.16),expand53(r,1.55,1.34),expand53(r,2.15,1.58)]);
-  let best=null,bestScore=-Infinity;
-  for(const crop of crops){
-    const c=await sendMeasurement53(crop,{fresh:true});if(!c)continue;
-    const s=manualScore53(c,sel,{seed:true});if(s>bestScore){best=c;bestScore=s;}
-  }
-  if(best&&bestScore>=2.15){
-    V53.seedAthletePx=best.athletePx;updateTrack53(best,sel,true,{seed:true});return best.out;
-  }
-  return null;
-}
-async function manualAdaptive53(sel){
-  ensureManualState53(sel);
-  const t=V53.track,base=t.roi||expand53(rect53(sel),2.15,1.55);
-  const crops=uniqueRects53([base,expand53(base,1.18,1.10),t.missStreak>=2?expand53(base,1.42,1.18):null].filter(Boolean));
-  let best=null,bestScore=-Infinity;
-  for(let i=0;i<crops.length;i++){
-    const c=await sendMeasurement53(crops[i],{fresh:i>0&&t.missStreak>0});if(!c)continue;
-    const s=manualScore53(c,sel,{seed:false});if(s>bestScore){best=c;bestScore=s;}
-    if(s>=4.25)break;
-  }
-  if(!best||bestScore<2.30){
-    V53.stats.searches++;best=null;bestScore=-Infinity;
-    for(const w of wideWindows53()){
-      const c=await sendMeasurement53(w.rect,{fresh:true});if(!c)continue;
-      const s=manualScore53(c,sel,{seed:false});if(s>bestScore){best=c;bestScore=s;}
-    }
-  }
-  if(best&&bestScore>=2.18){updateTrack53(best,sel,true,{reacquire:t.missStreak>0});return best.out;}
-  miss53();return null;
-}
+async function manualSeedAttempt53(sel){const r=rect53(sel),crops=uniqueRects53([expand53(r,1.18,1.18),expand53(r,1.58,1.36),expand53(r,2.10,1.58)]);let best=null,bestScore=-Infinity;for(let i=0;i<crops.length;i++){const c=await sendMeasurement53(crops[i],{fresh:i>0});if(!c)continue;const s=manualScore53(c,sel,{seed:true});if(s>bestScore){best=c;bestScore=s;}if(s>=4.35&&c.q>=.46)break;if(i===1&&bestScore>=3.45)break;}if(best&&bestScore>=2.15){V53.seedAthletePx=best.athletePx;updateTrack53(best,sel,true,{seed:true});return best.out;}return null;}
+async function manualAdaptive53(sel){ensureManualState53(sel);const t=V53.track,base=t.roi||expand53(rect53(sel),2.15,1.55);let best=null,bestScore=-Infinity,tries=0;const consider=async(crop,fresh=false)=>{if(!crop)return false;tries++;const c=await sendMeasurement53(crop,{fresh});if(!c)return false;const s=manualScore53(c,sel,{seed:false});if(s>bestScore){best=c;bestScore=s;}return s>=4.05&&c.q>=.42;};let strong=await consider(base,false);if(!strong&&bestScore<3.55)strong=await consider(expand53(base,1.18,1.10),t.missStreak>0);if(!strong&&bestScore<2.60&&t.missStreak>=2)strong=await consider(expand53(base,1.40,1.16),true);if((!best||bestScore<2.25)&&t.missStreak>=1){V53.stats.searches++;V53.stats.retryFrames=(V53.stats.retryFrames||0)+1;best=null;bestScore=-Infinity;const pred=t.center?around53({x:clamp53(t.center.x+(t.velocity?.x||0)*Math.min(4,t.missStreak+1),0,1),y:clamp53(t.center.y+(t.velocity?.y||0)*Math.min(2,t.missStreak+1),0,1)},Math.min(.78,(t.roi?.w||.42)*1.45),Math.min(.98,(t.roi?.h||.72)*1.25)):null;if(pred)strong=await consider(pred,true);if(!strong&&(!best||bestScore<2.20)){const cx=t.center?.x??center53(sel).x,ws=wideWindows53().sort((a,b)=>Math.abs((a.rect.x+a.rect.w/2)-cx)-Math.abs((b.rect.x+b.rect.w/2)-cx)).slice(0,2);for(const w of ws){if(await consider(w.rect,true))break;}}}if(best&&bestScore>=2.12){if(tries===1)V53.stats.firstPassHits=(V53.stats.firstPassHits||0)+1;updateTrack53(best,sel,true,{reacquire:t.missStreak>0});return best.out;}miss53();return null;}
 
-async function discoverAuto53(){
-  V53.stats.searches++;
-  const candidates=[];
-  for(const w of discoveryWindows53()){
-    const c=await sendDiscovery53(w.rect,w.zone);if(!c)continue;
-    c.discoveryScore=autoScore53(c);c.zone=w.zone;candidates.push(c);
-  }
-  candidates.sort((a,b)=>b.discoveryScore-a.discoveryScore);
-  const vh=video53()?.videoHeight||1;
-  for(const d of candidates.slice(0,3)){
-    if(d.athletePx<Math.max(115,vh*.105))continue;
-    const g=d.g,crop=around53(g.center,Math.min(.84,Math.max(.26,g.bbox.w*2.35)),Math.min(.98,Math.max(.56,g.bbox.h*1.72)));
-    const m=await sendMeasurement53(crop,{fresh:true});if(!m)continue;
-    if(m.athletePx<Math.max(120,vh*.11)||autoScore53(m)<2.05)continue;
-    if(V53.mode!=='auto-track')resetTrack53(null,'auto-track',false);
-    V53.track.center={...m.g.center};V53.track.roi=expand53(m.g.bbox,2.25,1.65);updateTrack53(m,m.g.bbox,false,{seed:true,reacquire:true});
-    return m.out;
-  }
-  return null;
-}
-async function autoTrack53(){
-  const t=V53.track,base=t.roi||{x:.18,y:.02,w:.64,h:.96};
-  let best=null,bestScore=-Infinity;
-  for(let i=0;i<2;i++){
-    const crop=i===0?base:expand53(base,1.28,1.12),c=await sendMeasurement53(crop,{fresh:i===1&&t.missStreak>0});if(!c)continue;
-    const s=autoScore53(c);if(s>bestScore){best=c;bestScore=s;}
-  }
-  if(best&&bestScore>=1.95){updateTrack53(best,best.g.bbox,false,{reacquire:t.missStreak>0});return best.out;}
-  miss53();
-  if(t.missStreak>=2)return await discoverAuto53();
-  return null;
-}
+async function discoverAuto53(){V53.stats.searches++;const vh=video53()?.videoHeight||1,ordered=discoveryWindows53();for(const w of ordered){const d=await sendDiscovery53(w.rect,w.zone);if(!d)continue;const ds=autoScore53(d);if(ds<1.95)continue;const g=d.g,crop=around53(g.center,Math.min(.84,Math.max(.26,g.bbox.w*2.35)),Math.min(.98,Math.max(.56,g.bbox.h*1.72))),mm=await sendMeasurement53(crop,{fresh:true});if(!mm)continue;if(mm.athletePx>=Math.max(120,vh*.11)&&autoScore53(mm)>=2.05){if(V53.mode!=='auto-track')resetTrack53(null,'auto-track',false);V53.track.center={...mm.g.center};V53.track.roi=expand53(mm.g.bbox,2.25,1.65);updateTrack53(mm,mm.g.bbox,false,{seed:true,reacquire:true});return mm.out;}if(ds>=3.2)break;}return null;}
+async function autoTrack53(){const t=V53.track,base=t.roi||{x:.18,y:.02,w:.64,h:.96};let best=null,bestScore=-Infinity;const first=await sendMeasurement53(base,{fresh:false});if(first){best=first;bestScore=autoScore53(first);if(bestScore>=2.12&&first.q>=.40){updateTrack53(first,first.g.bbox,false,{reacquire:t.missStreak>0});V53.stats.firstPassHits=(V53.stats.firstPassHits||0)+1;return first.out;}}if(bestScore<2.55){const c=await sendMeasurement53(expand53(base,1.26,1.12),{fresh:t.missStreak>0});if(c){const s=autoScore53(c);if(s>bestScore){best=c;bestScore=s;}}}if(best&&bestScore>=1.95){updateTrack53(best,best.g.bbox,false,{reacquire:t.missStreak>0});return best.out;}miss53();if(t.missStreak>=2)return await discoverAuto53();return null;}
 
 function nearestFrameForTime53(t){
   if(!sprintOfflineFrameTimes?.length)return 0;
@@ -13627,21 +13524,7 @@ function renderDiag53(){
    Auto: independent Discovery first, then high-precision measurement.
    Manual: normal calls use the same target identity rules; the main analyzer
    itself uses __sprintV53RunManualPosePass for seed-centered bidirectional order. */
-window.sprintOfflinePoseSendAdaptive=async function(){
-  ensureUi53();const sel=selected53();
-  if(sel?.manualLock)return await manualAdaptive53(cloneSelection53(sel));
-  if(V53.mode==='manual')resetTrack53(null,'idle',false);
-  if(V53.mode==='auto-track'){
-    const tracked=await autoTrack53();if(tracked?.poseLandmarks)return tracked;
-  }
-  const discovered=await discoverAuto53();if(discovered?.poseLandmarks)return discovered;
-  let original=null;try{original=await previousAdaptive53();}catch(e){console.warn('v53 legacy adaptive fallback',e);}
-  if(original?.poseLandmarks){
-    const g=geom53(original.poseLandmarks),vh=video53()?.videoHeight||1,px=g?.bbox?.h*vh||0;
-    if(px>=Math.max(140,vh*.16)){V53.lastAthletePx=px;V53.lastQuality=quality53(original.poseLandmarks);renderDiag53();return original;}
-  }
-  return null;
-};
+window.sprintOfflinePoseSendAdaptive=async function(){ensureUi53();const sel=selected53(),frame=currentFrame53();if(sel?.manualLock)return await manualAdaptive53(cloneSelection53(sel));if(V53.mode==='manual')resetTrack53(null,'idle',false);if(V53.mode==='auto-track'){const tracked=await autoTrack53();if(tracked?.poseLandmarks)return tracked;}const discovered=await discoverAuto53();if(discovered?.poseLandmarks)return discovered;const lost=V53.track?.missStreak||0;if(lost>=4&&frame%3===0){let original=null;try{original=await previousAdaptive53();}catch(e){console.warn('v57 legacy last-resort',e);}if(original?.poseLandmarks){const g=geom53(original.poseLandmarks),vh=video53()?.videoHeight||1,px=g?.bbox?.h*vh||0;if(px>=Math.max(140,vh*.16)){V53.lastAthletePx=px;V53.lastQuality=quality53(original.poseLandmarks);renderDiag53();return original;}}}return null;};
 
 $('sprint-offline-analyze')?.addEventListener('click',()=>{
   const sel=selected53();
@@ -14401,6 +14284,15 @@ window.__SPRINT_TIMER_V56={build:build56,angle:{min:ANGLE_MIN56,max:ANGLE_MAX56,
 window.addEventListener('DOMContentLoaded',()=>{installAngleMini56();renderReliabilityNote56();syncAngleMini56();});
 if(document.readyState!=='loading')setTimeout(()=>{installAngleMini56();renderReliabilityNote56();syncAngleMini56();},0);
 })();
+</script>
+
+
+<style id="v57-sol-performance-accuracy-style">
+#sprint-v57-sol-diagnostics{margin:8px 0;padding:9px 10px;border:1px solid #a7c7e7;border-radius:9px;background:#f7fbff;color:#334155;font-size:12px;line-height:1.55;text-align:left}
+#sprint-v57-sol-diagnostics b{color:#0f3b66}#sprint-v57-sol-diagnostics .warn{color:#b45309;font-weight:800}
+</style>
+<script id="v57-sol-performance-accuracy">
+(()=>{'use strict';const BUILD57='20260925-v57-sol-performance-accuracy',$57=id=>document.getElementById(id),P57=window.__sprintProfiler57={build:BUILD57,run:0,seekMs:0,seekCalls:0,recomputeMs:0,recomputeCalls:0,startedAt:0};function reset57(){P57.run++;P57.seekMs=0;P57.seekCalls=0;P57.recomputeMs=0;P57.recomputeCalls=0;P57.startedAt=performance.now();}function wrapA57(name,keyMs,keyCalls){const base=window[name];if(typeof base!=='function'||base.__v57)return;const w=async function(...a){const t=performance.now();try{return await base.apply(this,a);}finally{P57[keyMs]+=performance.now()-t;P57[keyCalls]++;}};w.__v57=true;window[name]=w;}function wrapS57(name,keyMs,keyCalls){const base=window[name];if(typeof base!=='function'||base.__v57)return;const w=function(...a){const t=performance.now();try{return base.apply(this,a);}finally{P57[keyMs]+=performance.now()-t;P57[keyCalls]++;}};w.__v57=true;window[name]=w;}wrapA57('sprintOfflineSeekTime','seekMs','seekCalls');wrapS57('sprintOfflineRecomputeDerived','recomputeMs','recomputeCalls');function ensure57(){let d=$57('sprint-v57-sol-diagnostics');if(d)return d;const host=$57('sprint-v53-target-diagnostics')||$57('sprint-offline-analysis-status');if(!host)return null;d=document.createElement('div');d.id='sprint-v57-sol-diagnostics';host.insertAdjacentElement('afterend',d);return d;}function render57(){const d=ensure57();if(!d)return;const st=window.__sprintAnalysisState57||{},v=window.__sprintV53TargetTracker?.stats||{},fa=Object.values(v.frameAttempts||{}),avg=fa.length?fa.reduce((a,b)=>a+b,0)/fa.length:0,max=fa.length?Math.max(...fa):0,poseN=typeof sprintOfflinePoseFrames!=='undefined'?new Set((sprintOfflinePoseFrames||[]).map(f=>f.index)).size:0,target=st.targetFrameCount||0,elapsed=st.elapsedMs||(st.startedAt?performance.now()-st.startedAt:0),poseMs=(v.timing?.poseMs||0)+(v.timing?.discoveryPoseMs||0),rr=Object.entries(v.rejectReasons||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,n])=>`${k}:${n}`).join(' / ');d.innerHTML=`<b>v57 Sol 診断：</b>対象 ${target||'--'}F ／ Pose取得 ${poseN}${target?'/'+target:''} ／ 1F平均推論 ${avg.toFixed(2)}回（最大 ${max}） ／ 初回採用 ${v.firstPassHits||0}F<br>計時：全体 ${(elapsed/1000).toFixed(1)}s ／ seek・提示待ち ${(P57.seekMs/1000).toFixed(1)}s (${P57.seekCalls}) ／ Pose推論 ${(poseMs/1000).toFixed(1)}s ／ 後処理 ${(P57.recomputeMs/1000).toFixed(1)}s${rr?'<br>拒否理由：'+rr:''}${avg>2?'<br><span class="warn">同一フレーム再推論がまだ多めです。</span>':''}`;}$57('sprint-offline-analyze')?.addEventListener('click',()=>{reset57();setTimeout(render57,250);},{capture:true});const s57=$57('sprint-offline-analysis-status');if(s57)new MutationObserver(()=>{if(!window.__sprintAnalysisState57?.running)render57();}).observe(s57,{childList:true,subtree:true,characterData:true});setInterval(()=>{if(window.__sprintAnalysisState57?.running)render57();},1000);window.__SPRINT_TIMER_V57={build:BUILD57,fixes:['moving-target predicted identity gate','first-pass inference early exit','duplicate discovery suppression','aspect-correct joint angles','time-based fps sampling','unified Pose denominator','gap-aware foot smoothing','evidence <= ~1.5 frame','analysis UI throttle','crop canvas reuse','profiling/rejection diagnostics']};})();
 </script>
 
 </body>
