@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.09.25.57">
-<meta name="sprint-timer-build" content="20260925-v56-start-contact-angle-evidence-reliability">
+<meta name="sprint-timer-version" content="2026.10.01.58">
+<meta name="sprint-timer-build" content="20261001-v58-pose-fallback-compact-video-ui">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.09.25.57";
-window.SPRINT_TIMER_BUILD = "20260925-v56-start-contact-angle-evidence-reliability";
+window.SPRINT_TIMER_VERSION = "2026.10.01.58";
+window.SPRINT_TIMER_BUILD = "20261001-v58-pose-fallback-compact-video-ui";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -455,27 +455,34 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button type="button" class="action-btn btn-blue" id="start-offline-zoom-in" aria-label="拡大">＋</button>
                 <button type="button" class="action-btn btn-gray" id="start-offline-zoom-reset">等倍</button>
             </div>
-            <div class="small" style="margin-bottom:8px;text-align:left;">1〜5倍。スマートフォンは2本指でピンチ拡大・縮小、そのまま2本指で移動できます。拡大は表示だけに適用し、関節・バトンのタップ位置は元動画座標へ逆変換して保存します。</div>
+            
             <input type="range" id="start-offline-seek" min="0" max="1" step="0.0001" value="0">
             <div class="setting-header"><span id="start-offline-time-label">0.000 s</span><span class="setting-value" id="start-offline-frame-label">Frame --</span></div>
             <div class="small" id="start-offline-fps-info" style="margin-bottom:10px;">フレーム情報：--</div>
-            <div class="button-row" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:10px;">
-                <button class="action-btn btn-gray" id="start-offline-prev-frame">◀ 1フレーム</button>
+            <div class="button-row v58-frame-controls" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:6px;">
+                <button class="action-btn btn-gray" id="start-offline-prev-frame">◀ 1F</button>
                 <button class="action-btn btn-blue" id="start-offline-play">▶ 再生</button>
-                <button class="action-btn btn-gray" id="start-offline-next-frame">1フレーム ▶</button>
+                <button class="action-btn btn-gray" id="start-offline-next-frame">1F ▶</button>
             </div>
-            <div class="video-tap-hint">動画を1回タップすると再生／停止できます。接地・地面・身体ポイントなどの補正中は誤操作防止のため自動的に無効になります。</div>
-            <div class="settings-card start-offline-quick-analysis-card" id="start-offline-quick-analysis-card" style="margin:8px 0 10px;box-shadow:none;">
+            <div id="start-athlete-track-card" class="athlete-track-card v58-compact-athlete-card">
+                <div class="setting-header v58-compact-head"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="start-athlete-track-label">全画面解析</span></div>
+                <div class="athlete-track-buttons">
+                    <button type="button" class="action-btn btn-blue" id="start-athlete-track-set">選手を囲って追跡</button>
+                    <button type="button" class="action-btn btn-gray" id="start-athlete-track-reset">追跡解除</button>
+                </div>
+                <div class="athlete-track-status" id="start-athlete-track-status">未指定でも解析できます。認識しにくい動画では選手を囲ってください。</div>
+                <details class="v58-inline-diagnostics"><summary>解析診断</summary><div class="athlete-track-diagnostics" id="start-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div></details>
+            </div>
+            <div class="settings-card start-offline-quick-analysis-card v58-compact-analysis-card" id="start-offline-quick-analysis-card" style="margin:6px 0 8px;box-shadow:none;">
                 <div class="setting-header" style="margin-bottom:6px;"><span><b>解析範囲・解析開始</b></span><span class="setting-value">動画を見ながら設定</span></div>
-                <div class="small" style="margin-bottom:7px;">必要な区間だけに絞ると解析時間を短縮できます。開始フレームと終了フレームを決め、そのまま解析を開始できます。</div>
                 <div class="button-row start-offline-range-quick-buttons" style="grid-template-columns:1fr 1fr 0.8fr;">
-                    <button class="action-btn btn-gray" id="start-offline-range-start" aria-pressed="false">現在を解析開始</button>
-                    <button class="action-btn btn-gray" id="start-offline-range-end" aria-pressed="false">現在を解析終了</button>
+                    <button class="action-btn btn-gray" id="start-offline-range-start" aria-pressed="false">開始を設定</button>
+                    <button class="action-btn btn-gray" id="start-offline-range-end" aria-pressed="false">終了を設定</button>
                     <button class="action-btn btn-gray" id="start-offline-range-reset">全動画</button>
                 </div>
                 <div class="small" id="start-offline-range-info" style="margin-top:5px;">解析範囲：全動画</div>
                 <div class="button-row" style="grid-template-columns:2fr 1fr;margin-top:8px;">
-                    <button class="action-btn btn-green" id="start-offline-analyze">この範囲を高精度解析</button>
+                    <button class="action-btn btn-green" id="start-offline-analyze">この範囲を解析</button>
                     <button class="action-btn btn-red" id="start-offline-cancel" disabled>解析中止</button>
                 </div>
                 <div class="info" id="start-offline-analysis-status" style="margin-top:7px;">解析待機中</div>
@@ -1212,7 +1219,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button type="button" class="action-btn btn-blue" id="sprint-offline-zoom-in" aria-label="拡大">＋</button>
                 <button type="button" class="action-btn btn-gray" id="sprint-offline-zoom-reset">等倍</button>
             </div>
-            <div class="small" style="margin-bottom:8px;text-align:left;">1〜5倍。スマートフォンは2本指でピンチ拡大・縮小、そのまま2本指で移動できます。拡大は表示だけに適用し、関節・バトンのタップ位置は元動画座標へ逆変換して保存します。</div>
+            
             <div id="sprint-offline-roi-card">
                 <div class="setting-header"><span class="roi-title">解析対象選手（遠い・複数人動画向け）</span><span class="setting-value" id="sprint-offline-roi-label">全画面</span></div>
                 <div class="small" style="text-align:left;margin-bottom:8px;">選手が小さい、または複数人が映る場合に使用します。<b>「選手をドラッグで囲む」→頭から足先まで入るように指で囲ってください。</b> 指定範囲を内部で拡大してPose解析し、走行中は身体中心を追って解析範囲を移動します。</div>
@@ -1230,7 +1237,7 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                 <button class="action-btn btn-blue" id="sprint-offline-play">▶ 再生</button>
                 <button class="action-btn btn-gray" id="sprint-offline-next-frame">1フレーム ▶</button>
             </div>
-            <div class="video-tap-hint">動画を1回タップすると再生／停止できます。接地・地面・選手指定などの補正中は誤操作防止のため自動的に無効になります。</div>
+            
             <div class="offline-evidence-panel" id="sprint-offline-evidence-panel" aria-live="polite">
                 <div id="sprint-offline-evidence-status"><b>測定根拠表示</b>：結果や接地イベントの［!］を押すと該当フレームへ移動し、支持脚・足部・体幹などの算出根拠を表示します。</div>
                 <div class="button-row" style="grid-template-columns:1fr 1fr 1fr;">
@@ -1335,8 +1342,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
                     </select>
                 </div>
                 <div class="button-row" style="grid-template-columns:1fr 1fr 1fr;">
-                    <button class="action-btn btn-gray" id="sprint-offline-range-start" aria-pressed="false">現在を解析開始</button>
-                    <button class="action-btn btn-gray" id="sprint-offline-range-end" aria-pressed="false">現在を解析終了</button>
+                    <button class="action-btn btn-gray" id="sprint-offline-range-start" aria-pressed="false">開始を設定</button>
+                    <button class="action-btn btn-gray" id="sprint-offline-range-end" aria-pressed="false">終了を設定</button>
                     <button class="action-btn btn-gray" id="sprint-offline-range-reset">全動画</button>
                 </div>
                 <div class="small" id="sprint-offline-range-info">解析範囲：全動画</div>
@@ -1473,8 +1480,8 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
 
 
 <div id="app-version-footer" aria-label="アプリのバージョン情報">
-  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.09.25.56</span></div>
-  <div class="app-version-build">Build <span id="app-build-text">20260925-v56-start-contact-angle-evidence-reliability</span></div>
+  <div class="app-version-main">Sprint Timer Pro — Version <span id="app-version-text">2026.10.01.58</span></div>
+  <div class="app-version-build">Build <span id="app-build-text">20261001-v58-pose-fallback-compact-video-ui</span></div>
   <div id="app-install-area">
     <button type="button" id="app-install-btn">ホーム画面に追加</button>
     <div id="app-install-status" aria-live="polite">ホーム画面からアプリのように起動できます。</div>
@@ -3549,8 +3556,8 @@ function startOfflineUpdateQualityWarning(){
 }
 function startOfflineUpdateRangeButtons(){
     const a=document.getElementById("start-offline-range-start"),b=document.getElementById("start-offline-range-end");if(!a||!b)return;
-    a.classList.toggle("btn-gray",!startOfflineRangeStartSelected);a.classList.toggle("btn-blue",startOfflineRangeStartSelected);a.setAttribute("aria-pressed",String(startOfflineRangeStartSelected));a.innerText=startOfflineRangeStartSelected?`✓ 解析開始 ${startOfflineRangeStart.toFixed(3)}s`:"現在を解析開始";
-    b.classList.toggle("btn-gray",!startOfflineRangeEndSelected);b.classList.toggle("btn-orange",startOfflineRangeEndSelected);b.setAttribute("aria-pressed",String(startOfflineRangeEndSelected));b.innerText=startOfflineRangeEndSelected?`✓ 解析終了 ${(startOfflineRangeEnd??0).toFixed(3)}s`:"現在を解析終了";
+    a.classList.toggle("btn-gray",!startOfflineRangeStartSelected);a.classList.toggle("btn-blue",startOfflineRangeStartSelected);a.setAttribute("aria-pressed",String(startOfflineRangeStartSelected));a.innerText=startOfflineRangeStartSelected?`✓ 開始 ${startOfflineRangeStart.toFixed(3)}s`:"開始を設定";
+    b.classList.toggle("btn-gray",!startOfflineRangeEndSelected);b.classList.toggle("btn-orange",startOfflineRangeEndSelected);b.setAttribute("aria-pressed",String(startOfflineRangeEndSelected));b.innerText=startOfflineRangeEndSelected?`✓ 終了 ${(startOfflineRangeEnd??0).toFixed(3)}s`:"終了を設定";
 }
 const startOfflineHelpContent={
     "contact-anchor":{title:"接地を手動で修正",body:"コマ送りで実際の接地フレームを確認し、その位置を接地として追加・変更できます。手動で指定した接地時刻は自動判定より優先され、その前後の接地系列も再探索します。足の左右が明確な場合は左/右を選択してください。Poseを取得できない動画でも、手動で指定した接地時刻はタイミング系列として結果に反映します。"},
@@ -9084,7 +9091,7 @@ function diag(prefix,forceMsg=''){
   e.diag.innerHTML=`<b>解析診断</b><div class="athlete-track-diag-chips">${chips}</div>${note}`;
 }
 function resetRun(prefix){
-  const st=ATS[prefix];if(!st.selected){st.run=null;return;}const init=padRect(st.selected,.30,.26),c=rectCenter(init),manualLocked=prefix==='sprint'&&!!st.selected?.manualLock;
+  const st=ATS[prefix];if(!st.selected){st.run=null;return;}const init=padRect(st.selected,.30,.26),c=rectCenter(init),manualLocked=!!st.selected?.manualLock;
   st.run={roi:init,lastGoodRoi:init,center:c,lastGoodCenter:c,velocity:{x:0,y:0},lost:0,maxLost:0,attempts:0,hits:0,predicted:0,reacquired:0,rejectedJump:0,history:new Map(),baseW:init.w,baseH:init.h,identityLocked:manualLocked,selectionId:st.selected?.selectionId||null,lastGoodBodyW:null,lastGoodBodyH:null,identityRejects:0,lastIdentityReject:null,hardLost:false};
   render(prefix);diag(prefix);
 }
@@ -9098,20 +9105,18 @@ function finishSelection(prefix,a,b){
   const cfg=AT[prefix],cv=cfg.canvas(),st=ATS[prefix];if(!cv?.width)return false;const x1=clamp(Math.min(a.x,b.x)/cv.width,0,1),y1=clamp(Math.min(a.y,b.y)/cv.height,0,1),x2=clamp(Math.max(a.x,b.x)/cv.width,0,1),y2=clamp(Math.max(a.y,b.y)/cv.height,0,1),r={x:x1,y:y1,w:x2-x1,h:y2-y1};
   st.selecting=false;if(prefix==='sprint')window.__sprintV49Selecting=false;st.drag=null;st.draft=null;if(r.w<.045||r.h<.07){render(prefix,'範囲が小さすぎます。頭から足先まで入るように、もう少し大きく囲ってください。');ui(prefix).card?.classList.add('attention');cfg.draw();return false;}
   const rr=rectClamp(r);
-  if(prefix==='sprint'){
-    st.selectionRevision=(st.selectionRevision||0)+1;
-    const selectionId=`manual-${st.selectionRevision}-f${cfg.frame()}`;
-    st.selected={...rr,frame:cfg.frame(),time:cfg.time(),auto:false,manual:true,manualLock:true,selectionId};
-    st.discovery=null;st.discoveryFrameAttempts=0;
-    window.__sprintManualTargetV51={selectionId,rect:{x:rr.x,y:rr.y,w:rr.w,h:rr.h},frame:cfg.frame(),time:cfg.time()};
-  }else st.selected={...rr,frame:cfg.frame(),time:cfg.time()};
+  st.selectionRevision=(st.selectionRevision||0)+1;
+  const selectionId=`manual-${prefix}-${st.selectionRevision}-f${cfg.frame()}`;
+  st.selected={...rr,frame:cfg.frame(),time:cfg.time(),auto:false,manual:true,manualLock:true,selectionId};
+  st.discovery=null;st.discoveryFrameAttempts=0;
+  if(prefix==='sprint')window.__sprintManualTargetV51={selectionId,rect:{x:rr.x,y:rr.y,w:rr.w,h:rr.h},frame:cfg.frame(),time:cfg.time()};
   resetRun(prefix);st.run=null;render(prefix);diag(prefix);cfg.draw();
   if(prefix==='sprint')window.__sprintV51SyncTargetBox?.(st.selected,true);
   return true;
 }
 function canvasPoint(prefix,e){return offlineZoomClientToCanvas(AT[prefix].canvas(),e);}
 function installSelectionEvents(prefix){
-  const cv=AT[prefix].canvas();if(!cv)return;
+  const cv=AT[prefix].canvas();if(!cv)return;if(cv.dataset.v58AthleteSelectionInstalled)return;cv.dataset.v58AthleteSelectionInstalled='1';
   cv.addEventListener('pointerdown',e=>{const st=ATS[prefix];if(!st.selecting)return;e.preventDefault();e.stopImmediatePropagation();const p=canvasPoint(prefix,e);st.drag=p;st.draft={a:p,b:p};try{cv.setPointerCapture(e.pointerId)}catch(_){}AT[prefix].draw();},{capture:true});
   cv.addEventListener('pointermove',e=>{const st=ATS[prefix];if(!st.selecting||!st.drag)return;e.preventDefault();e.stopImmediatePropagation();st.draft={a:st.drag,b:canvasPoint(prefix,e)};AT[prefix].draw();},{capture:true});
   cv.addEventListener('pointerup',e=>{const st=ATS[prefix];if(!st.selecting||!st.drag)return;e.preventDefault();e.stopImmediatePropagation();const a=st.drag,b=canvasPoint(prefix,e);try{cv.releasePointerCapture(e.pointerId)}catch(_){}finishSelection(prefix,a,b);},{capture:true});
@@ -9205,7 +9210,7 @@ function rejectManualIdentity51(run,reason){
 }
 function updateRunWithPose(prefix,mapped,crop){
   const st=ATS[prefix],run=st.run,g=bodyGeometry(mapped);if(!run||!g)return false;
-  const manualLocked=prefix==='sprint'&&!!st.selected?.manualLock;
+  const manualLocked=!!st.selected?.manualLock;
   if(manualLocked){
     const ref=run.lastGoodCenter||rectCenter(st.selected),pred=run.center||ref,px=clamp(pred.x,0,1),py=clamp(pred.y,0,1);
     if((run.hits||0)===0){
@@ -9244,17 +9249,22 @@ function updateRunLost(prefix){
   }
 }
 async function adaptive(prefix){
-  const cfg=AT[prefix],st=ATS[prefix],v=cfg.video();
-  /* v51: SPRINTPEAK automatic selection is conservative. A small person may be
-     used as a search clue, but it is never promoted to the measurement target
-     merely because repeated searches failed. Manual selection is authoritative. */
+  const cfg=AT[prefix],st=ATS[prefix],v=cfg.video(),isStart=prefix==='start';
+  /* v58 reliability policy:
+     START uses full-frame Pose whenever it succeeds. Auto Crop is a rescue path,
+     not a permanent requirement. This prevents an early wrong/empty crop from
+     turning the rest of an otherwise valid clip into Pose 0. */
   if(!st.selected){
     const first=await cfg.baseSend(v);
     if(first?.poseLandmarks){
       const g=bodyGeometry(first.poseLandmarks),vh=v.videoHeight||cfg.canvas().height||720,athletePx=g?.bbox?.h*vh;
       st.discovery={phase:'full-pose',tested:0,total:0,found:true,fullAthletePx:Number.isFinite(athletePx)?Math.round(athletePx):0};
-      const fullValid=!!(g&&g.points>=10&&Number.isFinite(athletePx)&&athletePx>=60&&athletePx<=vh*.94);
-      const smallSprintCandidate=prefix==='sprint'&&fullValid&&athletePx<vh*.32;
+      const fullValid=!!(g&&g.points>=10&&Number.isFinite(athletePx)&&athletePx>=55&&athletePx<=vh*.96);
+      /* For START, do not auto-lock a crop after a valid full-frame result.
+         Keep the known-working full-frame path unless the user explicitly boxes
+         the athlete or full-frame Pose actually fails. */
+      if(isStart){render(prefix);diag(prefix);return first;}
+      const smallSprintCandidate=fullValid&&athletePx<vh*.32;
       if(smallSprintCandidate){
         st.discoveryFrameAttempts=(st.discoveryFrameAttempts||0)+1;
         const fullPx=athletePx,found=await discoverAthleteByCrop(prefix,false);
@@ -9274,32 +9284,59 @@ async function adaptive(prefix){
         resetRun(prefix);
         if(st.run){
           const run=st.run,crop=rectClamp(run.roi);run.attempts++;run.history.set(cfg.frame(),{...crop});
-          try{
-            const refined=await cfg.baseSend(prepareInput(prefix,crop));
-            if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}
-          }catch(e){updateRunLost(prefix);}
+          try{const refined=await cfg.baseSend(prepareInput(prefix,crop));if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}}catch(e){updateRunLost(prefix);}
         }
       }
       render(prefix);diag(prefix);return first;
     }
+
     st.discoveryFrameAttempts=(st.discoveryFrameAttempts||0)+1;
-    if(st.discoveryFrameAttempts<=5){
+    /* v30 stopped Crop discovery permanently after five failed frames. For START
+       that can happen before the athlete enters the useful part of the clip.
+       v58 keeps retrying at a reduced cadence until a runner is found. */
+    const tryDiscovery=isStart?(st.discoveryFrameAttempts<=2||st.discoveryFrameAttempts%3===0):st.discoveryFrameAttempts<=5;
+    if(tryDiscovery){
       const found=await discoverAthleteByCrop(prefix,true);
       if(found){
         resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;run.history.set(cfg.frame(),{...crop});
-        try{
-          const refined=await cfg.baseSend(prepareInput(prefix,crop));
-          if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}
-        }catch(e){updateRunLost(prefix);}
+        try{const refined=await cfg.baseSend(prepareInput(prefix,crop));if(refined?.poseLandmarks){const mapped=mappedLandmarks(refined.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...refined,poseLandmarks:mapped};}}}catch(e){updateRunLost(prefix);}
         render(prefix);diag(prefix);return null;
       }
     }
-    if(st.discoveryFrameAttempts>=5&&st.discovery?.phase!=='found'){st.discovery={...(st.discovery||{}),phase:'manual-recommended',found:false};}
+    if(!isStart&&st.discoveryFrameAttempts>=5&&st.discovery?.phase!=='found')st.discovery={...(st.discovery||{}),phase:'manual-recommended',found:false};
+    if(isStart&&st.discoveryFrameAttempts>=5&&st.discovery?.phase!=='found')st.discovery={...(st.discovery||{}),phase:'manual-recommended',found:false,retryContinues:true};
     render(prefix);diag(prefix);return first?{...first,poseLandmarks:null}:first;
   }
-  if(!st.run)resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;const idx=cfg.frame();run.history.set(idx,{...crop});let out;try{out=await cfg.baseSend(prepareInput(prefix,crop));}catch(e){updateRunLost(prefix);throw e;}
+
+  if(!st.run)resetRun(prefix);const run=st.run,crop=rectClamp(run.roi);run.attempts++;const idx=cfg.frame();run.history.set(idx,{...crop});let out;
+  try{out=await cfg.baseSend(prepareInput(prefix,crop));}catch(e){updateRunLost(prefix);throw e;}
   if(out?.poseLandmarks){const mapped=mappedLandmarks(out.poseLandmarks,crop);if(updateRunWithPose(prefix,mapped,crop)){render(prefix);diag(prefix);return {...out,poseLandmarks:mapped};}}
-  updateRunLost(prefix);render(prefix);diag(prefix);return out?{...out,poseLandmarks:null}:out;
+  updateRunLost(prefix);
+
+  /* START rescue: after a crop miss, immediately verify the original full frame.
+     If the same athlete is spatially/size-consistent, accept it and re-anchor the
+     tracker. This is deliberately reliability-first and only runs after a miss. */
+  if(isStart){
+    let full=null;try{full=await cfg.baseSend(v);}catch(_){full=null;}
+    if(full?.poseLandmarks){
+      const g=bodyGeometry(full.poseLandmarks),vh=v.videoHeight||cfg.canvas().height||720;
+      if(g&&g.points>=9){
+        const ref=run.lastGoodCenter||run.center||rectCenter(st.selected),dist=Math.hypot(g.center.x-ref.x,g.center.y-ref.y),allow=Math.min(.56,.22+(run.lost||0)*.065);
+        const prevH=run.lastGoodBodyH||st.selected.h||g.bbox.h,ratio=g.bbox.h/Math.max(.001,prevH),sizeOk=ratio>=.40&&ratio<=2.55;
+        if(dist<=allow&&sizeOk){
+          if(st.selected?.auto){const rr=padRect(g.bbox,.18,.14);st.selected={...rr,frame:cfg.frame(),time:cfg.time(),auto:true,athletePx:g.bbox.h*vh,discovery:false,manualLock:false};}
+          if(!updateRunWithPose(prefix,full.poseLandmarks,{x:0,y:0,w:1,h:1})){
+            const keepManual=!!st.selected?.manualLock,rr=keepManual?st.selected:padRect(g.bbox,.18,.14);st.selected={...rr,frame:cfg.frame(),time:cfg.time(),auto:!keepManual,manual:keepManual,manualLock:keepManual,selectionId:st.selected?.selectionId};resetRun(prefix);
+          }
+          render(prefix);diag(prefix);return full;
+        }
+      }
+    }
+    if((run.lost||0)>=3&&st.selected?.auto===true){
+      try{const found=await discoverAthleteByCrop(prefix,true);if(found){resetRun(prefix);render(prefix);diag(prefix);}}catch(_){}
+    }
+  }
+  render(prefix);diag(prefix);return out?{...out,poseLandmarks:null}:out;
 }
 window.__sprintAthleteApiV49={
   state:ATS.sprint,
@@ -9330,6 +9367,9 @@ window.__sprintAthleteApiV50=window.__sprintAthleteApiV49;
 window.__sprintAthleteApiV51=window.__sprintAthleteApiV49;
 window.startOfflinePoseSendDynamic=()=>adaptive('start');
 window.sprintOfflinePoseSendAdaptive=()=>adaptive('sprint');
+/* v58 public START selection hook: the button is static in HTML, so its core
+   action no longer depends on dynamic card creation succeeding. */
+window.__startAthleteApiV58={begin:()=>{installSelectionEvents('start');return beginSelection('start');},clear:()=>clearSelection('start'),selection:()=>ATS.start.selected?{...ATS.start.selected}:null,redraw:()=>AT.start.draw()};
 
 function insertUi(){
   /* Hide old zoom explanatory lines, but retain hidden IDs because legacy transforms are reused for correction-only viewing. */
@@ -9337,9 +9377,9 @@ function insertUi(){
   /* Start: add target-selection card directly below video. */
   const sw=document.getElementById('start-offline-video-wrap');if(sw&&!document.getElementById('start-athlete-track-card')){const d=document.createElement('div');d.id='start-athlete-track-card';d.className='athlete-track-card';d.innerHTML=`<div class="setting-header"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="start-athlete-track-label">全画面解析</span></div><div class="small">まず全画面でPoseを試し、見つからなければ<b>画面を分割して内部拡大し、自動で人物を探索</b>します。それでも検出できない場合だけ、解析開始付近で選手を一度囲ってください。画面表示は変えず内部だけで追跡・拡大します。</div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="start-athlete-track-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="start-athlete-track-reset">追跡解除</button></div><div class="athlete-track-status" id="start-athlete-track-status"></div><div class="athlete-track-diagnostics" id="start-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div>`;sw.insertAdjacentElement('afterend',d);}
   /* SPRINTPEAK: replace the old static-ROI card; replacing nodes also removes old ROI button listeners. */
-  const sc=document.getElementById('sprint-offline-roi-card');if(sc){sc.className='athlete-track-card';sc.innerHTML=`<div class="setting-header"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="sprint-offline-roi-label">全画面解析</span></div><div class="small">全画面Poseが失敗した場合は<b>分割Cropで人物を自動探索</b>します。自動探索でも不安定な場合だけ、解析開始付近で選手を一度囲ってください。解析中は身体中心を追ってCropを自動移動し、内部だけで拡大してMediaPipeへ入力します。</div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="sprint-offline-roi-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="sprint-offline-roi-reset">追跡解除</button></div><div class="athlete-track-status" id="sprint-offline-roi-status"></div><div class="athlete-track-diagnostics" id="sprint-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div>`;}
+  const sc=document.getElementById('sprint-offline-roi-card');if(sc){sc.className='athlete-track-card v58-compact-athlete-card';sc.innerHTML=`<div class="setting-header v58-compact-head"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="sprint-offline-roi-label">全画面解析</span></div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="sprint-offline-roi-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="sprint-offline-roi-reset">追跡解除</button></div><div class="athlete-track-status" id="sprint-offline-roi-status"></div><details class="v58-inline-diagnostics"><summary>解析診断</summary><div class="athlete-track-diagnostics" id="sprint-athlete-track-diagnostics"><b>解析診断：</b>解析後にPose取得率・人物追跡・接地数を表示します。</div></details>`;}
   /* Move SPRINTPEAK range/analyze controls directly under the video frame controls. */
-  if(!document.getElementById('sprint-offline-quick-analysis-card')){const rangeStart=document.getElementById('sprint-offline-range-start'),oldCard=rangeStart?.closest('.settings-card'),frameButtons=document.getElementById('sprint-offline-play')?.closest('.button-row');if(rangeStart&&oldCard&&frameButtons){const q=document.createElement('div');q.className='settings-card';q.id='sprint-offline-quick-analysis-card';q.innerHTML='<div class="setting-header" style="margin-bottom:6px;"><span><b>解析範囲・解析開始</b></span><span class="setting-value">動画を見ながら設定</span></div><div class="small" style="margin-bottom:7px;">開始・終了フレームを決め、そのまま解析できます。</div>';const rows=[rangeStart.closest('.button-row'),document.getElementById('sprint-offline-range-info'),document.getElementById('sprint-offline-analyze')?.closest('.button-row'),document.getElementById('sprint-offline-analysis-status'),document.getElementById('sprint-offline-progress')?.parentElement].filter(Boolean);rows.forEach(x=>q.appendChild(x));frameButtons.insertAdjacentElement('afterend',q);const h=oldCard.querySelector('h3');if(h)h.innerHTML='解析設定（FPS・解析密度） <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="range" aria-label="動画フレームと解析範囲の説明">?</button>';const info=document.createElement('div');info.className='small';info.style.marginBottom='8px';info.textContent='解析範囲と解析開始は動画直下に移動しました。ここでは元動画FPSとMediaPipe解析密度だけを設定します。';h?.insertAdjacentElement('afterend',info);}}
+  if(!document.getElementById('sprint-offline-quick-analysis-card')){const rangeStart=document.getElementById('sprint-offline-range-start'),oldCard=rangeStart?.closest('.settings-card'),frameButtons=document.getElementById('sprint-offline-play')?.closest('.button-row');if(rangeStart&&oldCard&&frameButtons){const q=document.createElement('div');q.className='settings-card';q.id='sprint-offline-quick-analysis-card';q.classList.add('v58-compact-analysis-card');q.innerHTML='<div class="setting-header v58-compact-head" style="margin-bottom:4px;"><span><b>解析範囲・解析開始</b></span><span class="setting-value">動画を見ながら設定</span></div>';const rows=[rangeStart.closest('.button-row'),document.getElementById('sprint-offline-range-info'),document.getElementById('sprint-offline-analyze')?.closest('.button-row'),document.getElementById('sprint-offline-analysis-status'),document.getElementById('sprint-offline-progress')?.parentElement].filter(Boolean);rows.forEach(x=>q.appendChild(x));frameButtons.insertAdjacentElement('afterend',q);const h=oldCard.querySelector('h3');if(h)h.innerHTML='解析設定（FPS・解析密度） <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="range" aria-label="動画フレームと解析範囲の説明">?</button>';const info=document.createElement('div');info.className='small';info.style.marginBottom='8px';info.textContent='解析範囲と解析開始は動画直下に移動しました。ここでは元動画FPSとMediaPipe解析密度だけを設定します。';h?.insertAdjacentElement('afterend',info);}}
   /* Correction-only zoom controls. */
   const addManualTools=(prefix,panelId)=>{const panel=document.getElementById(panelId);if(!panel||document.getElementById(`${prefix}-manual-view-tools`))return;const d=document.createElement('div');d.className='manual-view-tools';d.id=`${prefix}-manual-view-tools`;d.innerHTML=`<div class="small"><b>手動補正で細部を見たい場合だけ：</b>拡大操作をONにすると、1本指ドラッグで表示位置を移動し、2本指ピンチで倍率を変えられます。解析精度は内部の選手追跡が担当します。</div><div class="manual-view-buttons"><button type="button" class="action-btn btn-blue" id="${prefix}-manual-view-toggle">🔍 補正用拡大をON</button><button type="button" class="action-btn btn-gray" id="${prefix}-manual-view-reset">等倍に戻す</button></div>`;panel.appendChild(d);};
   addManualTools('start-offline','start-offline-quick-contact-panel');addManualTools('sprint-offline','sprint-offline-manual-contact-panel');
@@ -13524,7 +13564,7 @@ function renderDiag53(){
    Auto: independent Discovery first, then high-precision measurement.
    Manual: normal calls use the same target identity rules; the main analyzer
    itself uses __sprintV53RunManualPosePass for seed-centered bidirectional order. */
-window.sprintOfflinePoseSendAdaptive=async function(){ensureUi53();const sel=selected53(),frame=currentFrame53();if(sel?.manualLock)return await manualAdaptive53(cloneSelection53(sel));if(V53.mode==='manual')resetTrack53(null,'idle',false);if(V53.mode==='auto-track'){const tracked=await autoTrack53();if(tracked?.poseLandmarks)return tracked;}const discovered=await discoverAuto53();if(discovered?.poseLandmarks)return discovered;const lost=V53.track?.missStreak||0;if(lost>=4&&frame%3===0){let original=null;try{original=await previousAdaptive53();}catch(e){console.warn('v57 legacy last-resort',e);}if(original?.poseLandmarks){const g=geom53(original.poseLandmarks),vh=video53()?.videoHeight||1,px=g?.bbox?.h*vh||0;if(px>=Math.max(140,vh*.16)){V53.lastAthletePx=px;V53.lastQuality=quality53(original.poseLandmarks);renderDiag53();return original;}}}return null;};
+window.sprintOfflinePoseSendAdaptive=async function(){ensureUi53();const sel=selected53();if(sel?.manualLock)return await manualAdaptive53(cloneSelection53(sel));if(V53.mode==='manual')resetTrack53(null,'idle',false);if(V53.mode==='auto-track'){const tracked=await autoTrack53();if(tracked?.poseLandmarks)return tracked;}const discovered=await discoverAuto53();if(discovered?.poseLandmarks)return discovered;let original=null;try{original=await previousAdaptive53();}catch(e){console.warn('v58 legacy reliability fallback',e);}if(original?.poseLandmarks){const g=geom53(original.poseLandmarks),vh=video53()?.videoHeight||1,px=g?.bbox?.h*vh||0;if(px>=Math.max(110,vh*.10)){V53.lastAthletePx=px;V53.lastQuality=quality53(original.poseLandmarks);renderDiag53();return original;}}return null;};
 
 $('sprint-offline-analyze')?.addEventListener('click',()=>{
   const sel=selected53();
@@ -14293,6 +14333,53 @@ if(document.readyState!=='loading')setTimeout(()=>{installAngleMini56();renderRe
 </style>
 <script id="v57-sol-performance-accuracy">
 (()=>{'use strict';const BUILD57='20260925-v57-sol-performance-accuracy',$57=id=>document.getElementById(id),P57=window.__sprintProfiler57={build:BUILD57,run:0,seekMs:0,seekCalls:0,recomputeMs:0,recomputeCalls:0,startedAt:0};function reset57(){P57.run++;P57.seekMs=0;P57.seekCalls=0;P57.recomputeMs=0;P57.recomputeCalls=0;P57.startedAt=performance.now();}function wrapA57(name,keyMs,keyCalls){const base=window[name];if(typeof base!=='function'||base.__v57)return;const w=async function(...a){const t=performance.now();try{return await base.apply(this,a);}finally{P57[keyMs]+=performance.now()-t;P57[keyCalls]++;}};w.__v57=true;window[name]=w;}function wrapS57(name,keyMs,keyCalls){const base=window[name];if(typeof base!=='function'||base.__v57)return;const w=function(...a){const t=performance.now();try{return base.apply(this,a);}finally{P57[keyMs]+=performance.now()-t;P57[keyCalls]++;}};w.__v57=true;window[name]=w;}wrapA57('sprintOfflineSeekTime','seekMs','seekCalls');wrapS57('sprintOfflineRecomputeDerived','recomputeMs','recomputeCalls');function ensure57(){let d=$57('sprint-v57-sol-diagnostics');if(d)return d;const host=$57('sprint-v53-target-diagnostics')||$57('sprint-offline-analysis-status');if(!host)return null;d=document.createElement('div');d.id='sprint-v57-sol-diagnostics';host.insertAdjacentElement('afterend',d);return d;}function render57(){const d=ensure57();if(!d)return;const st=window.__sprintAnalysisState57||{},v=window.__sprintV53TargetTracker?.stats||{},fa=Object.values(v.frameAttempts||{}),avg=fa.length?fa.reduce((a,b)=>a+b,0)/fa.length:0,max=fa.length?Math.max(...fa):0,poseN=typeof sprintOfflinePoseFrames!=='undefined'?new Set((sprintOfflinePoseFrames||[]).map(f=>f.index)).size:0,target=st.targetFrameCount||0,elapsed=st.elapsedMs||(st.startedAt?performance.now()-st.startedAt:0),poseMs=(v.timing?.poseMs||0)+(v.timing?.discoveryPoseMs||0),rr=Object.entries(v.rejectReasons||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,n])=>`${k}:${n}`).join(' / ');d.innerHTML=`<b>v57 Sol 診断：</b>対象 ${target||'--'}F ／ Pose取得 ${poseN}${target?'/'+target:''} ／ 1F平均推論 ${avg.toFixed(2)}回（最大 ${max}） ／ 初回採用 ${v.firstPassHits||0}F<br>計時：全体 ${(elapsed/1000).toFixed(1)}s ／ seek・提示待ち ${(P57.seekMs/1000).toFixed(1)}s (${P57.seekCalls}) ／ Pose推論 ${(poseMs/1000).toFixed(1)}s ／ 後処理 ${(P57.recomputeMs/1000).toFixed(1)}s${rr?'<br>拒否理由：'+rr:''}${avg>2?'<br><span class="warn">同一フレーム再推論がまだ多めです。</span>':''}`;}$57('sprint-offline-analyze')?.addEventListener('click',()=>{reset57();setTimeout(render57,250);},{capture:true});const s57=$57('sprint-offline-analysis-status');if(s57)new MutationObserver(()=>{if(!window.__sprintAnalysisState57?.running)render57();}).observe(s57,{childList:true,subtree:true,characterData:true});setInterval(()=>{if(window.__sprintAnalysisState57?.running)render57();},1000);window.__SPRINT_TIMER_V57={build:BUILD57,fixes:['moving-target predicted identity gate','first-pass inference early exit','duplicate discovery suppression','aspect-correct joint angles','time-based fps sampling','unified Pose denominator','gap-aware foot smoothing','evidence <= ~1.5 frame','analysis UI throttle','crop canvas reuse','profiling/rejection diagnostics']};})();
+</script>
+
+
+<style id="v58-pose-fallback-compact-ui-style">
+/* v58: compact video-first controls; correction tools stay out of the way until analysis completes. */
+#start-offline-analysis-area .offline-zoom-toolbar,#sprint-offline-analysis-area .offline-zoom-toolbar{margin-bottom:4px}
+.v58-frame-controls .action-btn,.v58-compact-analysis-card .action-btn,.v58-compact-athlete-card .action-btn{min-height:40px!important;padding:7px 8px!important;font-size:13px!important;margin-bottom:0!important}
+.v58-compact-athlete-card{padding:7px 8px!important;margin:5px 0 6px!important}.v58-compact-athlete-card .setting-header{margin-bottom:2px!important}.v58-compact-athlete-card .athlete-track-buttons{margin-top:5px!important;gap:5px!important}.v58-compact-athlete-card .athlete-track-status{margin-top:5px!important;padding:5px 7px!important;font-size:11px!important;line-height:1.35!important}
+.v58-inline-diagnostics{margin-top:4px;font-size:11px}.v58-inline-diagnostics summary{cursor:pointer;color:#526273;font-weight:700}.v58-inline-diagnostics .athlete-track-diagnostics{margin-top:5px;padding:6px 7px;font-size:11px}
+.v58-compact-analysis-card{padding:7px 8px!important}.v58-compact-analysis-card .setting-header{margin-bottom:3px!important}.v58-compact-analysis-card .button-row{gap:5px!important;margin-top:5px!important}.v58-compact-analysis-card #start-offline-range-info,.v58-compact-analysis-card #sprint-offline-range-info{font-size:11px!important;margin-top:3px!important}.v58-compact-analysis-card .info{padding:6px 7px!important;margin:5px 0!important;font-size:11px!important;line-height:1.35!important}
+#start-offline-cancel,#sprint-offline-cancel{display:none}
+#start-offline-workspace:not(.v58-analysis-ready) #start-offline-contact-mini-toolbar,#start-offline-workspace:not(.v58-analysis-ready) #start-v56-angle-mini{display:none!important}
+#start-offline-workspace.v58-analysis-ready #start-offline-contact-mini-toolbar{display:block}
+#start-offline-workspace.v58-analysis-ready #start-v56-angle-mini{display:block}
+/* Technical implementation note remains in DOM for diagnostics but not in normal analysis flow. */
+#start-offline-workspace .v56-reliability-note{display:none!important}
+@media(max-width:520px){
+  .v58-compact-analysis-card .start-offline-range-quick-buttons{grid-template-columns:1fr 1fr .65fr!important}
+  .v58-compact-analysis-card .action-btn,.v58-compact-athlete-card .action-btn,.v58-frame-controls .action-btn{min-height:38px!important;padding:6px 5px!important;font-size:12px!important}
+  .v58-compact-athlete-card{margin:4px 0 5px!important}.v58-compact-analysis-card{margin:4px 0 6px!important}
+}
+</style>
+<script id="v58-pose-fallback-compact-ui">
+(()=>{'use strict';
+const $58=id=>document.getElementById(id),BUILD58='20261001-v58-pose-fallback-compact-video-ui';
+/* Hard safety net: if the dynamic-tracking layer ever fails to install, analysis
+   must still use the known full-frame MediaPipe path instead of silently returning Pose 0. */
+if(typeof window.startOfflinePoseSendDynamic!=='function')window.startOfflinePoseSendDynamic=async()=>startOfflinePoseSend(startOfflineVideo);
+if(typeof window.sprintOfflinePoseSendAdaptive!=='function')window.sprintOfflinePoseSendAdaptive=async()=>startOfflinePoseSend(sprintOfflineVideo);
+function ensureStartSelector58(){
+  if($58('start-athlete-track-card'))return;
+  const play=$58('start-offline-play')?.closest('.button-row'),range=$58('start-offline-quick-analysis-card');if(!range&&!play)return;
+  const d=document.createElement('div');d.id='start-athlete-track-card';d.className='athlete-track-card v58-compact-athlete-card';d.innerHTML=`<div class="setting-header v58-compact-head"><span class="athlete-track-title">解析する選手</span><span class="setting-value" id="start-athlete-track-label">全画面解析</span></div><div class="athlete-track-buttons"><button type="button" class="action-btn btn-blue" id="start-athlete-track-set">選手を囲って追跡</button><button type="button" class="action-btn btn-gray" id="start-athlete-track-reset">追跡解除</button></div><div class="athlete-track-status" id="start-athlete-track-status">未指定でも解析できます。認識しにくい動画では選手を囲ってください。</div><details class="v58-inline-diagnostics"><summary>解析診断</summary><div class="athlete-track-diagnostics" id="start-athlete-track-diagnostics"></div></details>`;(range||play).insertAdjacentElement('beforebegin',d);
+}
+ensureStartSelector58();
+function markReady58(){const w=$58('start-offline-workspace');if(w)w.classList.add('v58-analysis-ready');}
+function clearReady58(){const w=$58('start-offline-workspace');if(w)w.classList.remove('v58-analysis-ready');}
+$58('start-offline-file-input')?.addEventListener('change',clearReady58,{capture:true});
+$58('start-offline-analyze')?.addEventListener('click',()=>{const c=$58('start-offline-cancel');if(c)c.style.display='block';},{capture:true});
+$58('sprint-offline-analyze')?.addEventListener('click',()=>{const c=$58('sprint-offline-cancel');if(c)c.style.display='block';},{capture:true});
+const observeDone=(id,cancelId,onDone)=>{const el=$58(id);if(!el)return;new MutationObserver(()=>{const txt=el.textContent||'',busy=/解析中|Pose解析|画像追跡|再解析/.test(txt),done=/解析完了|人体Poseを検出できません|解析を中止/.test(txt);const c=$58(cancelId);if(c)c.style.display=busy?'block':'none';if(done&&onDone)onDone();}).observe(el,{childList:true,subtree:true,characterData:true});};
+observeDone('start-offline-analysis-status','start-offline-cancel',markReady58);observeDone('sprint-offline-analysis-status','sprint-offline-cancel',null);
+/* Static START selector owns its click at document-capture level. This avoids
+   losing the control when an older dynamic UI insertion/listener path does not run. */
+document.addEventListener('click',e=>{const set=e.target.closest?.('#start-athlete-track-set'),reset=e.target.closest?.('#start-athlete-track-reset');if(!set&&!reset)return;e.preventDefault();e.stopImmediatePropagation();const api=window.__startAthleteApiV58;if(!api){if(set)alert('選手範囲指定の初期化に失敗しました。全画面Poseで解析を続行できます。ページを再読み込みすると範囲指定が復旧する場合があります。');return;}if(reset){api.clear();return;}Promise.resolve(api.begin()).catch(err=>{console.warn('v58 START athlete selection',err);alert('選手範囲指定を開始できませんでした。全画面解析はそのまま使用できます。');});},{capture:true});
+window.__SPRINT_TIMER_V58={build:BUILD58,fixes:['START full-frame reliability first','START recurring crop discovery','crop miss full-frame rescue','manual target lock for START','SPRINT legacy fallback restored','static athlete selector','compact range controls','correction tools after analysis','version/build synchronized']};
+})();
 </script>
 
 </body>
