@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.10.01.58">
-<meta name="sprint-timer-build" content="20261001-v58-pose-fallback-compact-video-ui">
+<meta name="sprint-timer-version" content="2026.10.01.59">
+<meta name="sprint-timer-build" content="20261001-v59-start-angle-contact-sequence-fix">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.10.01.58";
-window.SPRINT_TIMER_BUILD = "20261001-v58-pose-fallback-compact-video-ui";
+window.SPRINT_TIMER_VERSION = "2026.10.01.59";
+window.SPRINT_TIMER_BUILD = "20261001-v59-start-angle-contact-sequence-fix";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -14054,7 +14054,7 @@ window.__SPRINT_TIMER_V55={build:'20260925-v56-start-contact-angle-evidence-reli
 const $56=id=>document.getElementById(id);
 const clamp56=(v,a,b)=>Math.max(a,Math.min(b,v));
 const finite56=Number.isFinite;
-const ANGLE_MIN56=30,ANGLE_MAX56=70,ANGLE_AFTER_CLEARANCE_MAX56=.20,ANGLE_STABILITY_SPREAD56=5.0;
+const ANGLE_MIN56=30,ANGLE_MAX56=70,ANGLE_AFTER_CLEARANCE_MAX56=.35,ANGLE_MANUAL_AFTER_CLEARANCE_MAX56=.45,ANGLE_STABILITY_SPREAD56=5.0;
 const build56='20260925-v56-start-contact-angle-evidence-reliability';
 
 /* ---------- shared helpers ---------- */
@@ -14063,16 +14063,17 @@ function frameStep56(){return 1/Math.max(1,startOfflineEffectiveFps?.()||60);}
 function clearanceIndex56(){return startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex;}
 function setIndex56(){return startOfflineManualSetIndex??startOfflineAutoSetIndex;}
 function firstContactAfter56(t){let best=Infinity;for(const c of startOfflineContacts||[]){if(finite56(c?.t)&&c.t>t+.01&&c.t<best)best=c.t;}for(const a of startOfflineContactAnchors||[]){if(finite56(a?.t)&&a.t>t+.01&&a.t<best)best=a.t;}return best;}
-function angleOrder56(index){
+function angleOrder56(index,manualOverride=false){
   const s=setIndex56(),c=clearanceIndex56(),t=finite56(startOfflineFrameTimes?.[index])?startOfflineFrameTimes[index]:startOfflineFrameTime(index);
   if(!finite56(t)||s==null)return {ok:false,reason:'Set基準を確定できていません。'};
   if(c==null)return {ok:false,reason:'ブロッククリアランスを先に確定してください。'};
-  const st=startOfflineFrameTime(s),ct=startOfflineFrameTime(c),first=firstContactAfter56(ct),margin=Math.max(.006,frameStep56()*.42);
+  const st=startOfflineFrameTime(s),ct=startOfflineFrameTime(c),first=firstContactAfter56(ct),margin=Math.max(.006,frameStep56()*.42),manualMode=!!manualOverride||(startOfflineAngleIndexManual&&index===startOfflineAngleIndex);
   if(index<c||t<ct-frameStep56()*.55)return {ok:false,reason:'角度フレームがブロッククリアランスより前です。'};
-  if(t>ct+ANGLE_AFTER_CLEARANCE_MAX56)return {ok:false,reason:`角度フレームがブロッククリアランスから ${(t-ct).toFixed(3)}秒後です。飛び出し角度は直後0.20秒以内だけ採用します。`};
-  if(finite56(first)&&t>=first-margin)return {ok:false,reason:'角度フレームが1歩目接地以降です。時系列上、飛び出し角度には使用できません。'};
+  if(!manualMode&&t>ct+ANGLE_AFTER_CLEARANCE_MAX56)return {ok:false,reason:`角度フレームがブロッククリアランスから ${(t-ct).toFixed(3)}秒後です。自動候補は直後0.35秒以内だけ採用します。`};
+  if(manualMode&&t>ct+ANGLE_MANUAL_AFTER_CLEARANCE_MAX56)return {ok:false,reason:`角度フレームがブロッククリアランスから ${(t-ct).toFixed(3)}秒後です。手動指定でも0.45秒以内を上限にしています。`};
+  if(!manualMode&&finite56(first)&&t>=first-margin)return {ok:false,reason:'角度フレームが自動1歩目接地以降です。自動候補には使用しません。手動指定では接地誤検出の影響を受けず選択できます。'};
   if(t<st-.01)return {ok:false,reason:'角度フレームがSet基準より前です。'};
-  return {ok:true,t,ct,first,dt:t-ct};
+  return {ok:true,t,ct,first,dt:t-ct,manualMode};
 }
 
 /* ---------- A. projection angle hard gates ---------- */
@@ -14093,7 +14094,10 @@ function angleStability56(index){
 }
 startOfflineProjectionAt=function(index){
   const r=projectionRaw56(index);if(!r?.valid)return r;
-  const stable=angleStability56(index);
+  const stable=angleStability56(index),manualMode=!!(startOfflineAngleIndexManual&&index===startOfflineAngleIndex);
+  /* 手動で映像を確認して選んだフレームは、誤った自動C1や周辺Pose不足で再拒否しない。
+     30〜70°・ブロッククリアランス後・0.45秒以内という安全条件は維持する。 */
+  if(manualMode)return {...r,stability:stable,manualFrame:true,stabilityWarning:!stable.ok};
   if(!stable.ok)return {...r,valid:false,stability:stable,reason:stable.count<3?'角度候補の周辺Poseが不足しています。':`周辺±2Fで角度が ${stable.spread.toFixed(1)}° 変動したため自動採用しません。`};
   return {...r,stability:stable};
 };
@@ -14277,7 +14281,7 @@ function installAngleMini56(){
   d.querySelectorAll('[data-v56-angle-step]').forEach(b=>b.addEventListener('click',async()=>{startOfflineVideo.pause();const n=clamp56(startOfflineCurrentFrameIndex()+parseInt(b.dataset.v56AngleStep,10),0,startOfflineFrameTimes.length-1);await startOfflineSeekToFrame(n);drawStartOfflineOverlay();syncAngleMini56();}));
   $56('start-v56-angle-auto').addEventListener('click',async()=>{if(!finite56(startOfflineAutoProjectionIndex))return;await startOfflineSeekToFrame(startOfflineAutoProjectionIndex);drawStartOfflineOverlay();syncAngleMini56();});
   $56('start-v56-angle-mark').addEventListener('click',()=>{
-    const idx=startOfflineCurrentFrameIndex(),o=angleOrder56(idx),st=$56('start-v56-angle-status');if(!o.ok){st.className='start-angle-mini-status warn';st.textContent='⚠ '+o.reason;return;}
+    const idx=startOfflineCurrentFrameIndex(),o=angleOrder56(idx,true),st=$56('start-v56-angle-status');if(!o.ok){st.className='start-angle-mini-status warn';st.textContent='⚠ '+o.reason;return;}
     startOfflineAngleIndex=idx;startOfflineAngleIndexManual=true;const r=startOfflineProjectionAt(idx);startOfflineAngleAuto=r?.valid?r.angle:null;startOfflineAngleLineAuto=r?.line?{...r.line}:null;startOfflineAngleLine=startOfflineAngleLineAuto?{...startOfflineAngleLineAuto}:startOfflineAngleLine;startOfflineAngleManual=null;startOfflineRenderResults();startOfflineRenderMarkerStatus();drawStartOfflineOverlay();syncAngleMini56();
   });
   $56('start-v56-angle-reset').addEventListener('click',()=>{startOfflineAngleIndexManual=false;startOfflineAngleManual=null;startOfflineRecomputeDerived(true);syncAngleMini56();});
@@ -14287,9 +14291,9 @@ function installAngleMini56(){
 }
 function syncAngleMini56(){
   const d=$56('start-v56-angle-mini');if(!d)return;const idx=startOfflineCurrentFrameIndex(),frame=$56('start-v56-angle-frame'),st=$56('start-v56-angle-status'),slider=$56('start-v56-angle-slider'),mark=$56('start-v56-angle-mark'),auto=$56('start-v56-angle-auto');frame.textContent=`Frame ${idx} / ${finite56(startOfflineFrameTime(idx))?startOfflineFrameTime(idx).toFixed(3):'--'}s`;
-  const o=angleOrder56(idx),hasLine=!!startOfflineAngleLine&&startOfflineAngleIndex!==null,angle=finite56(startOfflineAngleManual)?startOfflineAngleManual:finite56(startOfflineAngleAuto)?startOfflineAngleAuto:(hasLine?startOfflineAngleFromLine(startOfflineAngleLine)?.angle:NaN);mark.disabled=!o.ok;auto.disabled=!finite56(startOfflineAutoProjectionIndex);slider.disabled=!hasLine;if(finite56(angle))slider.value=String(clamp56(angle,ANGLE_MIN56,ANGLE_MAX56));
+  const o=angleOrder56(idx,true),hasLine=!!startOfflineAngleLine&&startOfflineAngleIndex!==null,angle=finite56(startOfflineAngleManual)?startOfflineAngleManual:finite56(startOfflineAngleAuto)?startOfflineAngleAuto:(hasLine?startOfflineAngleFromLine(startOfflineAngleLine)?.angle:NaN);mark.disabled=!o.ok;auto.disabled=!finite56(startOfflineAutoProjectionIndex);slider.disabled=!hasLine;if(finite56(angle))slider.value=String(clamp56(angle,ANGLE_MIN56,ANGLE_MAX56));
   if(!o.ok){st.className='start-angle-mini-status warn';st.textContent=`現在フレームは角度測定に使用不可：${o.reason}`;}
-  else{const stable=startOfflineAngleIndex===idx?angleStability56(idx):null;st.className='start-angle-mini-status '+(stable&&!stable.ok?'warn':'ok');st.textContent=`使用可能：ブロッククリアランス直後0.20秒以内・1歩目接地より前・採用角度30〜70°。${stable?` 周辺±2F変動 ${finite56(stable.spread)?stable.spread.toFixed(1):'--'}°。`:''}`;}
+  else{const stable=startOfflineAngleIndex===idx?angleStability56(idx):null;st.className='start-angle-mini-status '+(stable&&!stable.ok?'warn':'ok');st.textContent=`使用可能：手動指定はブロッククリアランス後0.45秒以内（自動候補は0.35秒以内）・採用角度30〜70°。手動指定は誤った自動C1の制限を受けません。${stable?` 周辺±2F変動 ${finite56(stable.spread)?stable.spread.toFixed(1):'--'}°。`:''}`;}
 }
 const updateFrameUiBase56=startOfflineUpdateFrameUi;
 startOfflineUpdateFrameUi=function(...args){const r=updateFrameUiBase56(...args);queueMicrotask(syncAngleMini56);return r;};
@@ -14312,15 +14316,15 @@ window.addEventListener('click',e=>{const b=e.target?.closest?.('[data-start-evi
 function renderReliabilityNote56(){
   const host=$56('start-athlete-track-diagnostics')||$56('start-offline-analysis-status');if(!host)return;let n=$56('start-v56-reliability-note');if(!n){n=document.createElement('div');n.id='start-v56-reliability-note';n.className='v56-reliability-note';host.insertAdjacentElement('afterend',n);}const cs=window.__startV56ContactStats||{},aq=window.__startV56AngleQuality||{},idx=startOfflineAngleIndex,order=idx!=null?angleOrder56(idx):null,ar=idx!=null?(()=>{try{return startOfflineProjectionAt(idx);}catch(_){return null;}})():null;
   n.className='v56-reliability-note '+((idx!=null&&!ar?.valid)||(cs.final===0&&startOfflinePoseFrames?.length)?'warn':'');
-  n.innerHTML=`<b>v56 START信頼性：</b> 接地は「地面近傍・上下反転・足部速度」の2/3合議を追加。自動候補 ${cs.base??0}件＋合議候補 ${cs.rescue??0}件 → 最終 ${cs.final??(startOfflineContacts?.length||0)}件。<br>飛び出し角度は <b>ブロッククリアランス直後0.20秒以内 → 1歩目接地より前 → 30〜70° → 周辺±2Fの変動5°以内</b> の順に検証します。${idx!=null?` 現在 F${idx}：${ar?.valid?ar.angle.toFixed(1)+'° 採用可能':'判定保留（'+(ar?.reason||order?.reason||'条件外')+'）'}`:''}`;
+  n.innerHTML=`<b>v56 START信頼性：</b> 接地は「地面近傍・上下反転・足部速度」の2/3合議を追加。自動候補 ${cs.base??0}件＋合議候補 ${cs.rescue??0}件 → 最終 ${cs.final??(startOfflineContacts?.length||0)}件。<br>飛び出し角度は <b>自動候補：ブロッククリアランス後0.35秒以内＋自動1歩目接地より前、手動指定：0.45秒以内で自動C1制限を解除、共通：30〜70°</b> を検証します。${idx!=null?` 現在 F${idx}：${ar?.valid?ar.angle.toFixed(1)+'° 採用可能':'判定保留（'+(ar?.reason||order?.reason||'条件外')+'）'}`:''}`;
 }
 
 /* mark-angle legacy button: reject temporally impossible manual frames before
    the older bubble listener writes them. */
-$56('start-offline-mark-angle')?.addEventListener('click',e=>{const idx=startOfflineCurrentFrameIndex(),o=angleOrder56(idx);if(o.ok)return;e.preventDefault();e.stopImmediatePropagation();const st=$56('start-offline-marker-status');if(st)st.textContent='角度測定フレームを変更しませんでした：'+o.reason;syncAngleMini56();},{capture:true});
+$56('start-offline-mark-angle')?.addEventListener('click',e=>{const idx=startOfflineCurrentFrameIndex(),o=angleOrder56(idx,true);if(o.ok)return;e.preventDefault();e.stopImmediatePropagation();const st=$56('start-offline-marker-status');if(st)st.textContent='角度測定フレームを変更しませんでした：'+o.reason;syncAngleMini56();},{capture:true});
 
 /* keep the displayed range and build metadata explicit */
-window.__SPRINT_TIMER_V56={build:build56,angle:{min:ANGLE_MIN56,max:ANGLE_MAX56,maxAfterClearanceSec:ANGLE_AFTER_CLEARANCE_MAX56,stabilitySpreadDeg:ANGLE_STABILITY_SPREAD56},features:['chronological projection gate','30–70° rejection','±2F angle stability','2-of-3 contact consensus','low-foot-quality local re-Pose','relative liftoff from manual contact','main-video top evidence scroll','on-video angle correction']};
+window.__SPRINT_TIMER_V56={build:build56,angle:{min:ANGLE_MIN56,max:ANGLE_MAX56,maxAfterClearanceSec:ANGLE_AFTER_CLEARANCE_MAX56,manualMaxAfterClearanceSec:ANGLE_MANUAL_AFTER_CLEARANCE_MAX56,stabilitySpreadDeg:ANGLE_STABILITY_SPREAD56},features:['chronological projection gate','30–70° rejection','±2F angle stability','2-of-3 contact consensus','low-foot-quality local re-Pose','relative liftoff from manual contact','main-video top evidence scroll','on-video angle correction']};
 window.addEventListener('DOMContentLoaded',()=>{installAngleMini56();renderReliabilityNote56();syncAngleMini56();});
 if(document.readyState!=='loading')setTimeout(()=>{installAngleMini56();renderReliabilityNote56();syncAngleMini56();},0);
 })();
@@ -14379,6 +14383,88 @@ observeDone('start-offline-analysis-status','start-offline-cancel',markReady58);
    losing the control when an older dynamic UI insertion/listener path does not run. */
 document.addEventListener('click',e=>{const set=e.target.closest?.('#start-athlete-track-set'),reset=e.target.closest?.('#start-athlete-track-reset');if(!set&&!reset)return;e.preventDefault();e.stopImmediatePropagation();const api=window.__startAthleteApiV58;if(!api){if(set)alert('選手範囲指定の初期化に失敗しました。全画面Poseで解析を続行できます。ページを再読み込みすると範囲指定が復旧する場合があります。');return;}if(reset){api.clear();return;}Promise.resolve(api.begin()).catch(err=>{console.warn('v58 START athlete selection',err);alert('選手範囲指定を開始できませんでした。全画面解析はそのまま使用できます。');});},{capture:true});
 window.__SPRINT_TIMER_V58={build:BUILD58,fixes:['START full-frame reliability first','START recurring crop discovery','crop miss full-frame rescue','manual target lock for START','SPRINT legacy fallback restored','static athlete selector','compact range controls','correction tools after analysis','version/build synchronized']};
+})();
+</script>
+
+
+<style id="v59-start-angle-contact-sequence-style">
+/* v59 — START manual angle + acceleration-contact plausibility + compact sequence cards */
+#start-offline-sequence-table{overflow:visible!important;margin-top:7px!important}
+#start-offline-sequence-table>table{display:none!important}
+.v59-contact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%;overflow:visible}
+.v59-contact-card{min-width:0;border:1px solid #d7dee7;border-radius:9px;background:#fff;padding:7px 6px;text-align:left;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.v59-contact-card.low{border-color:#f0b3b3;background:#fff8f8}.v59-contact-card.manual{border-color:#8fc3ef;background:#f7fbff}
+.v59-contact-head{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:4px}.v59-contact-head b{font-size:14px;color:#0f172a}.v59-contact-side{font-size:10px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v59-contact-time{font-size:10px;color:#64748b;line-height:1.25;white-space:normal;word-break:break-word}.v59-contact-duration{font-size:15px;font-weight:850;color:#0f172a;margin:3px 0}.v59-contact-meta{font-size:9px;color:#64748b;min-height:12px}
+.v59-contact-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:5px}.v59-contact-actions button{min-height:28px!important;padding:3px 2px!important;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#334155;font-size:10px!important;font-weight:800;margin:0!important}.v59-contact-actions .edit{background:#fff7e8;border-color:#f3b457;color:#92400e}
+.v59-contact-delete{margin-top:4px;width:100%;min-height:24px;border:0;background:transparent;color:#b42318;font-size:9px;font-weight:700}
+.v59-rejected{margin-top:7px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;text-align:left}.v59-rejected summary{padding:7px 8px;cursor:pointer;font-size:11px;font-weight:800;color:#475569}.v59-rejected-list{padding:0 8px 8px;font-size:10px;line-height:1.55;color:#64748b}.v59-rejected-item{padding:4px 0;border-top:1px solid #e5e7eb}.v59-filter-badge{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:999px;background:#fff1f2;color:#be123c;font-size:9px;font-weight:800}
+#start-v56-angle-status.v59-manual-note{border-color:#8fc3ef;background:#f4faff;color:#174f87}
+@media(max-width:390px){.v59-contact-grid{gap:4px}.v59-contact-card{padding:6px 4px}.v59-contact-head b{font-size:13px}.v59-contact-side,.v59-contact-time{font-size:9px}.v59-contact-duration{font-size:14px}.v59-contact-actions button{font-size:9px!important}}
+</style>
+<script id="v59-start-angle-contact-sequence-fix">
+(()=>{'use strict';
+const $59=id=>document.getElementById(id),BUILD59='20261001-v59-start-angle-contact-sequence-fix';
+const finite59=Number.isFinite,clamp59=(v,a,b)=>Math.max(a,Math.min(b,v));
+const EARLY_PHASE_SEC59=1.80,EARLY_MIN_CONTACT59=.100,EARLY_REVIEW_CONTACT59=.115,LATE_MIN_CONTACT59=.075,LATE_REVIEW_CONTACT59=.095,EARLY_MIN_EVENT_GAP59=.135,LATE_MIN_EVENT_GAP59=.095;
+let lastRejected59=[];
+function manual59(c){return !!(c?.manualAnchor||c?.manual||c?.timingOnly||String(c?.source||'').includes('manual'));}
+function conf59(c){return clamp59(Number(c?.confidence)||0,0,1);}
+function evidence59(c){return clamp59(Number(c?.contactEvidence??c?.temporalScore??c?.firstContactScore)||0,0,1);}
+function frame59(c){return c?.index??c?.frame??null;}
+function clearanceTime59(anchorIndex=null){const idx=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex??anchorIndex;return Number.isFinite(idx)?startOfflineFrameTime(idx):(startOfflineRangeStart||0);}
+function reject59(c,reason,code){return {...c,_v59Rejected:true,_v59RejectReason:reason,_v59RejectCode:code};}
+function airSeen59(prev,c){
+  const side=c?.side;if(side!=='left'&&side!=='right')return null;const arr=startOfflineFootSignals?.[side]||[];if(!arr.length)return null;
+  const lo=Math.max((prev?.t??c.t-.22)+.02,c.t-.24),hi=c.t-.018;if(!(hi>lo))return null;let seen=false,usable=0;
+  for(const q of arr){if(q.t<lo||q.t>hi)continue;if((q.confidence||0)<.12)continue;usable++;const heights=[q.contactHeightM,q.toeHeightM,q.heelHeightM].filter(Number.isFinite);if(heights.some(h=>h>.046)||[q.toeVUp,q.ankleVUp,q.heelVUp].filter(Number.isFinite).some(v=>v>.075)){seen=true;break;}}
+  return usable?seen:null;
+}
+function better59(a,b){if(manual59(a)!==manual59(b))return manual59(a)?a:b;const score=x=>conf59(x)*.56+evidence59(x)*.30+(Number.isFinite(x?.duration)?Math.min(.14,x.duration)*.65:0);return score(a)>=score(b)?a:b;}
+function sanitizeStartContacts59(list,{anchorIndex=null,record=true}={}){
+  const raw=(list||[]).filter(c=>finite59(c?.t)).slice().sort((a,b)=>a.t-b.t),ct=clearanceTime59(anchorIndex),rejected=[],stage=[];
+  for(const c0 of raw){const c={...c0},m=manual59(c),d=Number(c.duration),early=finite59(ct)?c.t-ct<=EARLY_PHASE_SEC59:true,strong=conf59(c)>=.80&&evidence59(c)>=.62;
+    if(!m&&finite59(d)){
+      if(early&&d<=EARLY_MIN_CONTACT59+1e-6){rejected.push(reject59(c,`START序盤の自動接地 ${Math.round(d*1000)}ms は短すぎるため除外`,'early-short-duration'));continue;}
+      if(early&&d<EARLY_REVIEW_CONTACT59&&!strong){rejected.push(reject59(c,`START序盤 ${Math.round(d*1000)}ms は境界値で、根拠が十分でないため除外`,'early-border-duration'));continue;}
+      if(!early&&d<LATE_MIN_CONTACT59){rejected.push(reject59(c,`自動接地 ${Math.round(d*1000)}ms は短すぎるため除外`,'late-short-duration'));continue;}
+      if(!early&&d<LATE_REVIEW_CONTACT59&&!strong){rejected.push(reject59(c,`自動接地 ${Math.round(d*1000)}ms は短い境界値で、根拠が十分でないため除外`,'late-border-duration'));continue;}
+    }
+    stage.push(c);
+  }
+  const accepted=[];
+  for(const c of stage){const p=accepted[accepted.length-1];if(!p){accepted.push(c);continue;}const dt=c.t-p.t,m=manual59(c)||manual59(p),early=finite59(ct)?Math.min(c.t,p.t)-ct<=EARLY_PHASE_SEC59:true,minGap=early?EARLY_MIN_EVENT_GAP59:LATE_MIN_EVENT_GAP59;
+    if(!m&&dt<minGap){const keep=better59(p,c),drop=keep===p?c:p;if(keep!==p)accepted[accepted.length-1]=keep;rejected.push(reject59(drop,`前の接地から ${Math.round(dt*1000)}ms しかなく、同一接地の二重検出と判断`,'near-duplicate'));continue;}
+    if(!m&&finite59(p.liftoff)&&c.t<p.liftoff+.018){const keep=better59(p,c),drop=keep===p?c:p;if(keep!==p)accepted[accepted.length-1]=keep;rejected.push(reject59(drop,'前接地の離地前に次接地が重なったため二重検出候補として除外','overlap'));continue;}
+    if(!m&&early&&dt<.180){const air=airSeen59(p,c);if(air===false){const keep=better59(p,c),drop=keep===p?c:p;if(keep!==p)accepted[accepted.length-1]=keep;rejected.push(reject59(drop,'接地間に明確な遊脚（AIR）を確認できず、同一接地の分裂候補として除外','no-air-state'));continue;}}
+    accepted.push(c);
+  }
+  if(record){lastRejected59=rejected;window.__startV59ContactFilter={raw:raw.length,accepted:accepted.length,rejected:rejected.length,earlyPhaseSec:EARLY_PHASE_SEC59,rejectedEvents:rejected.slice()};}
+  return {accepted,rejected,raw};
+}
+const detectBase59=startOfflineDetectContacts;
+startOfflineDetectContacts=function(anchorIndex=null){const raw=detectBase59(anchorIndex)||[],r=sanitizeStartContacts59(raw,{anchorIndex,record:true});return r.accepted;};
+
+/* v41等の後処理が接地候補を再追加する経路もあるため、派生値計算の最後でも同じ安全検査を行う。 */
+const recomputeBase59=startOfflineRecomputeDerived;
+startOfflineRecomputeDerived=function(...args){const r=recomputeBase59(...args);const before=(startOfflineContacts||[]).length,final=sanitizeStartContacts59(startOfflineContacts||[],{record:false});if(final.accepted.length!==before){const prior=lastRejected59.slice(),seen=new Set(prior.map(x=>`${frame59(x)}:${x._v59RejectCode}`));for(const x of final.rejected){const k=`${frame59(x)}:${x._v59RejectCode}`;if(!seen.has(k)){prior.push(x);seen.add(k);}}lastRejected59=prior;startOfflineContacts=final.accepted;window.__startV59ContactFilter={raw:before,accepted:final.accepted.length,rejected:prior.length,earlyPhaseSec:EARLY_PHASE_SEC59,rejectedEvents:prior.slice()};try{startOfflineRenderResults();startOfflineRenderQuickContactUi?.();drawStartOfflineOverlay();}catch(e){console.warn('v59 final contact render',e);}}queueMicrotask(()=>{renderCards59();syncAngleNote59();});return r;};
+
+/* STARTの接地表を横スクロール不要の3列カードに置換。既存の見る/修正/削除イベント属性は再利用する。 */
+function sideLabel59(c){return c?.side==='left'?'左足':c?.side==='right'?'右足':'脚不明';}
+function esc59(x){return String(x??'').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function renderCards59(){const root=$59('start-offline-sequence-table');if(!root)return;const a=startOfflineContacts||[];if(!a.length){if(root.querySelector('.v59-contact-grid'))root.textContent='接地イベント：0件';return;}const cards=a.slice(0,18).map((c,i)=>{const d=finite59(c.duration)?`${Math.round(c.duration*1000)}ms`:'--',f=frame59(c),t=finite59(c.t)?c.t.toFixed(3):'--',q=c.timingOnly?'時刻のみ':`${Math.round(conf59(c)*100)}%`,low=conf59(c)<.55&&!manual59(c);return `<div class="v59-contact-card ${low?'low':''} ${manual59(c)?'manual':''}"><div class="v59-contact-head"><b>C${i+1}</b><span class="v59-contact-side">${sideLabel59(c)}${manual59(c)?' ✓':''}</span></div><div class="v59-contact-time">F${f??'--'} / ${t}s</div><div class="v59-contact-duration">${d}</div><div class="v59-contact-meta">${esc59(q)}${low?' ⚠':''}</div><div class="v59-contact-actions"><button type="button" data-mandatory-start-contact="${i}">見る</button><button type="button" class="edit" data-start-seq-edit="${i}">修正</button></div><button type="button" class="v59-contact-delete" data-start-seq-delete="${i}">削除</button></div>`;}).join('');
+  const rej=(window.__startV59ContactFilter?.rejectedEvents||lastRejected59||[]).slice(0,24),details=rej.length?`<details class="v59-rejected"><summary>自動除外した候補 ${rej.length}件を見る <span class="v59-filter-badge">誤検出抑制</span></summary><div class="v59-rejected-list">${rej.map(x=>`<div class="v59-rejected-item">F${frame59(x)??'--'} / ${finite59(x.t)?x.t.toFixed(3):'--'}s${finite59(x.duration)?` / ${Math.round(x.duration*1000)}ms`:''}<br>${esc59(x._v59RejectReason||'自動除外')}</div>`).join('')}</div></details>`:'';
+  root.innerHTML=`<div class="v59-contact-grid">${cards}</div>${details}`;const status=$59('start-offline-sequence-status');if(status){status.querySelectorAll('[data-v59-filter-note]').forEach(n=>n.remove());if(rej.length)status.insertAdjacentHTML('beforeend',` <span data-v59-filter-note class="v59-filter-badge">短時間/重複候補 ${rej.length}件除外</span>`);}
+}
+const renderBase59=startOfflineRenderResults;startOfflineRenderResults=function(...args){const r=renderBase59(...args);queueMicrotask(()=>{renderCards59();syncAngleNote59();});return r;};
+const sequenceRoot59=$59('start-offline-sequence-table');if(sequenceRoot59)new MutationObserver(()=>{if(sequenceRoot59.querySelector('table')&&!sequenceRoot59.querySelector('.v59-contact-grid'))queueMicrotask(renderCards59);}).observe(sequenceRoot59,{childList:true,subtree:true});
+
+/* 手動角度フレームは、自動C1誤検出ではロックしないことを明示。 */
+function syncAngleNote59(){const st=$59('start-v56-angle-status');if(!st)return;const idx=startOfflineCurrentFrameIndex?.();if(!finite59(idx))return;const clear=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex;if(!finite59(clear))return;const dt=startOfflineFrameTime(idx)-startOfflineFrameTime(clear);if(dt>=0&&dt<=.45){st.classList.add('v59-manual-note');if(!startOfflineAngleIndexManual||idx!==startOfflineAngleIndex)st.textContent=`手動指定可能：現在F${idx}はブロッククリアランス後 ${dt.toFixed(3)}秒。自動C1が誤検出でも「このフレームを角度測定」で採用できます（30〜70°、0.45秒以内）。`;}}
+startOfflineVideo?.addEventListener('seeked',()=>queueMicrotask(syncAngleNote59));
+
+window.__SPRINT_TIMER_V59={build:BUILD59,angle:{autoAfterClearanceMaxSec:.35,manualAfterClearanceMaxSec:.45,manualIgnoresAutoFirstContact:true,validRangeDeg:[30,70]},startContact:{earlyPhaseSec:EARLY_PHASE_SEC59,earlyRejectAtOrBelowSec:EARLY_MIN_CONTACT59,earlyReviewBelowSec:EARLY_REVIEW_CONTACT59,earlyMinEventGapSec:EARLY_MIN_EVENT_GAP59,lateRejectBelowSec:LATE_MIN_CONTACT59},ui:['3-column contact cards','no horizontal sequence scroll','excluded-candidate details']};
+window.addEventListener('DOMContentLoaded',()=>{renderCards59();syncAngleNote59();});if(document.readyState!=='loading')setTimeout(()=>{renderCards59();syncAngleNote59();},0);
 })();
 </script>
 
