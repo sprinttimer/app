@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.10.01.59">
-<meta name="sprint-timer-build" content="20261001-v59-start-angle-contact-sequence-fix">
+<meta name="sprint-timer-version" content="2026.10.02.60">
+<meta name="sprint-timer-build" content="20261002-v60-contact-interval-inline-review">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.10.01.59";
-window.SPRINT_TIMER_BUILD = "20261001-v59-start-angle-contact-sequence-fix";
+window.SPRINT_TIMER_VERSION = "2026.10.02.60";
+window.SPRINT_TIMER_BUILD = "20261002-v60-contact-interval-inline-review";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -3265,7 +3265,7 @@ function offlineFuseLandmark(raw,patch,inferred,w,h){
 function offlineApplyTrackingFusion(l,frameIndex,patchMap,inferredMap,manualCorr,w,h){if(!l)return l;const patch=patchMap?.get(frameIndex)||{},inf=inferredMap?.get(frameIndex)||{},corr=manualCorr||{};for(const side of ["left","right"]){for(const joint of OFFLINE_TRACK_JOINTS){const idx=OFFLINE_TRACK_DEFS[side][joint];if(corr[idx]||l[idx]?._trackingSeed)continue;const fused=offlineFuseLandmark(l[idx],patch[idx],joint==="knee"?inf[idx]:null,w,h);if(fused)l[idx]=fused;}}return l;}
 
 /* -------- 足首・踵・つま先を別信号として短時間補完 -------- */
-function offlineLmPoint(l,idx,w,h,minVis=.24){const p=l?.[idx];if(!p||(p.visibility??0)<minVis)return null;return {x:p.x*w,y:p.y*h,visibility:p.visibility??0,source:p._patchTracked?"patch":p._fusionSource||"pose",_patchTracked:!!p._patchTracked};}
+function offlineLmPoint(l,idx,w,h,minVis=.24){const p=l?.[idx];if(!p||(p.visibility??0)<minVis)return null;return {x:p.x*w,y:p.y*h,visibility:p.visibility??0,source:p._patchTracked?"patch":p._fusionSource||"pose",_patchTracked:!!p._patchTracked,_inferredPart:!!(p._inferredPart||p._inferredFoot||p._interpolatedSupport)};}
 function offlineBuildResilientFootDetail(frames,w,h,landmarkGetter,maxGapSec=.16){
     const map=new Map(),stats={left:0,right:0,total:0,ankle:0,heel:0,toe:0};if(!frames?.length)return {map,stats};
     for(const side of ["left","right"]){const d=OFFLINE_TRACK_DEFS[side],rows=frames.map(f=>{const l=landmarkGetter(f);return {f,ankle:offlineLmPoint(l,d.ankle,w,h,.24),heel:offlineLmPoint(l,d.heel,w,h,.24),toe:offlineLmPoint(l,d.toe,w,h,.24)};});
@@ -11013,7 +11013,7 @@ function firstGoodAtOrAfter41(index,maxT=Infinity){let best=null;for(const f of 
 function improveGround41(){try{if(startGroundMode==='manual'||startOfflineGroundModel?.manual)return false;}catch(_){}const m=new Map();for(const [idx,rec] of startOfflineFootDetail||[])if(goodRaw41(idx))m.set(idx,rec);if(m.size<5)return false;const gm=offlineBuildFixedGroundModel(m,startOfflineGroundAxis(),startOfflineUpUnit());const old=startOfflineGroundModel?.confidence||0;if(!gm?.valid||gm.points<6||gm.confidence<Math.max(.28,old+.05))return false;startOfflineGroundModel=gm;startOfflineFootSignals=offlineBuildFootSignals(startOfflinePoseFrames,startOfflineCanvas.width,startOfflineCanvas.height,startOfflineFootDetail,startOfflineBodyStateAtFrame,startOfflineSceneScaleAtPoint,startOfflineGroundModel,startOfflineGroundAxis(),startOfflineUpUnit());S41.groundImproved=true;return true;}
 function candidate41(side,lo,hi,expected,min=.27){try{const c=offlineFindSequenceContactCandidate(startOfflineFootSignals?.[side]||[],lo,hi,expected,min);if(c)c.side=side;return c;}catch(_){return null;}}
 function dedupe41(a){const out=[];for(const c of (a||[]).slice().sort((x,y)=>x.t-y.t)){const p=out[out.length-1];if(p&&Math.abs(c.t-p.t)<.050){if(c.manualAnchor&&!p.manualAnchor)out[out.length-1]=c;else if(!p.manualAnchor&&(c.confidence||0)>(p.confidence||0))out[out.length-1]=c;continue;}out.push(c);}return out;}
-function recoverSequence41(input){let out=dedupe41(input);if(out.length<1)return out;let added=0,relabel=0;for(let i=1;i<out.length;i++){const A=out[i-1],B=out[i],gap=B.t-A.t;if(A.side===B.side&&gap>=.095&&gap<=.38&&!B.manualAnchor){const opp=A.side==='left'?'right':'left';if(gap<.18){const alt=candidate41(opp,B.t-.050,B.t+.050,B.t,.23);if(alt){out[i]={...alt,source:'v41-side-relabel',sequenceRecovered:true,confidence:Math.min(.72,alt.confidence||.5)};relabel++;}}else{const mid=(A.t+B.t)/2,alt=candidate41(opp,A.t+.055,B.t-.055,mid,.23);if(alt){out.push({...alt,source:'v41-missing-opposite',sequenceRecovered:true});added++;}}}}
+function recoverSequence41(input){if(window.__SPRINT_TIMER_V60)return input||[];let out=dedupe41(input);if(out.length<1)return out;let added=0,relabel=0;for(let i=1;i<out.length;i++){const A=out[i-1],B=out[i],gap=B.t-A.t;if(A.side===B.side&&gap>=.095&&gap<=.38&&!B.manualAnchor){const opp=A.side==='left'?'right':'left';if(gap<.18){const alt=candidate41(opp,B.t-.050,B.t+.050,B.t,.23);if(alt){out[i]={...alt,source:'v41-side-relabel',sequenceRecovered:true,confidence:Math.min(.72,alt.confidence||.5)};relabel++;}}else{const mid=(A.t+B.t)/2,alt=candidate41(opp,A.t+.055,B.t-.055,mid,.23);if(alt){out.push({...alt,source:'v41-missing-opposite',sequenceRecovered:true});added++;}}}}
   out=dedupe41(out);const ints=[];for(let i=1;i<out.length;i++){const d=out[i].t-out[i-1].t;if(d>=.11&&d<=.36&&out[i].side!==out[i-1].side)ints.push(d);}let typical=median41(ints);if(!(typical>=.12&&typical<=.33))typical=.20;const endT=Math.min(startOfflineRangeEnd??startOfflineVideo.duration??Infinity,(out[0]?.t??0)+2.4);let cur=out[out.length-1],miss=0;for(let n=0;n<8&&cur&&cur.t<endT-.10;n++){const side=cur.side==='left'?'right':'left',lo=cur.t+Math.max(.10,typical*.58),hi=Math.min(endT,cur.t+Math.min(.38,typical*1.58)),expected=cur.t+typical;if(!(hi>lo))break;const c=candidate41(side,lo,hi,expected,.24);if(!c){miss++;if(miss>=2)break;typical=Math.min(.30,typical*1.08);continue;}miss=0;if(!out.some(x=>Math.abs(x.t-c.t)<.055)){c.source='v41-sequence-continued';c.sequenceRecovered=true;out.push(c);added++;const d=c.t-cur.t;if(d>=.10&&d<=.38)typical=clamp41(typical*.65+d*.35,.12,.32);}cur=c;}
   S41.sequenceAdded=added;S41.sequenceRelabeled=relabel;return dedupe41(out).slice(0,12);
 }
@@ -14127,106 +14127,7 @@ startOfflineRecomputeDerived=function(...args){
   queueMicrotask(()=>{syncAngleMini56();renderReliabilityNote56();});return r;
 };
 
-/* ---------- B. conservative contact consensus rescue ---------- */
-function anchorContactHeight56(){
-  const vals=[];
-  for(const a of startOfflineContactAnchors||[]){
-    const sides=(a.sidePref==='left'||a.sidePref==='right')?[a.sidePref]:(a.resolvedSide? [a.resolvedSide]:['left','right']);
-    let best=null;
-    for(const side of sides){const hit=startOfflineNearestFootSignal?.(side,a.t,Math.max(.07,3*frameStep56()));if(hit?.q&&finite56(hit.q.contactHeightM)){const d=Math.abs(hit.q.t-a.t);if(!best||d<best.d)best={d,h:hit.q.contactHeightM};}}
-    if(best&&best.h>-.04&&best.h<.12)vals.push(best.h);
-  }
-  return median56(vals);
-}
-function signalWindow56(arr,t,a,b){return arr.filter(x=>x.t>=t+a&&x.t<=t+b);}
-function partNear56(q,maxH){
-  const checks=[[q?.toeHeightM,Math.min(maxH,.060)],[q?.heelHeightM,Math.min(maxH+.006,.068)],[q?.ankleHeightM,.135]];let avail=0,near=0;
-  for(const [h,thr] of checks){if(!finite56(h))continue;avail++;if(h<=thr)near++;}return {avail,near};
-}
-function contactCandidate56(side,arr,i,startT,maxH){
-  const q=arr[i];if(!q||q.t<startT||!finite56(q.contactHeightM)||(q.confidence||0)<.12)return null;
-  const h=q.contactHeightM,parts=partNear56(q,maxH),P=arr[i-1],N=arr[i+1];
-  const localMin=(!finite56(P?.contactHeightM)||h<=P.contactHeightM+.010)&&(!finite56(N?.contactHeightM)||h<=N.contactHeightM+.010);
-  const pre=signalWindow56(arr,q.t,-.16,-Math.max(.010,frameStep56()*.30)),post=signalWindow56(arr,q.t,Math.max(.010,frameStep56()*.30),.12);
-  const preH=pre.map(x=>x.contactHeightM).filter(finite56),postH=post.map(x=>x.contactHeightM).filter(finite56),airH=preH.length?Math.max(...preH):NaN,riseH=postH.length?Math.max(...postH):NaN;
-  const descending=pre.some(x=>[x.toeVUp,x.ankleVUp,x.heelVUp].some(v=>finite56(v)&&v<-.065))||(finite56(airH)&&airH-h>.006);
-  const rising=post.some(x=>[x.toeVUp,x.ankleVUp,x.heelVUp].some(v=>finite56(v)&&v>.055))||(finite56(riseH)&&riseH-h>.004);
-  const nearGround=h<=maxH||parts.near>=Math.min(2,Math.max(1,parts.avail));
-  const verticalTurn=localMin&&(descending||rising)||(descending&&rising);
-  const vNow=[q.toeVUp,q.ankleVUp].filter(finite56).map(Math.abs),vMedian=vNow.length?median56(vNow):NaN;
-  const horizOk=!finite56(q.vGround)||Math.abs(q.vGround)<4.6,velocitySupport=(finite56(vMedian)&&vMedian<.72&&horizOk&&(descending||rising||localMin));
-  const groups=[nearGround,verticalTurn,velocitySupport].filter(Boolean).length;
-  if(groups<2)return null;
-  const airSeen=(finite56(airH)&&airH>Math.max(h+.007,.034))||descending;
-  if(!airSeen&&q.t>startT+.11)return null;
-  const groundQ=clamp56((maxH+.012-h)/(maxH+.025),0,1),turnQ=verticalTurn?1:localMin?.55:0,velQ=velocitySupport?1:.20,partQ=parts.avail?parts.near/parts.avail:.25,ev=typeof offlineContactEvidence==='function'?offlineContactEvidence(q,P,N,'first'):.35;
-  const score=clamp56(groundQ*.25+turnQ*.25+velQ*.15+partQ*.12+(q.confidence||0)*.13+ev*.10,0,1);
-  if(score<.40)return null;
-  return {side,q,i,score,groups,method:'v56 2/3合議（地面・上下反転・足部速度）'};
-}
-function relativeLiftoff56(arr,startIdx){
-  const s=arr?.[startIdx];if(!s)return null;const h0=finite56(s.contactHeightM)?s.contactHeightM:NaN,toe0=s.toeHeightM,heel0=s.heelHeightM,minT=s.t+.035,maxT=s.t+.34;let streak=0,first=null;
-  for(let j=startIdx+1;j<arr.length;j++){
-    const q=arr[j];if(q.t<minT)continue;if(q.t>maxT)break;
-    const dh=finite56(h0)&&finite56(q.contactHeightM)?q.contactHeightM-h0:NaN,dt=finite56(toe0)&&finite56(q.toeHeightM)?q.toeHeightM-toe0:NaN,dhh=finite56(heel0)&&finite56(q.heelHeightM)?q.heelHeightM-heel0:NaN;
-    const lifted=(finite56(dh)&&dh>=.013)||(finite56(dt)&&dt>=.014)||(finite56(dhh)&&dhh>=.014),up=[q.toeVUp,q.ankleVUp,q.heelVUp].filter(finite56).some(v=>v>.055);
-    if(lifted&&up){if(!first)first=q;streak++;if(streak>=1)return first;}else{streak=0;first=null;}
-  }
-  return null;
-}
-function makeConsensusEvent56(c){
-  const arr=startOfflineFootSignals?.[c.side]||[],lift=relativeLiftoff56(arr,c.i),d=lift?lift.t-c.q.t:null;
-  return {side:c.side,index:c.q.index,frame:c.q.index,t:c.q.t,x:c.q.p?.x,y:c.q.p?.y,visibility:c.q.p?.visibility??c.q.confidence,confidence:clamp56(.38+c.score*.50,.42,.88),source:'auto-v56-consensus',liftoff:lift?.t??null,duration:finite56(d)&&d>=.035&&d<=.32?d:null,durationInvalid:finite56(d)&&d>.32,durationInvalidReason:finite56(d)&&d>.32?'320ms超のため離地を要確認':null,method:c.method,contactEvidence:c.score,temporalScore:c.score,_signal:c.q,v56Consensus:true};
-}
-function rescueCandidates56(anchorIndex){
-  const cidx=finite56(anchorIndex)?anchorIndex:clearanceIndex56(),ct=finite56(cidx)?startOfflineFrameTime(cidx):(startOfflineRangeStart||0),startT=ct+Math.max(.018,frameStep56()*.55),groundQ=Number(startOfflineGroundModel?.confidence)||0,manualH=anchorContactHeight56(),maxH=finite56(manualH)?clamp56(manualH+.018,.048,.080):(groundQ<.35?.067:groundQ<.55?.061:.056),out=[];
-  for(const side of ['left','right']){
-    const arr=startOfflineFootSignals?.[side]||[];let last=-Infinity;
-    for(let i=1;i<arr.length-1;i++){
-      const c=contactCandidate56(side,arr,i,startT,maxH);if(!c||c.q.t-last<.085)continue;
-      let best=c;for(let j=i+1;j<arr.length&&arr[j].t<=c.q.t+.055;j++){const x=contactCandidate56(side,arr,j,startT,maxH);if(x&&x.score>best.score+.018)best=x;}
-      out.push(makeConsensusEvent56(best));last=best.q.t;i=best.i;
-    }
-  }
-  return out;
-}
-function dedupeEvents56(list){
-  const a=(list||[]).filter(c=>finite56(c?.t)).sort((x,y)=>x.t-y.t),out=[];
-  for(const c of a){const p=out[out.length-1];if(p&&Math.abs(c.t-p.t)<.055){const cm=!!(c.manualAnchor||c.manual||String(c.source||'').includes('manual')),pm=!!(p.manualAnchor||p.manual||String(p.source||'').includes('manual'));if(cm&&!pm)out[out.length-1]=c;else if(cm===pm&&(c.confidence||0)>(p.confidence||0))out[out.length-1]=c;continue;}out.push(c);}return out;
-}
-function selectSequence56(candidates,startT,endT){
-  const c=dedupeEvents56(candidates).filter(x=>x.t>=startT&&x.t<=endT).sort((a,b)=>a.t-b.t);if(c.length<=1)return c;
-  const dp=c.map((x,i)=>({score:(x.confidence||0)*.65+(x.contactEvidence||x.temporalScore||0)*.35+(String(x.source||'').includes('v56')?0:.06),path:[i]}));
-  for(let j=0;j<c.length;j++)for(let i=0;i<j;i++){
-    const dt=c[j].t-c[i].t;if(dt<.095||dt>.43)continue;const prev=dp[i],alt=c[j].side!==c[i].side,tempo=dt>=.12&&dt<=.34?1:dt<=.39?.5:0,gain=(c[j].confidence||0)*.46+(c[j].contactEvidence||c[j].temporalScore||0)*.27+(alt?.16:-.15)+tempo*.07;
-    const score=prev.score+gain;if(score>dp[j].score+.001)dp[j]={score,path:prev.path.concat(j)};
-  }
-  let win=dp[0];for(const x of dp){const a=x.score+x.path.length*.055,b=win.score+win.path.length*.055;if(a>b)win=x;}return win.path.map(i=>c[i]).slice(0,12);
-}
-const detectBase56=startOfflineDetectContacts;
-startOfflineDetectContacts=function(anchorIndex=null){
-  let base=[];try{base=detectBase56(anchorIndex)||[];}catch(e){console.warn('v56 base contact detector',e);}
-  let rescue=[];try{rescue=rescueCandidates56(anchorIndex);}catch(e){console.warn('v56 consensus contacts',e);}
-  const manual=base.filter(c=>c.manualAnchor||c.manual||String(c.source||'').includes('manual')),auto=dedupeEvents56(base.filter(c=>!manual.includes(c)).concat(rescue));
-  const cidx=finite56(anchorIndex)?anchorIndex:clearanceIndex56(),startT=finite56(cidx)?startOfflineFrameTime(cidx)+.015:(startOfflineRangeStart||0),validEnd=startOfflineRangeEnd??startOfflineVideo.duration??Infinity;
-  let selected=auto.length?selectSequence56(auto,startT,validEnd):[];
-  let out=dedupeEvents56(selected.concat(manual));
-  try{if(typeof window.startOfflineMergeManualContactsIntoFinal==='function')out=window.startOfflineMergeManualContactsIntoFinal(out,window.startOfflineBuildManualContactFallback?.()||[]);}catch(_){}
-  window.__startV56ContactStats={base:base.length,rescue:rescue.length,final:out.length,manualH:anchorContactHeight56(),groundConfidence:Number(startOfflineGroundModel?.confidence)||0};
-  return out.slice(0,16);
-};
-
-/* Enrich manual and rescued events with a relative liftoff if absolute-ground
-   liftoff could not be established. */
-const resolveAnchorsBase56=startOfflineResolveContactAnchors;
-startOfflineResolveContactAnchors=function(...args){
-  const out=resolveAnchorsBase56(...args)||[];
-  for(const c of out){
-    if(finite56(c.duration)||!(c.side==='left'||c.side==='right'))continue;const arr=startOfflineFootSignals?.[c.side]||[],hit=startOfflineNearestFootSignal?.(c.side,c.t,Math.max(.08,3/Math.max(1,startOfflineEffectiveFps())));if(!hit)continue;const lift=relativeLiftoff56(arr,hit.index);if(!lift)continue;const d=lift.t-c.t;if(d>=.035&&d<=.32){c.liftoff=lift.t;c.duration=d;c.durationInvalid=false;c.durationInvalidReason=null;c.method=(c.method?c.method+' / ':'')+'手動接地基準の相対離地';c.v56RelativeLiftoff=true;}
-  }
-  return out;
-};
-
+/* v60 owns START contact intervals and manual liftoff; the retired v56 rescue is removed. */
 /* ---------- C. refresh low-quality foot Pose around a manual contact ---------- */
 const localCanvas56=document.createElement('canvas'),localCtx56=localCanvas56.getContext('2d',{alpha:false,willReadFrequently:false});
 function poseBox56(lm){if(!lm?.length)return null;const pts=lm.slice(0,33).filter(p=>p&&finite56(p.x)&&finite56(p.y)&&(p.visibility??1)>=.16);if(pts.length<7)return null;const xs=pts.map(p=>p.x).sort((a,b)=>a-b),ys=pts.map(p=>p.y).sort((a,b)=>a-b),q=(a,p)=>a[Math.max(0,Math.min(a.length-1,Math.round((a.length-1)*p)))],x1=q(xs,.04),x2=q(xs,.96),y1=q(ys,.03),y2=q(ys,.97);if(!(x2>x1&&y2>y1))return null;return {x:x1,y:y1,w:x2-x1,h:y2-y1,cx:(x1+x2)/2,cy:(y1+y2)/2};}
@@ -14290,7 +14191,7 @@ function installAngleMini56(){
   syncAngleMini56();
 }
 function syncAngleMini56(){
-  const d=$56('start-v56-angle-mini');if(!d)return;const idx=startOfflineCurrentFrameIndex(),frame=$56('start-v56-angle-frame'),st=$56('start-v56-angle-status'),slider=$56('start-v56-angle-slider'),mark=$56('start-v56-angle-mark'),auto=$56('start-v56-angle-auto');frame.textContent=`Frame ${idx} / ${finite56(startOfflineFrameTime(idx))?startOfflineFrameTime(idx).toFixed(3):'--'}s`;
+  const d=$56('start-v56-angle-mini');if(!d)return;const idx=startOfflineCurrentFrameIndex(),frame=$56('start-v56-angle-frame'),st=$56('start-v56-angle-status'),slider=$56('start-v56-angle-slider'),mark=$56('start-v56-angle-mark'),auto=$56('start-v56-angle-auto');frame.textContent=`表示中 F${idx} / ${finite56(startOfflineFrameTime(idx))?startOfflineFrameTime(idx).toFixed(3):'--'}s ／ 角度採用 ${startOfflineAngleIndex===null?'未設定':'F'+startOfflineAngleIndex}`;
   const o=angleOrder56(idx,true),hasLine=!!startOfflineAngleLine&&startOfflineAngleIndex!==null,angle=finite56(startOfflineAngleManual)?startOfflineAngleManual:finite56(startOfflineAngleAuto)?startOfflineAngleAuto:(hasLine?startOfflineAngleFromLine(startOfflineAngleLine)?.angle:NaN);mark.disabled=!o.ok;auto.disabled=!finite56(startOfflineAutoProjectionIndex);slider.disabled=!hasLine;if(finite56(angle))slider.value=String(clamp56(angle,ANGLE_MIN56,ANGLE_MAX56));
   if(!o.ok){st.className='start-angle-mini-status warn';st.textContent=`現在フレームは角度測定に使用不可：${o.reason}`;}
   else{const stable=startOfflineAngleIndex===idx?angleStability56(idx):null;st.className='start-angle-mini-status '+(stable&&!stable.ok?'warn':'ok');st.textContent=`使用可能：手動指定はブロッククリアランス後0.45秒以内（自動候補は0.35秒以内）・採用角度30〜70°。手動指定は誤った自動C1の制限を受けません。${stable?` 周辺±2F変動 ${finite56(stable.spread)?stable.spread.toFixed(1):'--'}°。`:''}`;}
@@ -14310,13 +14211,13 @@ function scheduleEvidenceTop56(){
 /* window capture runs BEFORE legacy document-capture listeners that call
    stopImmediatePropagation(). We do not block them; we only schedule the final
    viewport position after they have finished seek + inline evidence rendering. */
-window.addEventListener('click',e=>{const b=e.target?.closest?.('[data-start-evidence],[data-mandatory-start-contact],[data-v40-start-contact-index]');if(!b||!b.closest?.('#start-offline-analysis-area'))return;scheduleEvidenceTop56();},{capture:true});
+window.addEventListener('click',e=>{const b=e.target?.closest?.('[data-start-evidence],[data-mandatory-start-contact],[data-v40-start-contact-index]');if(!b||!b.closest?.('#start-offline-analysis-area'))return;if(window.__SPRINT_TIMER_V60&&b.matches('[data-mandatory-start-contact],[data-v40-start-contact-index]'))return;scheduleEvidenceTop56();},{capture:true});
 
 /* ---------- user-facing diagnostics ---------- */
 function renderReliabilityNote56(){
   const host=$56('start-athlete-track-diagnostics')||$56('start-offline-analysis-status');if(!host)return;let n=$56('start-v56-reliability-note');if(!n){n=document.createElement('div');n.id='start-v56-reliability-note';n.className='v56-reliability-note';host.insertAdjacentElement('afterend',n);}const cs=window.__startV56ContactStats||{},aq=window.__startV56AngleQuality||{},idx=startOfflineAngleIndex,order=idx!=null?angleOrder56(idx):null,ar=idx!=null?(()=>{try{return startOfflineProjectionAt(idx);}catch(_){return null;}})():null;
   n.className='v56-reliability-note '+((idx!=null&&!ar?.valid)||(cs.final===0&&startOfflinePoseFrames?.length)?'warn':'');
-  n.innerHTML=`<b>v56 START信頼性：</b> 接地は「地面近傍・上下反転・足部速度」の2/3合議を追加。自動候補 ${cs.base??0}件＋合議候補 ${cs.rescue??0}件 → 最終 ${cs.final??(startOfflineContacts?.length||0)}件。<br>飛び出し角度は <b>自動候補：ブロッククリアランス後0.35秒以内＋自動1歩目接地より前、手動指定：0.45秒以内で自動C1制限を解除、共通：30〜70°</b> を検証します。${idx!=null?` 現在 F${idx}：${ar?.valid?ar.angle.toFixed(1)+'° 採用可能':'判定保留（'+(ar?.reason||order?.reason||'条件外')+'）'}`:''}`;
+  n.innerHTML=`<b>START接地の確認：</b> 足部の空中・接地・離地を連続確認。自動 ${cs.base??0}件 → 手動統合後 ${cs.final??(startOfflineContacts?.length||0)}件。足元の見え方と接地・離地の確定状態は別に表示します。<br>飛び出し角度は <b>自動候補：ブロッククリアランス後0.35秒以内＋自動1歩目接地より前、手動指定：0.45秒以内で自動C1制限を解除、共通：30〜70°</b> を検証します。${idx!=null?` 現在 F${idx}：${ar?.valid?ar.angle.toFixed(1)+'° 採用可能':'判定保留（'+(ar?.reason||order?.reason||'条件外')+'）'}`:''}`;
 }
 
 /* mark-angle legacy button: reject temporally impossible manual frames before
@@ -14402,70 +14303,493 @@ window.__SPRINT_TIMER_V58={build:BUILD58,fixes:['START full-frame reliability fi
 #start-v56-angle-status.v59-manual-note{border-color:#8fc3ef;background:#f4faff;color:#174f87}
 @media(max-width:390px){.v59-contact-grid{gap:4px}.v59-contact-card{padding:6px 4px}.v59-contact-head b{font-size:13px}.v59-contact-side,.v59-contact-time{font-size:9px}.v59-contact-duration{font-size:14px}.v59-contact-actions button{font-size:9px!important}}
 </style>
-<script id="v59-start-angle-contact-sequence-fix">
-(()=>{'use strict';
-const $59=id=>document.getElementById(id),BUILD59='20261001-v59-start-angle-contact-sequence-fix';
-const finite59=Number.isFinite,clamp59=(v,a,b)=>Math.max(a,Math.min(b,v));
-const EARLY_PHASE_SEC59=1.80,EARLY_MIN_CONTACT59=.100,EARLY_REVIEW_CONTACT59=.115,LATE_MIN_CONTACT59=.075,LATE_REVIEW_CONTACT59=.095,EARLY_MIN_EVENT_GAP59=.135,LATE_MIN_EVENT_GAP59=.095;
-let lastRejected59=[];
-function manual59(c){return !!(c?.manualAnchor||c?.manual||c?.timingOnly||String(c?.source||'').includes('manual'));}
-function conf59(c){return clamp59(Number(c?.confidence)||0,0,1);}
-function evidence59(c){return clamp59(Number(c?.contactEvidence??c?.temporalScore??c?.firstContactScore)||0,0,1);}
-function frame59(c){return c?.index??c?.frame??null;}
-function clearanceTime59(anchorIndex=null){const idx=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex??anchorIndex;return Number.isFinite(idx)?startOfflineFrameTime(idx):(startOfflineRangeStart||0);}
-function reject59(c,reason,code){return {...c,_v59Rejected:true,_v59RejectReason:reason,_v59RejectCode:code};}
-function airSeen59(prev,c){
-  const side=c?.side;if(side!=='left'&&side!=='right')return null;const arr=startOfflineFootSignals?.[side]||[];if(!arr.length)return null;
-  const lo=Math.max((prev?.t??c.t-.22)+.02,c.t-.24),hi=c.t-.018;if(!(hi>lo))return null;let seen=false,usable=0;
-  for(const q of arr){if(q.t<lo||q.t>hi)continue;if((q.confidence||0)<.12)continue;usable++;const heights=[q.contactHeightM,q.toeHeightM,q.heelHeightM].filter(Number.isFinite);if(heights.some(h=>h>.046)||[q.toeVUp,q.ankleVUp,q.heelVUp].filter(Number.isFinite).some(v=>v>.075)){seen=true;break;}}
-  return usable?seen:null;
-}
-function better59(a,b){if(manual59(a)!==manual59(b))return manual59(a)?a:b;const score=x=>conf59(x)*.56+evidence59(x)*.30+(Number.isFinite(x?.duration)?Math.min(.14,x.duration)*.65:0);return score(a)>=score(b)?a:b;}
-function sanitizeStartContacts59(list,{anchorIndex=null,record=true}={}){
-  const raw=(list||[]).filter(c=>finite59(c?.t)).slice().sort((a,b)=>a.t-b.t),ct=clearanceTime59(anchorIndex),rejected=[],stage=[];
-  for(const c0 of raw){const c={...c0},m=manual59(c),d=Number(c.duration),early=finite59(ct)?c.t-ct<=EARLY_PHASE_SEC59:true,strong=conf59(c)>=.80&&evidence59(c)>=.62;
-    if(!m&&finite59(d)){
-      if(early&&d<=EARLY_MIN_CONTACT59+1e-6){rejected.push(reject59(c,`START序盤の自動接地 ${Math.round(d*1000)}ms は短すぎるため除外`,'early-short-duration'));continue;}
-      if(early&&d<EARLY_REVIEW_CONTACT59&&!strong){rejected.push(reject59(c,`START序盤 ${Math.round(d*1000)}ms は境界値で、根拠が十分でないため除外`,'early-border-duration'));continue;}
-      if(!early&&d<LATE_MIN_CONTACT59){rejected.push(reject59(c,`自動接地 ${Math.round(d*1000)}ms は短すぎるため除外`,'late-short-duration'));continue;}
-      if(!early&&d<LATE_REVIEW_CONTACT59&&!strong){rejected.push(reject59(c,`自動接地 ${Math.round(d*1000)}ms は短い境界値で、根拠が十分でないため除外`,'late-border-duration'));continue;}
+<script id="v60-contact-engine">
+/* START contact intervals. Pure post-processing; does not call or modify Pose. */
+(function(root){
+  'use strict';
+  const finite=Number.isFinite, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const median=a=>{a=a.filter(finite).sort((x,y)=>x-y);return a.length?a[Math.floor(a.length/2)]:NaN;};
+  const quantile=(a,p)=>{a=a.filter(finite).sort((x,y)=>x-y);return a.length?a[Math.floor((a.length-1)*p)]:NaN;};
+  const manual=c=>!!(c&&(c.manualAnchor||c.manualLanding||c.manual||/^manual(?:-|$)/.test(c.source||'')));
+  function observed(p){
+    return !!p&&finite(p.x)&&finite(p.y)&&(p.visibility??0)>=.24&&
+      !p._inferredPart&&!p._inferredFoot&&!p._interpolatedSupport&&
+      !/interp|offset|inferred/.test(p.source||'');
+  }
+  function foot(q){
+    const toe=observed(q?.parts?.toe)&&finite(q.toeHeightM),heel=observed(q?.parts?.heel)&&finite(q.heelHeightM);
+    const heights=[toe?q.toeHeightM:NaN,heel?q.heelHeightM:NaN].filter(finite);
+    return {toe,heel,h:heights.length?Math.min(...heights):NaN,valid:heights.length>0&&(q?.confidence??0)>=.20};
+  }
+  function prepare(raw,opts){
+    const a=(raw||[]).filter(q=>finite(q?.t)).slice().sort((x,y)=>x.t-y.t);
+    const dt=median(a.slice(1).map((q,i)=>q.t-a[i].t).filter(t=>t>0&&t<.1))||opts.frameStep||1/60;
+    const base=clamp(quantile(a.filter(q=>q.t>=opts.startT-.6&&q.t<=opts.endT).map(q=>foot(q).h).filter(h=>h>=-.08&&h<.09),.12)||0,-.04,.035);
+    return a.map((q,i)=>{
+      const f=foot(q),hs=[];
+      for(let j=Math.max(0,i-1);j<=Math.min(a.length-1,i+1);j++){
+        const z=foot(a[j]);if(z.valid&&Math.abs(a[j].t-q.t)<=Math.min(.045,dt*1.6))hs.push(z.h);
+      }
+      return {q,t:q.t,i,dt,base,...f,smoothed:f.valid?(hs.length>=3?median(hs):f.h):NaN};
+    });
+  }
+  function decodeSide(side,raw,opts){
+    const a=prepare(raw,opts),events=[],intervals=[],states=[];
+    if(!a.length)return {events,intervals,states,observed:0};
+    const dt=a[0].dt,holdSec=clamp(dt*.70,.010,.035),maxGap=Math.max(.055,dt*2.3);
+    let state='UNKNOWN',airRun=[],groundRun=[],armed=false,current=null,airPeak=-Infinity;
+    let lastValid=null,lastEvent=-Infinity,lastLift=null,observedCount=0;
+    function finish(lift,reason){
+      if(!current)return;
+      current.endT=lift?.t??null;current.endFrame=lift?.q?.index??lift?.q?.frame??null;
+      current.censored=!lift;current.reason=reason||null;
+      if(current.event){
+        const e=current.event,d=lift?lift.t-e.t:null;
+        if(lift&&!current.hasGap&&finite(d)&&d>=.035&&d<=.65){
+          e.liftoff=lift.t;e.duration=d;e.liftoffIndex=current.endFrame;e.liftoffConfirmed=false;
+          e.liftoffSource='auto-v60-toe-clearance';e.durationSource='auto';
+          e.durationInvalid=false;e.durationInvalidReason=null;
+        }else{
+          e.liftoff=null;e.duration=null;e.durationInvalid=true;
+          e.durationInvalidReason=current.hasGap?'接地中に足部の観測が途切れたため離地を要確認':reason||'離地を確認できません';
+        }
+        e._v60Interval={startT:current.startT,endT:current.endT,startFrame:current.startFrame,endFrame:current.endFrame,hasGap:!!current.hasGap,censored:current.censored};
+      }
+      intervals.push(current);current=null;
     }
-    stage.push(c);
+    for(let i=0;i<a.length;i++){
+      const z=a[i],q=z.q;if(z.t<opts.startT-.6||z.t>opts.endT+1e-6)continue;
+      if(!z.valid){
+        airRun=[];groundRun=[];
+        if(current)current.hasGap=true;
+        states.push({t:z.t,index:q.index,state:'UNKNOWN'});continue;
+      }
+      observedCount++;
+      const gap=lastValid?z.t-lastValid.t:0;
+      if(gap>maxGap){airRun=[];groundRun=[];armed=false;airPeak=-Infinity;if(current)current.hasGap=true;}
+      lastValid=z;
+      const h=z.smoothed-z.base,ground=h<=.022,air=h>=.048;
+      const toeUp=z.toe&&finite(q.toeVUp)&&q.toeVUp>.045;
+      const rise=current?z.h-current.low:0;
+      // A rising heel with a grounded toe remains CONTACT. Ankle alone never releases it.
+      const clear=air&&(!current||rise>=.026)&&(toeUp||rise>=.042||!z.toe);
+      if(current){
+        current.low=Math.min(current.low,z.h);
+        if(clear){
+          if(airRun.length&&z.t-airRun[airRun.length-1].t>maxGap)airRun=[];
+          airRun.push(z);
+          if(airRun.length>=2&&z.t-airRun[0].t>=holdSec){
+            const first=airRun[0];finish(first,'');state='AIR';armed=true;lastLift=first.t;
+            airPeak=Math.max(...airRun.map(x=>x.smoothed-x.base));groundRun=[];
+          }
+        }else airRun=[];
+        if(current)state='CONTACT';
+      }else if(air){
+        if(airRun.length&&z.t-airRun[airRun.length-1].t>maxGap)airRun=[];
+        airRun.push(z);groundRun=[];airPeak=Math.max(airPeak,h);
+        if(airRun.length>=2&&z.t-airRun[0].t>=holdSec){armed=true;state='AIR';}
+      }else if(ground){
+        if(groundRun.length&&z.t-groundRun[groundRun.length-1].t>maxGap)groundRun=[];
+        groundRun.push(z);airRun=[];
+        if(groundRun.length>=2&&z.t-groundRun[0].t>=holdSec){
+          const first=groundRun[0],drop=airPeak-(first.smoothed-first.base);
+          const descent=a.slice(Math.max(0,first.i-5),first.i+1).some(x=>x.valid&&
+            ((finite(x.q.toeVUp)&&x.q.toeVUp<-.045)||(finite(x.q.heelVUp)&&x.q.heelVUp<-.045)))||drop>=.028;
+          const landing=armed&&descent&&first.t>=opts.startT&&first.t-lastEvent>=.16;
+          const p=first.q.p||{},quality=clamp((first.q.confidence||0)*.70+.24+(z.toe&&z.heel?.04:0),.25,.94);
+          const e=landing?{side,t:first.t,index:first.q.index??first.q.frame,frame:first.q.index??first.q.frame,
+            x:finite(p.x)?p.x:null,y:finite(p.y)?p.y:null,visibility:p.visibility??null,
+            confidence:quality,sideConfidence:clamp(quality*.72,0,.75),sideConfirmed:false,
+            source:'auto-v60-contact-interval',method:'足部の空中→接地→離地を連続確認',
+            contactEvidence:quality,temporalScore:quality,liftoff:null,duration:null,
+            durationInvalid:true,durationInvalidReason:'離地を確認できません',landingConfirmed:false,
+            airStartT:airRun[0]?.t??lastLift,uncertaintySec:Math.max(dt/2,.008)}:null;
+          if(e){events.push(e);lastEvent=e.t;}
+          current={side,startT:first.t,startFrame:first.q.index??first.q.frame,low:first.h,initial:!landing,event:e,hasGap:false};
+          state='CONTACT';armed=false;airPeak=-Infinity;groundRun=[];
+        }
+      }else{groundRun=[];airRun=[];if(armed)state='APPROACH';}
+      states.push({t:z.t,index:q.index,state});
+    }
+    finish(null,'画面端または解析範囲末尾で離地を確認できません');
+    return {events,intervals,states,observed:observedCount,frameStep:dt};
   }
-  const accepted=[];
-  for(const c of stage){const p=accepted[accepted.length-1];if(!p){accepted.push(c);continue;}const dt=c.t-p.t,m=manual59(c)||manual59(p),early=finite59(ct)?Math.min(c.t,p.t)-ct<=EARLY_PHASE_SEC59:true,minGap=early?EARLY_MIN_EVENT_GAP59:LATE_MIN_EVENT_GAP59;
-    if(!m&&dt<minGap){const keep=better59(p,c),drop=keep===p?c:p;if(keep!==p)accepted[accepted.length-1]=keep;rejected.push(reject59(drop,`前の接地から ${Math.round(dt*1000)}ms しかなく、同一接地の二重検出と判断`,'near-duplicate'));continue;}
-    if(!m&&finite59(p.liftoff)&&c.t<p.liftoff+.018){const keep=better59(p,c),drop=keep===p?c:p;if(keep!==p)accepted[accepted.length-1]=keep;rejected.push(reject59(drop,'前接地の離地前に次接地が重なったため二重検出候補として除外','overlap'));continue;}
-    if(!m&&early&&dt<.180){const air=airSeen59(p,c);if(air===false){const keep=better59(p,c),drop=keep===p?c:p;if(keep!==p)accepted[accepted.length-1]=keep;rejected.push(reject59(drop,'接地間に明確な遊脚（AIR）を確認できず、同一接地の分裂候補として除外','no-air-state'));continue;}}
-    accepted.push(c);
+  function analyse(signals,options={}){
+    const opts={startT:0,endT:Infinity,frameStep:1/60,...options};
+    const left=decodeSide('left',signals?.left,opts),right=decodeSide('right',signals?.right,opts);
+    let events=left.events.concat(right.events).sort((a,b)=>a.t-b.t),rejected=[];
+    // Collapse only competing views of the same instant, never an enforced L/R alternation.
+    const out=[];
+    for(const e of events){
+      const p=out[out.length-1];
+      if(p&&e.t-p.t<Math.max(.045,opts.frameStep*1.6)){
+        const keep=(p.contactEvidence||0)>=(e.contactEvidence||0)?p:e;
+        rejected.push({...((keep===p)?e:p),reason:'同じ着地時刻に左右の候補が重なったため統合'});
+        out[out.length-1]=keep;keep.sideConfidence=Math.min(keep.sideConfidence,.40);
+      }else out.push(e);
+    }
+    return {events:out,intervals:left.intervals.concat(right.intervals),states:{left:left.states,right:right.states},
+      rejected,observed:left.observed+right.observed,frameStep:opts.frameStep};
   }
-  if(record){lastRejected59=rejected;window.__startV59ContactFilter={raw:raw.length,accepted:accepted.length,rejected:rejected.length,earlyPhaseSec:EARLY_PHASE_SEC59,rejectedEvents:rejected.slice()};}
-  return {accepted,rejected,raw};
+  function intervalAt(analysis,side,t,tolerance=.075){
+    const list=(analysis?.intervals||[]).filter(x=>!side||x.side===side);
+    let best=null,dist=Infinity;
+    for(const x of list){
+      const hi=finite(x.endT)?x.endT:(analysis?.endT??x.startT+.65);
+      const d=t<x.startT?x.startT-t:t>hi?t-hi:0;
+      const rank=d+Math.min(.025,Math.abs(t-x.startT)*.025);
+      if(d<=tolerance&&rank<dist){best=x;dist=rank;}
+    }
+    return best;
+  }
+  function integrate(autos,manuals,analysis,options={}){
+    const ms=(manuals||[]).filter(c=>finite(c?.t)).map(c=>({...c})).sort((a,b)=>a.t-b.t);
+    const merged=[],rejected=[];
+    for(const m of ms){
+      const same=merged.find(c=>(finite(c.index)&&finite(m.index)&&c.index===m.index)||Math.abs(c.t-m.t)<.001);
+      if(same){Object.assign(same,m);continue;}
+      merged.push(m);
+    }
+    for(const m of merged){
+      let interval=intervalAt(analysis,m.side,m.t,.075);
+      if(!interval&&!m.sideConfirmed)interval=intervalAt(analysis,null,m.t,.075);
+      if(interval){
+        m._v60Interval={startT:interval.startT,endT:interval.endT,startFrame:interval.startFrame,endFrame:interval.endFrame,hasGap:!!interval.hasGap,censored:interval.censored};
+        if(!m.sideConfirmed){m.side=interval.side;m.sideConfidence=.45;}
+        const ev=interval.event;
+        if(!m.liftoffConfirmed){
+          const d=finite(interval.endT)?interval.endT-m.t:null;
+          if(!interval.hasGap&&finite(d)&&d>=.035&&d<=.65){m.liftoff=interval.endT;m.duration=d;m.liftoffIndex=interval.endFrame;m.durationSource='auto';m.liftoffSource='auto-v60-toe-clearance';m.durationInvalid=false;m.durationInvalidReason=null;}
+          else {m.liftoff=null;m.duration=null;m.durationInvalid=true;m.durationInvalidReason=interval.hasGap?'足部の観測が途切れたため離地を要確認':'離地を確認できません';}
+        }
+        if(ev&&!m.positionAvailable&&finite(ev.x)&&finite(ev.y)){m.x=ev.x;m.y=ev.y;m.positionAvailable=true;m.timingOnly=false;}
+      }else if(!m.liftoffConfirmed){m.liftoff=null;m.duration=null;m.durationInvalid=true;m.durationInvalidReason='離地を確認できません';}
+    }
+    if(options.manualOnly)return {events:merged,rejected};
+    for(const a of autos||[]){
+      if(manual(a))continue;
+      const conflict=merged.find(m=>{
+        const sameInterval=m._v60Interval&&a._v60Interval&&m._v60Interval.startFrame===a._v60Interval.startFrame&&
+          m.side===a.side;
+        const close=Math.abs(m.t-a.t)<=.085&&(!m.sideConfirmed||m.side===a.side);
+        const during=m.side===a.side&&finite(m.liftoff)&&a.t>=m.t-.025&&a.t<m.liftoff&&
+          (m.liftoffConfirmed||!!m._v60Interval);
+        return sameInterval||close||during;
+      });
+      if(conflict)rejected.push({...a,reason:'手動指定と同じ接地区間の自動候補を統合'});
+      else merged.push({...a});
+    }
+    return {events:merged.sort((a,b)=>a.t-b.t),rejected};
+  }
+  const api={analyse,integrate,intervalAt,manual,foot,version:60};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  root.SprintContactIntervalsV60=api;
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<style id="v60-review-style">
+.v60-mode{padding:10px;border:1px solid #d5e0ea;border-radius:10px;background:#f7fbff;text-align:left;margin:8px 0}
+#start-v60-review-host{display:contents}
+.v60-mode label{font-weight:700;font-size:13px}.v60-mode select,.v60-edit-row select{padding:6px;border:1px solid #aebdce;border-radius:6px;background:#fff;color:#23364a;max-width:100%}
+.v60-mode .small{margin-top:5px;line-height:1.5}
+.v60-review{background:#fff;border:2px solid #70aee1;border-radius:10px;margin:8px 0;padding:7px;text-align:left;box-shadow:0 2px 9px #14294318}
+.v60-review[hidden]{display:none!important}.v60-review.pinned{position:sticky;top:4px;z-index:35}
+.v60-review-head{display:flex;align-items:center;justify-content:space-between;font-size:13px;margin-bottom:5px}
+.v60-review canvas{display:block;width:100%;height:auto;max-height:28vh;object-fit:contain;background:#111;border-radius:6px}
+.v60-current{font-size:11px;padding:5px 1px;color:#1c4162;line-height:1.4;overflow-wrap:anywhere}
+.v60-review-buttons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:5px 0}
+.v60-review-buttons.three{grid-template-columns:1fr 1fr 1.2fr}
+.v60-review button{padding:6px 3px!important;min-height:32px!important;margin:0!important;font-size:11px!important;border:1px solid #b5c7d9;border-radius:6px;background:#eef6ff;color:#184a70;font-weight:700;cursor:pointer}
+.v60-review button:disabled{opacity:.45;cursor:default}.v60-review[aria-busy="true"] canvas{opacity:.7}
+.v60-pin{display:flex;align-items:center;justify-content:center;font-size:10px;gap:3px}.v60-pin input{width:auto;margin:0}
+.v60-edit-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:11px}.v60-edit-row label{grid-column:1/-1;display:flex;align-items:center;gap:8px}
+.v60-edit-row button{background:#fff5dc;border-color:#dbad4c;color:#80510e}
+#start-v60-message{margin-top:5px;line-height:1.45;color:#304961}
+#start-offline-sequence-table .v59-contact-card{scroll-margin-top:55vh}
+#start-offline-sequence-table .v59-contact-duration{font-size:13px}
+#start-offline-sequence-table .v59-contact-meta{font-size:9px;line-height:1.45;min-height:26px}
+#start-offline-sequence-table .v59-contact-side{white-space:normal;text-align:right}
+@media(max-height:600px){.v60-review canvas{max-height:21vh}.v60-review button{min-height:28px!important;padding:4px 2px!important}.v60-review.pinned{position:static}}
+
+</style>
+<script id="v60-start-contact-review">
+/* v60: single START contact authority + manual merge + local review. */
+(()=>{'use strict';
+const $=id=>document.getElementById(id),E=window.SprintContactIntervalsV60,F=Number.isFinite;
+const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const frame=c=>c?.index??c?.frame,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+let analysis=null,manualOnly=false,renderQueued=false,review=null,seekSerial=0,looping=false;
+let latestRejected=[],lastSignalLeft=null,lastSignalRight=null,lastOptions='';
+function frameAt(t){
+  const a=startOfflineFrameTimes||[];if(!a.length)return null;let lo=0,hi=a.length-1;
+  while(lo<hi){const mid=(lo+hi)>>1;if(a[mid]<t)lo=mid+1;else hi=mid;}
+  return lo>0&&Math.abs(a[lo-1]-t)<Math.abs(a[lo]-t)?lo-1:lo;
 }
-const detectBase59=startOfflineDetectContacts;
-startOfflineDetectContacts=function(anchorIndex=null){const raw=detectBase59(anchorIndex)||[],r=sanitizeStartContacts59(raw,{anchorIndex,record:true});return r.accepted;};
-
-/* v41等の後処理が接地候補を再追加する経路もあるため、派生値計算の最後でも同じ安全検査を行う。 */
-const recomputeBase59=startOfflineRecomputeDerived;
-startOfflineRecomputeDerived=function(...args){const r=recomputeBase59(...args);const before=(startOfflineContacts||[]).length,final=sanitizeStartContacts59(startOfflineContacts||[],{record:false});if(final.accepted.length!==before){const prior=lastRejected59.slice(),seen=new Set(prior.map(x=>`${frame59(x)}:${x._v59RejectCode}`));for(const x of final.rejected){const k=`${frame59(x)}:${x._v59RejectCode}`;if(!seen.has(k)){prior.push(x);seen.add(k);}}lastRejected59=prior;startOfflineContacts=final.accepted;window.__startV59ContactFilter={raw:before,accepted:final.accepted.length,rejected:prior.length,earlyPhaseSec:EARLY_PHASE_SEC59,rejectedEvents:prior.slice()};try{startOfflineRenderResults();startOfflineRenderQuickContactUi?.();drawStartOfflineOverlay();}catch(e){console.warn('v59 final contact render',e);}}queueMicrotask(()=>{renderCards59();syncAngleNote59();});return r;};
-
-/* STARTの接地表を横スクロール不要の3列カードに置換。既存の見る/修正/削除イベント属性は再利用する。 */
-function sideLabel59(c){return c?.side==='left'?'左足':c?.side==='right'?'右足':'脚不明';}
-function esc59(x){return String(x??'').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
-function renderCards59(){const root=$59('start-offline-sequence-table');if(!root)return;const a=startOfflineContacts||[];if(!a.length){if(root.querySelector('.v59-contact-grid'))root.textContent='接地イベント：0件';return;}const cards=a.slice(0,18).map((c,i)=>{const d=finite59(c.duration)?`${Math.round(c.duration*1000)}ms`:'--',f=frame59(c),t=finite59(c.t)?c.t.toFixed(3):'--',q=c.timingOnly?'時刻のみ':`${Math.round(conf59(c)*100)}%`,low=conf59(c)<.55&&!manual59(c);return `<div class="v59-contact-card ${low?'low':''} ${manual59(c)?'manual':''}"><div class="v59-contact-head"><b>C${i+1}</b><span class="v59-contact-side">${sideLabel59(c)}${manual59(c)?' ✓':''}</span></div><div class="v59-contact-time">F${f??'--'} / ${t}s</div><div class="v59-contact-duration">${d}</div><div class="v59-contact-meta">${esc59(q)}${low?' ⚠':''}</div><div class="v59-contact-actions"><button type="button" data-mandatory-start-contact="${i}">見る</button><button type="button" class="edit" data-start-seq-edit="${i}">修正</button></div><button type="button" class="v59-contact-delete" data-start-seq-delete="${i}">削除</button></div>`;}).join('');
-  const rej=(window.__startV59ContactFilter?.rejectedEvents||lastRejected59||[]).slice(0,24),details=rej.length?`<details class="v59-rejected"><summary>自動除外した候補 ${rej.length}件を見る <span class="v59-filter-badge">誤検出抑制</span></summary><div class="v59-rejected-list">${rej.map(x=>`<div class="v59-rejected-item">F${frame59(x)??'--'} / ${finite59(x.t)?x.t.toFixed(3):'--'}s${finite59(x.duration)?` / ${Math.round(x.duration*1000)}ms`:''}<br>${esc59(x._v59RejectReason||'自動除外')}</div>`).join('')}</div></details>`:'';
-  root.innerHTML=`<div class="v59-contact-grid">${cards}</div>${details}`;const status=$59('start-offline-sequence-status');if(status){status.querySelectorAll('[data-v59-filter-note]').forEach(n=>n.remove());if(rej.length)status.insertAdjacentHTML('beforeend',` <span data-v59-filter-note class="v59-filter-badge">短時間/重複候補 ${rej.length}件除外</span>`);}
+function options(anchorIndex=null){
+  const idx=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex??anchorIndex;
+  const startT=F(idx)?startOfflineFrameTime(idx):(startOfflineRangeStart||0);
+  let endT=Math.min(startOfflineRangeEnd??Infinity,startOfflineVideo.duration||Infinity);
+  if(typeof startGroundComputeAutoEnd==='function'){
+    const b=startGroundComputeAutoEnd(startT);if(F(b?.end))endT=Math.min(endT,b.end);
+    startGroundAutoValidEnd=endT;
+  }
+  if(F(window.__startV42?.boundary?.validEnd))endT=Math.min(endT,window.__startV42.boundary.validEnd);
+  return {startT:F(startT)?startT:0,endT,frameStep:1/Math.max(1,startOfflineEffectiveFps()||60)};
 }
-const renderBase59=startOfflineRenderResults;startOfflineRenderResults=function(...args){const r=renderBase59(...args);queueMicrotask(()=>{renderCards59();syncAngleNote59();});return r;};
-const sequenceRoot59=$59('start-offline-sequence-table');if(sequenceRoot59)new MutationObserver(()=>{if(sequenceRoot59.querySelector('table')&&!sequenceRoot59.querySelector('.v59-contact-grid'))queueMicrotask(renderCards59);}).observe(sequenceRoot59,{childList:true,subtree:true});
-
-/* 手動角度フレームは、自動C1誤検出ではロックしないことを明示。 */
-function syncAngleNote59(){const st=$59('start-v56-angle-status');if(!st)return;const idx=startOfflineCurrentFrameIndex?.();if(!finite59(idx))return;const clear=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex;if(!finite59(clear))return;const dt=startOfflineFrameTime(idx)-startOfflineFrameTime(clear);if(dt>=0&&dt<=.45){st.classList.add('v59-manual-note');if(!startOfflineAngleIndexManual||idx!==startOfflineAngleIndex)st.textContent=`手動指定可能：現在F${idx}はブロッククリアランス後 ${dt.toFixed(3)}秒。自動C1が誤検出でも「このフレームを角度測定」で採用できます（30〜70°、0.45秒以内）。`;}}
-startOfflineVideo?.addEventListener('seeked',()=>queueMicrotask(syncAngleNote59));
-
-window.__SPRINT_TIMER_V59={build:BUILD59,angle:{autoAfterClearanceMaxSec:.35,manualAfterClearanceMaxSec:.45,manualIgnoresAutoFirstContact:true,validRangeDeg:[30,70]},startContact:{earlyPhaseSec:EARLY_PHASE_SEC59,earlyRejectAtOrBelowSec:EARLY_MIN_CONTACT59,earlyReviewBelowSec:EARLY_REVIEW_CONTACT59,earlyMinEventGapSec:EARLY_MIN_EVENT_GAP59,lateRejectBelowSec:LATE_MIN_CONTACT59},ui:['3-column contact cards','no horizontal sequence scroll','excluded-candidate details']};
-window.addEventListener('DOMContentLoaded',()=>{renderCards59();syncAngleNote59();});if(document.readyState!=='loading')setTimeout(()=>{renderCards59();syncAngleNote59();},0);
+function getAnalysis(anchorIndex=null,force=false){
+  const o=options(anchorIndex),k=JSON.stringify(o),s=startOfflineFootSignals||{};
+  if(force||!analysis||lastSignalLeft!==s.left||lastSignalRight!==s.right||lastOptions!==k){
+    analysis=E.analyse(s,o);analysis.endT=o.endT;lastSignalLeft=s.left;lastSignalRight=s.right;lastOptions=k;
+    window.__startV60ContactAnalysis=analysis;
+  }
+  return analysis;
+}
+function deleted(c){
+  return (startOfflineDeletedAutoContacts||[]).some(d=>{
+    if(d.side&&c.side!==d.side)return false;
+    if(F(d.intervalStart)&&c.t>=d.intervalStart-.03&&c.t<=(d.intervalEnd??d.intervalStart+.65)+.025)return true;
+    return F(d.t)&&Math.abs(c.t-d.t)<.12;
+  });
+}
+function resolveManual(){
+  const an=getAnalysis(),out=[];
+  const anchors=(startOfflineContactAnchors||[]).map(a=>({a,t:a.t,index:a.index,sidePref:a.sidePref||'auto'}));
+  for(const c of startOfflineManualLandings||[])anchors.push({a:c,t:c.t,index:frame(c),sidePref:c.side||'auto',legacy:true});
+  for(const x of anchors.filter(x=>F(x.t)).sort((a,b)=>a.t-b.t)){
+    const explicit=x.sidePref==='left'||x.sidePref==='right',sides=explicit?[x.sidePref]:['left','right'];
+    const choices=[];
+    for(const side of sides){
+      const hit=startOfflineNearestFootSignal(side,x.t,Math.max(.065,2.1*an.frameStep));
+      if(!hit)continue;const f=E.foot(hit.q),it=E.intervalAt(an,side,x.t,.07);
+      const ground=f.valid?clamp((.07-f.h)/.08,0,1):0;
+      const onset=it?clamp(1-Math.abs(x.t-it.startT)/.20,0,1):0;
+      choices.push({side,hit,it,score:ground*.42+onset*.40+(hit.q.confidence||0)*.18});
+    }
+    choices.sort((a,b)=>b.score-a.score);const best=choices[0],ambiguous=!explicit&&choices.length>1&&choices[0].score-choices[1].score<.09;
+    const side=explicit?x.sidePref:best?.side??null,p=best?.hit?.q?.p;
+    const positioned=!!p&&F(p.x)&&F(p.y)&&E.foot(best?.hit?.q).valid,idx=F(x.index)?x.index:frameAt(x.t);
+    let lift=null;
+    if(F(x.a.manualLiftoffT))lift={t:x.a.manualLiftoffT,index:x.a.manualLiftoffIndex};
+    else lift=(startOfflineManualLiftoffs||[]).filter(m=>m.side===side&&F(m.t)&&m.t>x.t+.025&&m.t<x.t+.65&&
+      (!F(m.contactFrame)||m.contactFrame===idx)).sort((a,b)=>a.t-b.t)[0]||null;
+    const validLift=lift&&lift.t-x.t>=.035&&lift.t-x.t<=.65;
+    const c={side,t:x.t,index:idx,frame:idx,x:positioned?p.x:null,y:positioned?p.y:null,
+      positionAvailable:positioned,timingOnly:!positioned,visibility:positioned?p.visibility??null:null,
+      confidence:positioned?clamp(best.hit.q.confidence||.30,.30,.78):.65,timingConfidence:1,sideConfidence:explicit?1:ambiguous?.25:.45,
+      sideConfirmed:explicit,sideAmbiguous:ambiguous,landingConfirmed:true,manualAnchor:true,manualLanding:true,
+      source:'manual-anchor-v60',method:'接地時刻を手動指定',
+      liftoff:validLift?lift.t:null,liftoffIndex:validLift?(lift.index??frameAt(lift.t)):null,
+      duration:validLift?lift.t-x.t:null,liftoffConfirmed:!!validLift,manualLiftoff:!!validLift,
+      durationSource:validLift?'manual':null,liftoffSource:validLift?'manual':null,
+      durationInvalid:!validLift,durationInvalidReason:validLift?null:'離地を確認できません',uncertaintySec:an.frameStep/2};
+    x.a.used=true;x.a.resolvedSide=side;x.a.sideConfidence=c.sideConfidence;out.push(c);
+  }
+  return E.integrate([],out,an,{manualOnly:true}).events;
+}
+function merge(autos,manuals){
+  const an=getAnalysis(),r=E.integrate(an.events.filter(c=>!deleted(c)),manuals||resolveManual(),an,{manualOnly});
+  latestRejected=(an.rejected||[]).concat(r.rejected||[]);
+  window.__startV60ContactStats={automatic:an.events.length,manual:(manuals||resolveManual()).length,
+    final:r.events.length,merged:r.rejected.length,mode:manualOnly?'manual':'mixed',endT:an.endT};
+  // Compatibility diagnostics must never describe a retired detector's candidates.
+  window.__startV56ContactStats={base:an.events.length,rescue:0,final:r.events.length};
+  return r.events;
+}
+startOfflineDetectContacts=function(anchorIndex=null){
+  return getAnalysis(anchorIndex).events.filter(c=>!deleted(c)).map(c=>({...c}));
+};
+startOfflineResolveContactAnchors=resolveManual;
+window.startOfflineBuildManualContactFallback=resolveManual;
+window.startOfflineMergeManualContactsIntoFinal=(autos,manuals)=>merge(autos,manuals);
+startOfflineMergeManualContacts=autos=>merge(autos,resolveManual());
+function invalidate(){analysis=null;lastSignalLeft=null;lastSignalRight=null;}
+function refresh(reason=''){
+  if(startOfflineAnalyzing)return;
+  invalidate();
+  if(startOfflinePoseFrames?.length&&startOfflineGroundModel?.valid)startGroundRebuildFootSignals();
+  const an=getAnalysis(),ms=resolveManual();startOfflineContacts=merge(an.events,ms);
+  mandatoryStartConfirmedSignature='';startSequenceEditIndex=null;
+  startOfflineRenderResults();startOfflineRenderQuickContactUi();startGroundRenderUi();
+  window.startOfflineRenderUnifiedManualUi?.();drawStartOfflineOverlay();
+  startOfflineLastDerivedAt=performance.now();
+  if(reason){const s=$('start-offline-analysis-status');if(s)s.textContent=reason;}
+  scheduleRender();
+}
+startGroundFastRecomputeContacts=refresh;
+const recomputeBase=startOfflineRecomputeDerived;
+startOfflineRecomputeDerived=function(...args){
+  invalidate();const r=recomputeBase(...args);
+  // Final authority after legacy derived/ground/angle wrappers have completed.
+  const an=getAnalysis(null,true);startOfflineContacts=merge(an.events,resolveManual());
+  startOfflineRenderResults();startOfflineRenderQuickContactUi();drawStartOfflineOverlay();scheduleRender();return r;
+};
+function sideText(c){return (c.side==='left'?'左足':c.side==='right'?'右足':'脚未確認')+(c.sideConfirmed?' ✓':c.side?'（推定）':'');}
+function scheduleRender(){if(renderQueued)return;renderQueued=true;queueMicrotask(()=>{renderQueued=false;render();});}
+function render(){
+  const root=$('start-offline-sequence-table');if(!root)return;ensureReview();
+  const a=startOfflineContacts||[],confirmed=!!mandatoryStartSignature()&&mandatoryStartSignature()===mandatoryStartConfirmedSignature;
+  const mode=$('start-v60-contact-mode');if(mode)mode.value=manualOnly?'manual':'mixed';
+  const cards=a.map((c,i)=>{
+    const d=F(c.duration)?`${c.duration.toFixed(3)} 秒`:'離地を要確認';
+    const steps=F(c.duration)?`約${Math.round(c.duration*Math.max(1,startOfflineEffectiveFps()))}F`:'--';
+    return `<article class="v59-contact-card ${E.manual(c)?'manual':''}" data-v60-card="${i}"><div class="v59-contact-head"><b>C${i+1}</b><span class="v59-contact-side">${esc(sideText(c))}</span></div><div class="v59-contact-time">F${frame(c)??'--'} / ${c.t.toFixed(3)}s</div><div class="v59-contact-duration">${d}</div><div class="v59-contact-meta">${steps} ／ ${c.liftoffConfirmed?'離地：手動':F(c.liftoff)?'離地：自動推定':'離地：未確認'}<br>${E.manual(c)?'接地：手動':'接地：自動推定'}</div><div class="v59-contact-actions"><button type="button" data-mandatory-start-contact="${i}">見る</button><button type="button" class="edit" data-start-seq-edit="${i}">修正</button></div><button type="button" class="v59-contact-delete" data-start-seq-delete="${i}">削除</button></article>`;
+  }).join('');
+  const rejected=latestRejected.slice(0,40);
+  const html=a.length?`<div class="v59-contact-grid">${cards}</div>${rejected.length?`<details class="v59-rejected"><summary>統合した自動候補 ${rejected.length}件</summary><div class="v59-rejected-list">${rejected.map(c=>`<div class="v59-rejected-item">F${frame(c)??'--'} / ${c.t.toFixed(3)}s<br>${esc(c.reason)}</div>`).join('')}</div></details>`:''}`:'接地イベント：0件';
+  if(root.innerHTML!==html)root.innerHTML=html;
+  const need=a.filter(c=>!F(c.duration)||c.sideAmbiguous).length,status=$('start-offline-sequence-status');
+  if(status)status.textContent=confirmed?`${a.length}接地の系列を確認済みです。`:`${a.length}接地を採用${manualOnly?'（手動指定のみ）':''}。${need?`離地・脚の要確認 ${need}件。`:''}「見る」でこの場所の映像を切り替えます。`;
+  const summary=$('start-v41-sequence-summary-status');if(summary)summary.textContent=confirmed?`✓ ${a.length}接地 確認済み`:`${a.length}接地 ／ 確認待ち`;
+  const quality=$('start-v60-quality');if(quality)quality.textContent=`接地開始：手動 ${a.filter(E.manual).length}件 / 自動 ${a.filter(c=>!E.manual(c)).length}件 ／ 離地未確認 ${a.filter(c=>!F(c.duration)).length}件。1F ≈ ${(1000/Math.max(1,startOfflineEffectiveFps())).toFixed(1)}ms`;
+  if(review){const c=findReview();if(!c){closeReview();}else updateReviewInfo(c);}
+}
+const renderBase=startOfflineRenderResults;
+startOfflineRenderResults=function(...args){const r=renderBase(...args);scheduleRender();return r;};
+const root=$('start-offline-sequence-table');if(root)new MutationObserver(()=>{
+  if(root.querySelector('table')||(!root.querySelector('.v59-contact-grid')&&startOfflineContacts?.length))scheduleRender();
+}).observe(root,{childList:true});
+function ensureReview(){
+  const root=$('start-offline-sequence-table');if(!root||$('start-v60-review'))return;
+  const box=document.createElement('div');box.id='start-v60-review-host';
+  box.innerHTML=`<div class="v60-mode"><label>接地の採用 <select id="start-v60-contact-mode"><option value="mixed">自動＋手動修正</option><option value="manual">手動指定だけ</option></select></label><div id="start-v60-quality" class="small"></div></div><section id="start-v60-review" class="v60-review" hidden aria-label="接地映像の確認"><div class="v60-review-head"><b id="start-v60-title">接地の確認</b><button type="button" data-v60-action="close">閉じる</button></div><canvas id="start-v60-canvas" width="960" height="540"></canvas><div id="start-v60-current" class="v60-current" aria-live="polite"></div><div class="v60-review-buttons"><button type="button" data-v60-action="prev">◀ 前の接地</button><button type="button" data-v60-action="next">次の接地 ▶</button><button type="button" data-v60-action="landing">接地へ</button><button type="button" data-v60-action="liftoff">離地へ</button></div><div class="v60-review-buttons"><button type="button" data-v60-action="step" data-step="-5">◀ 5F</button><button type="button" data-v60-action="step" data-step="-1">◀ 1F</button><button type="button" data-v60-action="step" data-step="1">1F ▶</button><button type="button" data-v60-action="step" data-step="5">5F ▶</button></div><div class="v60-review-buttons three"><button type="button" data-v60-action="loop">前後を再生</button><button type="button" data-v60-action="zoom">全体表示</button><label class="v60-pin"><input id="start-v60-pin" type="checkbox" checked> 映像を固定</label></div><div class="v60-edit-row"><label>脚 <select id="start-v60-side"><option value="auto">未確認・自動推定</option><option value="left">左足を確認</option><option value="right">右足を確認</option></select></label><button type="button" data-v60-action="save-landing">このFを接地に確定</button><button type="button" data-v60-action="save-liftoff">このFを離地に確定</button></div><div id="start-v60-message" class="small" role="status"></div></section>`;
+  root.before(box);
+  $('start-v60-contact-mode').addEventListener('change',e=>{stopLoop();manualOnly=e.target.value==='manual';refresh(manualOnly?'手動指定した接地だけを採用しました。':'自動接地に手動修正を統合しました。');});
+  $('start-v60-pin').addEventListener('change',e=>$('start-v60-review').classList.toggle('pinned',e.target.checked));
+  box.addEventListener('click',e=>{const b=e.target.closest('[data-v60-action]');if(!b)return;e.preventDefault();handleReview(b).catch(err=>message('映像を確認できませんでした：'+err.message));});
+}
+function findReview(){return review?(startOfflineContacts||[]).find(c=>frame(c)===review.frame&&Math.abs(c.t-review.t)<.001):null;}
+function message(s){const el=$('start-v60-message');if(el)el.textContent=s;}
+function updateReviewInfo(c){
+  const i=(startOfflineContacts||[]).indexOf(c);$('start-v60-title').textContent=`C${i+1} ／ ${sideText(c)}`;
+  const el=$('start-v60-current'),idx=startOfflineCurrentFrameIndex();
+  if(el)el.textContent=`表示中 F${idx} / ${startOfflineFrameTime(idx).toFixed(3)}s ｜ 接地 F${frame(c)}${F(c.liftoffIndex)?` → 離地 F${c.liftoffIndex}`:' → 離地未確認'}`;
+  const box=$('start-v60-review');box?.querySelector('[data-v60-action="prev"]')?.toggleAttribute('disabled',i<=0);
+  box?.querySelector('[data-v60-action="next"]')?.toggleAttribute('disabled',i<0||i>=startOfflineContacts.length-1);
+  box?.querySelector('[data-v60-action="liftoff"]')?.toggleAttribute('disabled',!F(c.liftoff));
+}
+function drawReview(){
+  if(!review||$('start-v60-review')?.hidden)return;const c=findReview();if(!c)return;
+  const cv=$('start-v60-canvas'),ctx=cv?.getContext('2d');if(!ctx)return;
+  const w=startOfflineVideo.videoWidth||startOfflineCanvas.width,h=startOfflineVideo.videoHeight||startOfflineCanvas.height;
+  if(!w||!h)return;let crop={x:0,y:0,w,h};
+  if(review.zoom){
+    const idx=startOfflineCurrentFrameIndex(),f=startOfflineFrameRecord(idx)||startOfflineFrameRecord(startOfflineNearestPoseIndexByTime(startOfflineVideo.currentTime,.13));
+    const lm=f?startOfflineCorrectedLandmarks(f):null;
+    const pts=(lm||[]).filter(p=>p&&F(p.x)&&F(p.y)&&(p.visibility??0)>=.24&&p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1);
+    if(pts.length>=8){
+      const xs=pts.map(p=>p.x*w),ys=pts.map(p=>p.y*h),x1=Math.min(...xs),x2=Math.max(...xs),y1=Math.min(...ys),y2=Math.max(...ys);
+      const ch=clamp(Math.max((y2-y1)*1.42,h*.34,(x2-x1)*1.45*9/16),h*.3,h),cw=Math.min(w,ch*16/9);
+      crop={x:clamp((x1+x2)/2-cw/2,0,w-cw),y:clamp((y1+y2)/2-ch/2,0,h-ch),w:cw,h:ch};
+    }
+  }
+  ctx.fillStyle='#111';ctx.fillRect(0,0,cv.width,cv.height);
+  const scale=Math.min(cv.width/crop.w,cv.height/crop.h),dw=crop.w*scale,dh=crop.h*scale,dx=(cv.width-dw)/2,dy=(cv.height-dh)/2;
+  try{ctx.drawImage(startOfflineVideo,crop.x,crop.y,crop.w,crop.h,dx,dy,dw,dh);
+    const ow=startOfflineCanvas.width/w,oh=startOfflineCanvas.height/h;
+    ctx.drawImage(startOfflineCanvas,crop.x*ow,crop.y*oh,crop.w*ow,crop.h*oh,dx,dy,dw,dh);}catch(_){}
+  updateReviewInfo(c);
+}
+async function seek(n){
+  if(!startOfflineFrameTimes?.length)return;const seq=++seekSerial;
+  const box=$('start-v60-review');box?.setAttribute('aria-busy','true');
+  box?.querySelectorAll('[data-v60-action="save-landing"],[data-v60-action="save-liftoff"]').forEach(b=>b.disabled=true);
+  await startOfflineSeekToFrame(clamp(n,0,startOfflineFrameTimes.length-1));
+  if(seq!==seekSerial)return;drawStartOfflineOverlay();drawReview();box?.removeAttribute('aria-busy');
+  box?.querySelectorAll('[data-v60-action="save-landing"],[data-v60-action="save-liftoff"]').forEach(b=>b.disabled=false);
+}
+async function show(i,edit=false){
+  if(startOfflineAnalyzing)return;const c=startOfflineContacts?.[i];if(!c||!F(frame(c)))return;
+  ensureReview();stopLoop();review={frame:frame(c),t:c.t,zoom:review?.zoom??true};
+  const box=$('start-v60-review');box.hidden=false;box.classList.toggle('pinned',$('start-v60-pin').checked);
+  $('start-v60-side').value=c.sideConfirmed?c.side:'auto';
+  for(let p=box.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;
+  mandatoryStartReview={index:i,frame:frame(c)};startSequenceEditIndex=edit?i:null;
+  message(edit?'コマ送りで接地開始を選び、「このFを接地に確定」を押してください。':'接地と離地をこの場所で確認できます。');
+  startOfflineVideo.pause();await seek(frame(c));
+  // Stay within the sequence panel; never jump back to the main video.
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function stopLoop(){looping=false;if(review){startOfflineVideo.pause();if(F(review.savedRate)){startOfflineVideo.playbackRate=review.savedRate;delete review.savedRate;}}const b=$('start-v60-review')?.querySelector('[data-v60-action="loop"]');if(b)b.textContent='前後を再生';}
+function closeReview(){stopLoop();seekSerial++;review=null;const box=$('start-v60-review');if(box)box.hidden=true;startSequenceEditIndex=null;}
+function saveLanding(){
+  const c=findReview();if(!c)return;const n=startOfflineCurrentFrameIndex(),t=startOfflineFrameTime(n);
+  const pref=$('start-v60-side').value,existing=(startOfflineContactAnchors||[]).find(a=>a.index===frame(c)||Math.abs(a.t-c.t)<.001);
+  if(existing){existing.index=n;existing.t=t;existing.sidePref=pref;existing.used=false;existing.resolvedSide=null;
+    if(F(existing.manualLiftoffT)&&existing.manualLiftoffT<=t){delete existing.manualLiftoffT;delete existing.manualLiftoffIndex;}}
+  else{
+    startOfflineManualLandings=startOfflineManualLandings.filter(m=>Math.abs(m.t-c.t)>.001);
+    const anchor=startGroundAddAnchor(n,pref,'v60-contact-edit');
+    if(c.liftoffConfirmed&&c.liftoff>t&&anchor){anchor.manualLiftoffT=c.liftoff;anchor.manualLiftoffIndex=c.liftoffIndex;}
+  }
+  review={...review,frame:n,t};refresh(`接地開始をF${n}に修正しました。`);scheduleRender();drawReview();
+  message(`接地開始 F${n} を保存しました。離地の手動指定は別に保持します。`);
+}
+function saveLiftoff(){
+  const c=findReview();if(!c)return;const n=startOfflineCurrentFrameIndex(),t=startOfflineFrameTime(n),d=t-c.t;
+  if(!(d>=.035&&d<=.65)){message('接地の後0.035〜0.65秒以内で、足先が離れるフレームを選んでください。');return;}
+  const pref=$('start-v60-side').value;
+  let anchor=(startOfflineContactAnchors||[]).find(a=>a.index===frame(c)||Math.abs(a.t-c.t)<.001);
+  if(!anchor)anchor=startGroundAddAnchor(frame(c),pref,'v60-liftoff-edit');
+  if(!anchor)return;anchor.sidePref=pref;anchor.manualLiftoffT=t;anchor.manualLiftoffIndex=n;
+  review={...review,frame:anchor.index,t:anchor.t};refresh(`離地をF${n}に確定しました。`);drawReview();
+  message(`離地 F${n} を保存しました。接地時間 ${d.toFixed(3)}秒。`);
+}
+function remove(i){
+  const c=startOfflineContacts?.[i];if(!c)return;stopLoop();
+  const it=c._v60Interval;startOfflineDeletedAutoContacts.push({side:c.side,t:c.t,intervalStart:it?.startT,intervalEnd:it?.endT});
+  startOfflineContactAnchors=startOfflineContactAnchors.filter(a=>a.index!==frame(c)&&Math.abs(a.t-c.t)>.001);
+  startOfflineManualLandings=startOfflineManualLandings.filter(a=>Math.abs(a.t-c.t)>.001);
+  startOfflineManualLiftoffs=startOfflineManualLiftoffs.filter(a=>a.contactFrame!==frame(c)&&!(a.side===c.side&&F(c.liftoff)&&Math.abs(a.t-c.liftoff)<.002));
+  if(review&&review.frame===frame(c))closeReview();refresh(`C${i+1}を削除しました。`);
+}
+async function handleReview(b){
+  const action=b.dataset.v60Action,c=findReview();if(action==='close'){closeReview();return;}if(!c)return;
+  if(action!=='loop')stopLoop();
+  const i=startOfflineContacts.indexOf(c);
+  if(action==='prev'||action==='next')return show(i+(action==='prev'?-1:1));
+  if(action==='step')return seek(startOfflineCurrentFrameIndex()+Number(b.dataset.step));
+  if(action==='landing')return seek(frame(c));
+  if(action==='liftoff'&&F(c.liftoff))return seek(c.liftoffIndex??frameAt(c.liftoff));
+  if(action==='zoom'){review.zoom=!review.zoom;b.textContent=review.zoom?'全体表示':'選手を拡大';drawReview();return;}
+  if(action==='save-landing'){saveLanding();return;}
+  if(action==='save-liftoff'){saveLiftoff();return;}
+  if(action==='loop'){
+    if(looping){stopLoop();return;}
+    review.loopStart=Math.max(startOfflineRangeStart||0,c.t-.10);
+    review.loopEnd=Math.min(startOfflineRangeEnd??startOfflineVideo.duration,(c.liftoff??c.t+.24)+.10);
+    await seek(frameAt(review.loopStart));review.savedRate=startOfflineVideo.playbackRate;startOfflineVideo.playbackRate=.5;looping=true;b.textContent='停止';await startOfflineVideo.play();
+  }
+}
+mandatoryShowStartContact=i=>show(i);
+startGroundStartEdit=i=>show(i,true);
+startGroundApplyEdit=saveLanding;
+startGroundDeleteContact=remove;
+// Window capture prevents all earlier legacy bubble/document handlers for these controls.
+window.addEventListener('click',e=>{
+  const b=e.target?.closest?.('[data-mandatory-start-contact],[data-start-seq-edit],[data-start-seq-delete]');
+  if(!b||!b.closest('#start-offline-sequence-table'))return;
+  e.preventDefault();e.stopImmediatePropagation();
+  if(b.hasAttribute('data-start-seq-delete'))remove(Number(b.dataset.startSeqDelete));
+  else show(Number(b.dataset.mandatoryStartContact??b.dataset.startSeqEdit),b.hasAttribute('data-start-seq-edit')).catch(err=>message(err.message));
+},{capture:true});
+const oldFrameUi=startOfflineUpdateFrameUi;
+startOfflineUpdateFrameUi=function(...args){const r=oldFrameUi(...args);queueMicrotask(drawReview);return r;};
+startOfflineVideo.addEventListener('seeked',()=>requestAnimationFrame(drawReview));
+startOfflineVideo.addEventListener('timeupdate',()=>{
+  if(looping&&review&&startOfflineVideo.currentTime>=review.loopEnd){startOfflineVideo.currentTime=review.loopStart;}
+  if(review)drawReview();
+});
+startOfflineVideo.addEventListener('ended',()=>{if(looping&&review){startOfflineVideo.currentTime=review.loopStart;startOfflineVideo.play().catch(()=>stopLoop());}});
+function playbackDraw(){if(!review||!looping)return;drawStartOfflineOverlay();drawReview();if(startOfflineVideo.requestVideoFrameCallback)startOfflineVideo.requestVideoFrameCallback(playbackDraw);else requestAnimationFrame(playbackDraw);}
+startOfflineVideo.addEventListener('play',()=>{if(looping){if(startOfflineVideo.requestVideoFrameCallback)startOfflineVideo.requestVideoFrameCallback(playbackDraw);else requestAnimationFrame(playbackDraw);}});
+const resetBase=startOfflineResetAnalysisState;
+startOfflineResetAnalysisState=function(...args){closeReview();invalidate();latestRejected=[];manualOnly=false;const r=resetBase(...args);scheduleRender();return r;};
+window.__SPRINT_TIMER_V60={build:'20261002-v60-contact-interval-inline-review',detector:'START foot contact intervals',poseUnchanged:true,
+  features:['observed-foot AIR-CONTACT-AIR','manual interval merge','separate landing/liftoff confirmation','inline sequence review','manual-only mode']};
+window.__startV60Refresh=refresh;
+window.addEventListener('DOMContentLoaded',scheduleRender);if(document.readyState!=='loading')scheduleRender();
 })();
+
 </script>
 
 </body>
