@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.10.02.61">
-<meta name="sprint-timer-build" content="20261002-v61-sprintpeak-guided-review">
+<meta name="sprint-timer-version" content="2026.10.02.62">
+<meta name="sprint-timer-build" content="20261002-v62-inline-evidence-display">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.10.02.61";
-window.SPRINT_TIMER_BUILD = "20261002-v61-sprintpeak-guided-review";
+window.SPRINT_TIMER_VERSION = "2026.10.02.62";
+window.SPRINT_TIMER_BUILD = "20261002-v62-inline-evidence-display";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -9497,7 +9497,7 @@ function v31InstallEvaluationReview(prefix){
 }
 function v31InstallReadingMode(prefix){
   const base=prefix==='start'?'start-offline':'sprint-offline',workspace=document.getElementById(AT[prefix].workspaceId),evalDetail=document.getElementById(`${base}-evaluation-summary`),main=AT[prefix].video();if(!workspace||!evalDetail)return;const card=evalDetail.closest('.settings-card');if(!card)return;let active=false,raf=0;
-  const tick=()=>{raf=0;if(workspace.offsetParent===null){if(active){active=false;workspace.classList.remove('results-reading-mode');}return;}const should=card.getBoundingClientRect().top<=72;if(should===active)return;active=should;workspace.classList.toggle('results-reading-mode',active);if(active&&main&&!main.paused)main.pause();};
+  const tick=()=>{raf=0;if(prefix==='sprint'&&document.getElementById('sprint-v61-media')){active=false;workspace.classList.remove('results-reading-mode');return;}if(workspace.offsetParent===null){if(active){active=false;workspace.classList.remove('results-reading-mode');}return;}const should=card.getBoundingClientRect().top<=72;if(should===active)return;active=should;workspace.classList.toggle('results-reading-mode',active);if(active&&main&&!main.paused)main.pause();};
   const schedule=()=>{if(!raf)raf=requestAnimationFrame(tick);};window.addEventListener('scroll',schedule,{passive:true});window.addEventListener('resize',schedule,{passive:true});document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>setTimeout(schedule,0)));schedule();
 }
 for(const prefix of ['start','sprint']){v31InstallMainTap(prefix);v31InstallEvaluationReview(prefix);v31InstallReadingMode(prefix);}
@@ -9615,7 +9615,7 @@ function v32InstallTap(prefix){
 function v32InstallReading(prefix){
   const base=prefix==='start'?'start-offline':'sprint-offline',workspace=document.getElementById(`${base}-workspace`),summary=document.getElementById(`${base}-evaluation-summary`),video=document.getElementById(`${base}-video`);
   if(!workspace||!summary||workspace.dataset.readingV32)return;workspace.dataset.readingV32='1';const card=summary.closest('.settings-card');if(!card)return;let raf=0;
-  const tick=()=>{raf=0;if(workspace.offsetParent===null){workspace.classList.remove('v32-results-reading');return;}const on=card.getBoundingClientRect().top<=86;workspace.classList.toggle('v32-results-reading',on);if(on&&video&&!video.paused)video.pause();};
+  const tick=()=>{raf=0;if(prefix==='sprint'&&document.getElementById('sprint-v61-media')){workspace.classList.remove('v32-results-reading');return;}if(workspace.offsetParent===null){workspace.classList.remove('v32-results-reading');return;}const on=card.getBoundingClientRect().top<=86;workspace.classList.toggle('v32-results-reading',on);if(on&&video&&!video.paused)video.pause();};
   const schedule=()=>{if(!raf)raf=requestAnimationFrame(tick);};
   window.addEventListener('scroll',schedule,{passive:true});window.addEventListener('resize',schedule,{passive:true});
   document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>setTimeout(schedule,0)));schedule();
@@ -14799,7 +14799,7 @@ function playbackDraw(){if(!review||!looping)return;drawStartOfflineOverlay();dr
 startOfflineVideo.addEventListener('play',()=>{if(looping){if(startOfflineVideo.requestVideoFrameCallback)startOfflineVideo.requestVideoFrameCallback(playbackDraw);else requestAnimationFrame(playbackDraw);}});
 const resetBase=startOfflineResetAnalysisState;
 startOfflineResetAnalysisState=function(...args){closeReview();invalidate();latestRejected=[];manualOnly=false;const r=resetBase(...args);scheduleRender();return r;};
-window.__SPRINT_TIMER_V60={build:'20261002-v61-sprintpeak-guided-review',detector:'START foot contact intervals',poseUnchanged:true,
+window.__SPRINT_TIMER_V60={build:'20261002-v62-inline-evidence-display',detector:'START foot contact intervals',poseUnchanged:true,
   features:['observed-foot AIR-CONTACT-AIR','manual interval merge','separate landing/liftoff confirmation','inline sequence review','manual-only mode']};
 window.__startV60Refresh=refresh;
 window.addEventListener('DOMContentLoaded',scheduleRender);if(document.readyState!=='loading')scheduleRender();
@@ -14822,6 +14822,10 @@ window.addEventListener('DOMContentLoaded',scheduleRender);if(document.readyStat
 .v61-options,.v61-diagnostics{padding:8px 0;margin:8px 0;font-size:13px}.v61-options>summary,.v61-diagnostics>summary{padding:9px 0;cursor:pointer;font-weight:600}.v61-options .small{padding-top:8px;line-height:1.7}
 .v61-brief{font-size:12px;line-height:1.6;color:#475569;margin:8px 0;overflow-wrap:anywhere}.v61-error{color:#b42318;background:#fff1f0;padding:8px;border-radius:8px}
 #sprint-offline-analysis-area.v61-flow #sprint-offline-video-wrap{position:relative!important;top:auto!important;left:auto!important;right:auto!important;width:100%!important;max-width:none!important;z-index:1!important;margin:0 0 7px!important;box-shadow:none!important;transform:none!important}
+/* v62: the same source video/canvas travels with its controls. Override the
+   old v32 reading-mode hide rule only inside this Sprint review media dock. */
+#sprint-offline-analysis-area.v61-flow #sprint-v61-media #sprint-offline-video-wrap{display:block!important}
+#sprint-v61-review[aria-busy="true"] #sprint-v61-viewer-host{opacity:.65}
 .v61-media{width:100%;max-width:620px;margin:0 auto 8px}.v61-media .action-btn{font-size:13px!important;padding:10px 5px!important;margin-bottom:0}.v61-media .setting-header{font-size:12px}.v61-media .setting-value{font-size:12px}.v61-media #sprint-offline-frame-label{overflow-wrap:anywhere}
 .v61-review{border:1px solid #93c5fd;border-radius:10px;background:#f8fbff;padding:9px;margin:10px 0;scroll-margin-top:12px}
 .v61-review-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;margin-bottom:8px}.v61-close{background:#e2e8f0;border:0;padding:8px;border-radius:6px;white-space:nowrap;cursor:pointer}
@@ -14886,7 +14890,7 @@ window.addEventListener('DOMContentLoaded',scheduleRender);if(document.readyStat
 (()=>{
 'use strict';
 const C=window.SprintReviewV61Core,$=id=>document.getElementById(id),B=window.__sprintReviewBridgeV61,G=window.__sprintGateBridgeV61;
-const state={index:null,kind:'sprint-contact',busy:false,loading:false,revision:0,request:0,queue:Promise.resolve(),reviewed:new Set(),signature:'',edits:{excluded:[],pinned:[],fps:60},undo:[],completed:false,stale:false};
+const state={index:null,kind:'sprint-contact',busy:false,loading:false,returnAnchor:null,revision:0,request:0,queue:Promise.resolve(),reviewed:new Set(),signature:'',edits:{excluded:[],pinned:[],fps:60},undo:[],completed:false,stale:false};
 const stages={},titles=['動画を選ぶ','解析の準備','自動解析','接地を確認・修正','結果・改善ポイント'];
 function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text)n.textContent=text;return n;}
 function esc(v){return String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));}
@@ -15027,24 +15031,47 @@ function evidenceTarget(kind,index){
   if(f===null)return {error:'この項目の根拠フレームを確定できません。接地・離地または解析結果を確認してください。'};
   return {frame:f,c,note,contributors,kind,poseFrame};
 }
-function mount(anchor){const review=$('sprint-v61-review');review.hidden=false;const card=anchor?.closest('.evidence-hub-card,.data-card')||anchor?.closest('#sprint-offline-form-evidence');if(card){card.append(review);stages[5].d.open=true;}else{const panel=$('sprint-offline-sequence-panel');panel.insertBefore(review,$('sprint-offline-sequence-table'));stages[4].d.open=true;}$('sprint-v61-viewer-host').append($('sprint-v61-media'));}
+function mount(anchor){
+  const review=$('sprint-v61-review'),media=$('sprint-v61-media');
+  // Remember the original evidence button, never an internal navigation button.
+  if(anchor&&!review.contains(anchor))state.returnAnchor=anchor;
+  const card=anchor?.closest('.evidence-hub-card,.data-card')||anchor?.closest('#sprint-offline-form-evidence');
+  if(card){card.append(review);stages[5].d.open=true;}
+  else{const panel=$('sprint-offline-sequence-panel');panel.insertBefore(review,$('sprint-offline-sequence-table'));stages[4].d.open=true;}
+  review.hidden=false;media.hidden=false;
+  $('sprint-v61-viewer-host').append(media);
+  for(let n=review.parentElement;n;n=n.parentElement)if(n.tagName==='DETAILS')n.open=true;
+}
+function focusReview(request){
+  if(request!==state.request||$('sprint-v61-review').hidden)return;
+  const wrap=$('sprint-offline-video-wrap'),rect=wrap.getBoundingClientRect();
+  if(rect.top<12||rect.bottom>window.innerHeight-12)wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function verifyReviewDisplay(frame){
+  const review=$('sprint-v61-review'),media=$('sprint-v61-media'),wrap=$('sprint-offline-video-wrap');
+  if(review.hidden||media.hidden||!review.contains(media)||!media.contains(wrap))throw new Error('根拠映像をこの項目へ表示できませんでした。もう一度開いてください。');
+  const rect=wrap.getBoundingClientRect(),style=window.getComputedStyle(wrap);
+  if(rect.width<=0||rect.height<=0||style.display==='none'||style.visibility==='hidden')throw new Error('根拠映像が非表示になっています。もう一度開いてください。');
+  const actual=sprintOfflineCurrentFrameIndex();
+  if(actual!==frame)throw new Error(`F${frame}への移動を確認できませんでした（現在F${actual}）。もう一度「根拠を見る」を押してください。`);
+}
 function openEvidence(kind,index=null,anchor=null){
   if(!ready())return Promise.resolve();if(!sprintOfflineVideo.src||!sprintOfflineFrameTimes.length)return Promise.resolve();
-  stages[2].d.open=false;mount(anchor);const req=++state.request;state.loading=true;renderReview();
+  stages[2].d.open=false;mount(anchor);const req=++state.request;state.kind=kind;state.index=null;state.loading=true;renderReview();message('根拠フレームを読み込んでいます…');
   // Serialized seeks keep rapid taps from leaving a frame from an older request visible.
-  const task=async()=>{if(req!==state.request)return;const target=evidenceTarget(kind,index);if(target.error){state.loading=false;message(target.error,true);$('sprint-v61-media').hidden=true;$('sprint-v61-contact-controls').hidden=true;$('sprint-v61-provenance').textContent='';$('sprint-v61-contributors').replaceChildren();$('sprint-v61-review-title').textContent='根拠を表示できません';return;}
+  const task=async()=>{if(req!==state.request)return;const target=evidenceTarget(kind,index);if(target.error){state.loading=false;message(target.error,true);$('sprint-v61-media').hidden=true;$('sprint-v61-contact-controls').hidden=true;$('sprint-v61-provenance').textContent='';$('sprint-v61-contributors').replaceChildren();$('sprint-v61-review-title').textContent='根拠を表示できません';$('sprint-v61-review').setAttribute('aria-busy','false');return;}
     $('sprint-v61-media').hidden=false;state.kind=kind;state.index=target.c?sprintOfflineContacts.indexOf(target.c):null;
     message('根拠フレームを読み込んでいます…');sprintOfflineVideo.pause();B.setEvidence(kind==='sprint-liftoff'?'sprint-contact':kind,target.frame,state.index);
     G.clearReview();await sprintOfflineSeekToFrame(target.frame);if(req!==state.request)return;
     await new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res)));if(req!==state.request)return;
-    const actual=sprintOfflineCurrentFrameIndex();if(actual!==target.frame){state.loading=false;message(`F${target.frame}への移動を確認できませんでした（現在F${actual}）。もう一度「根拠を見る」を押してください。`,true);return;}
+    verifyReviewDisplay(target.frame);
     sprintOfflineDrawOverlay();$('sprint-v61-provenance').textContent=target.note;
     $('sprint-v61-contributors').innerHTML=target.contributors.length?'<span>集計対象：</span>'+target.contributors.map(x=>{const i=sprintOfflineContacts.indexOf(x.c);return `<button type="button" class="v61-small-btn" data-v61-contributor="${i}" data-v61-kind="${kind}">C${i+1} ${esc(x.label)}</button>`;}).join(''):'';
-    state.loading=false;message('');renderReview();render();};
-  state.queue=state.queue.catch(()=>{}).then(task).catch(e=>{if(req===state.request){state.loading=false;message(`映像を表示できませんでした：${e.message}`,true);}});return state.queue;
+    state.loading=false;message('');renderReview();render();focusReview(req);};
+  state.queue=state.queue.catch(()=>{}).then(task).catch(e=>{if(req===state.request){state.loading=true;renderReview();message(`映像を表示できませんでした：${e.message}`,true);}});return state.queue;
 }
 function renderReview(){
-  const r=$('sprint-v61-review');if(!r||r.hidden)return;const c=Number.isInteger(state.index)?sprintOfflineContacts[state.index]:null;
+  const r=$('sprint-v61-review');if(!r||r.hidden)return;r.setAttribute('aria-busy',String(state.loading));const c=Number.isInteger(state.index)?sprintOfflineContacts[state.index]:null;
   const names={'sprint-vmax':'最高速度の根拠','sprint-trunk':'体幹角の根拠','sprint-knee':'支持脚膝角の個別根拠','sprint-contact-placement':'接地点の個別根拠','sprint-contact':'接地確認','sprint-liftoff':'離地確認'};
   $('sprint-v61-review-title').textContent=(c?`C${state.index+1} ${side(c)} ／ `:'')+(names[state.kind]||'根拠映像');
   const controls=$('sprint-v61-contact-controls'),isContact=['sprint-contact','sprint-liftoff'].includes(state.kind);controls.hidden=!isContact;
@@ -15082,23 +15109,32 @@ function removeContact(index,merging=false){
   B.manual.liftoffs=B.manual.liftoffs.filter(a=>!(Number.isFinite(c.liftoff)&&Math.abs(a.tSec*1000-c.liftoff)<1));
   recompute();invalidate();state.index=merging?sprintOfflineContacts.findIndex(x=>x.t===keep.t&&x.side===keep.side):Math.min(index,sprintOfflineContacts.length-1);
   message(merging?'統合しました。表示中の接地・離地を残し、相手の接地を除外しました。':'接地を削除しました。修正を戻すボタンで復元できます。');
-  if(state.index>=0)openEvidence('sprint-contact',state.index);else{$('sprint-v61-review').hidden=true;state.index=null;}
+  if(state.index>=0)openEvidence('sprint-contact',state.index,$('sprint-v61-review'));else{closeEvidence();state.index=null;}
 }
-function undo(){if(!ready())return;const s=state.undo.pop();if(!s)return;state.edits=s.edits;B.manual.contacts=s.contacts;B.manual.liftoffs=s.liftoffs;state.index=s.index;recompute();invalidate();if(sprintOfflineContacts[state.index])openEvidence('sprint-contact',state.index);}
-function closeEvidence(){state.request++;state.loading=false;B.setEvidence(null,null,null);G.clearReview();$('sprint-v61-review').hidden=true;$('sprint-v61-media').hidden=false;stages[2].body.prepend($('sprint-v61-media'));sprintOfflineVideo.pause();sprintOfflineDrawOverlay();}
-function confirm(){if(!ready()||!sprintOfflineContacts.length)return;G.confirm();stages[4].d.open=false;stages[5].d.open=true;closeEvidence();render();stages[5].d.scrollIntoView({behavior:'smooth',block:'start'});}
+function undo(){if(!ready())return;const s=state.undo.pop();if(!s)return;state.edits=s.edits;B.manual.contacts=s.contacts;B.manual.liftoffs=s.liftoffs;state.index=s.index;recompute();invalidate();if(sprintOfflineContacts[state.index])openEvidence('sprint-contact',state.index,$('sprint-v61-review'));}
+function closeEvidence(preservePosition=true){
+  const anchor=state.returnAnchor,top=anchor?.isConnected?anchor.getBoundingClientRect().top:null;
+  state.request++;state.loading=false;state.returnAnchor=null;B.setEvidence(null,null,null);G.clearReview();
+  $('sprint-v61-review').hidden=true;$('sprint-v61-review').setAttribute('aria-busy','false');
+  $('sprint-v61-media').hidden=false;stages[2].body.prepend($('sprint-v61-media'));
+  sprintOfflineVideo.pause();sprintOfflineDrawOverlay();
+  // Compensate layout displacement at the same result item, without opening
+  // or scrolling back to the preparation section. Skip during reset/confirm.
+  if(preservePosition&&top!==null&&anchor.isConnected){const shift=anchor.getBoundingClientRect().top-top;if(Math.abs(shift)>1)window.scrollBy({top:shift,behavior:'instant'});}
+}
+function confirm(){if(!ready()||!sprintOfflineContacts.length)return;G.confirm();stages[4].d.open=false;stages[5].d.open=true;closeEvidence(false);render();stages[5].d.scrollIntoView({behavior:'smooth',block:'start'});}
 function action(name,b){
   if(name==='prepare-done'){stages[1].d.open=false;stages[2].d.open=false;stages[3].d.open=true;stages[3].d.scrollIntoView({behavior:'smooth',block:'start'});return;}
   if(name==='review'){stages[4].d.open=true;stages[4].d.scrollIntoView({behavior:'smooth',block:'start'});if(sprintOfflineContacts.length)openEvidence('sprint-contact',state.index??0);return;}
   if(name==='close-evidence'){closeEvidence();return;}
-  if(name==='previous'||name==='next')return openEvidence('sprint-contact',state.index+(name==='previous'?-1:1));
-  if(name==='landing'||name==='liftoff')return openEvidence(name==='landing'?'sprint-contact':'sprint-liftoff',state.index);
+  if(name==='previous'||name==='next')return openEvidence('sprint-contact',state.index+(name==='previous'?-1:1),b);
+  if(name==='landing'||name==='liftoff')return openEvidence(name==='landing'?'sprint-contact':'sprint-liftoff',state.index,b);
   if(name==='set-landing'||name==='set-liftoff')return correct(name==='set-landing'?'landing':'liftoff');
   if(name==='delete')return removeContact(state.index);
   if(name==='merge'){const target=parseInt($('sprint-v61-merge-target').value,10);if(Number.isInteger(target)&&target!==state.index)return removeContact(target,true);return;}
   if(name==='undo')return undo();
   if(name==='manual-video'){if(!ready())return;state.request++;state.loading=false;state.index=null;state.kind='sprint-contact';mount(null);$('sprint-v61-media').hidden=false;B.setEvidence(null,null,null);G.clearReview();sprintOfflineDrawOverlay();$('sprint-v61-provenance').textContent='コマ送りで接地または離地の瞬間に合わせ、下の手動修正欄から追加してください。';$('sprint-v61-contributors').replaceChildren();$('sprint-offline-manual-details').open=true;renderReview();return;}
-  if(name==='checked-next'){const c=sprintOfflineContacts[state.index];if(!c)return;state.reviewed.add(C.key(c));render();if(state.index<sprintOfflineContacts.length-1)return openEvidence('sprint-contact',state.index+1);message('最後の接地まで確認しました。下の「この接地系列を確認して確定」で結果へ進めます。');return;}
+  if(name==='checked-next'){const c=sprintOfflineContacts[state.index];if(!c)return;state.reviewed.add(C.key(c));render();if(state.index<sprintOfflineContacts.length-1)return openEvidence('sprint-contact',state.index+1,b);message('最後の接地まで確認しました。下の「この接地系列を確認して確定」で結果へ進めます。');return;}
 }
 async function manualAction(id){
   if(id==='sprint-offline-manual-undo')return undo();if(!ready()||state.loading)return;snapshot();busy(true);
@@ -15125,9 +15161,10 @@ window.addEventListener('click',e=>{
 const detect=sprintOfflineDetectContacts;sprintOfflineDetectContacts=function(...args){const r=detect.apply(this,args);derive();return r;};
 const renderBase=sprintOfflineRenderResults;sprintOfflineRenderResults=function(...args){const r=renderBase.apply(this,args);render();return r;};
 const resetBase=sprintOfflineResetResults;sprintOfflineResetResults=function(...args){state.request++;state.completed=false;state.stale=false;state.index=null;state.signature='';state.reviewed.clear();state.edits={excluded:[],pinned:[],fps:sprintOfflineEffectiveFps()};state.undo=[];closeEvidenceIfBuilt();G.invalidate();const r=resetBase.apply(this,args);if(stages[1]){stages[1].d.open=true;stages[2].d.open=true;stages[3].d.open=true;stages[4].d.open=false;stages[5].d.open=false;}render();updateProcess();return r;};
-function closeEvidenceIfBuilt(){if($('sprint-v61-review'))closeEvidence();}
+function closeEvidenceIfBuilt(){if($('sprint-v61-review'))closeEvidence(false);}
 window.__sprintFlowV61={renderHub,openEvidence,state,evidenceTarget,render,updateProcess};
-window.__SPRINT_TIMER_V61={build:'20261002-v61-sprintpeak-guided-review',scope:'SPRINTPEAK UI, evidence frame normalization, explicit manual edits; original Pose and automatic contact detection preserved'};
+window.__SPRINT_TIMER_V62={build:'20261002-v62-inline-evidence-display',poseUnchanged:true,automaticContactsUnchanged:true,metricsUnchanged:true,scope:'Sprint inline evidence display and navigation'};
+window.__SPRINT_TIMER_V61={build:'20261002-v62-inline-evidence-display',scope:'SPRINTPEAK UI, evidence frame normalization, explicit manual edits; original Pose and automatic contact detection preserved'};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(build,0),{once:true});else setTimeout(build,0);
 })();
 
