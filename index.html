@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.10.02.60">
-<meta name="sprint-timer-build" content="20261002-v60-contact-interval-inline-review">
+<meta name="sprint-timer-version" content="2026.10.02.61">
+<meta name="sprint-timer-build" content="20261002-v61-sprintpeak-guided-review">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.10.02.60";
-window.SPRINT_TIMER_BUILD = "20261002-v60-contact-interval-inline-review";
+window.SPRINT_TIMER_VERSION = "2026.10.02.61";
+window.SPRINT_TIMER_BUILD = "20261002-v61-sprintpeak-guided-review";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -1379,10 +1379,10 @@ hr { border:0; border-top:1px solid #eee; margin:15px 0; }
             <div class="settings-card" style="margin:12px 0;box-shadow:none;">
                 <h3>動画解析結果 <button type="button" class="sprint-offline-help-btn" data-sprint-offline-help="results" aria-label="動画解析結果の説明">?</button></h3>
                 <div class="results-grid" id="sprint-offline-results-grid">
-                    <div class="data-card"><div class="data-label">解析区間内の最高推定速度 <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-vmax" aria-label="解析区間内の最高推定速度の根拠フレームを見る">!</button></div><div class="data-value" id="sprint-offline-vmax">0.00 <span class="unit">m/s</span></div></div>
-                    <div class="data-card"><div class="data-label">ピッチ <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" aria-label="ピッチの接地根拠を見る">!</button></div><div class="data-value" id="sprint-offline-pitch">0.00 <span class="unit">歩/秒</span></div></div>
-                    <div class="data-card"><div class="data-label">推定ストライド <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-vmax" aria-label="推定ストライドの根拠を見る">!</button></div><div class="data-value" id="sprint-offline-stride">0.00 <span class="unit">m</span></div></div>
-                    <div class="data-card"><div class="data-label">接地時間 <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" aria-label="接地時間の根拠を見る">!</button></div><div class="data-value" id="sprint-offline-contact">0.0 <span class="unit">ms</span></div></div>
+                    <div class="data-card"><div class="data-label">解析区間内の最高推定速度 <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-vmax" aria-label="解析区間内の最高推定速度の根拠フレームを見る">根拠</button></div><div class="data-value" id="sprint-offline-vmax">0.00 <span class="unit">m/s</span></div></div>
+                    <div class="data-card"><div class="data-label">ピッチ <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" aria-label="ピッチの接地根拠を見る">根拠</button></div><div class="data-value" id="sprint-offline-pitch">0.00 <span class="unit">歩/秒</span></div></div>
+                    <div class="data-card"><div class="data-label">推定ストライド <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-vmax" aria-label="推定ストライドの根拠を見る">根拠</button></div><div class="data-value" id="sprint-offline-stride">0.00 <span class="unit">m</span></div></div>
+                    <div class="data-card"><div class="data-label">接地時間 <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" aria-label="接地時間の根拠を見る">根拠</button></div><div class="data-value" id="sprint-offline-contact">0.0 <span class="unit">ms</span></div></div>
                 </div>
                 <div class="info" id="sprint-offline-confidence">解析待機中</div>
                 <div class="small" id="sprint-offline-events">接地イベント：未解析</div>
@@ -7924,10 +7924,10 @@ function drawSprintEvidenceOverlay(){
     if(!sprintEvidence.kind||!Number.isFinite(sprintEvidence.frame))return;const idx=sprintOfflineCurrentFrameIndex(),tol=Math.max(1,Math.ceil(sprintOfflineEffectiveFps()*.02));if(Math.abs(idx-sprintEvidence.frame)>tol)return;const ctx=sprintOfflineCtx,w=sprintOfflineCanvas.width,h=sprintOfflineCanvas.height,fr=sprintOfflineNearestPoseFrame(sprintOfflineVideo.currentTime||0,Math.max(.14,2/sprintOfflineEffectiveFps())),l=fr?sprintOfflineTrackedLandmarks(fr):null;if(!l)return;
     const px=i=>l[i]?{x:l[i].x*w,y:l[i].y*h}:null;
     if(sprintEvidence.kind==="sprint-vmax"||sprintEvidence.kind==="sprint-trunk"){
-        const shA=px(11),shB=px(12),hA=px(23),hB=px(24);if(!shA||!shB||!hA||!hB)return;const sh={x:(shA.x+shB.x)/2,y:(shA.y+shB.y)/2},hip={x:(hA.x+hB.x)/2,y:(hA.y+hB.y)/2},g=sceneGroundAxis("sprintoffline"),up={x:g.y,y:-g.x},len=Math.max(90,Math.hypot(sh.x-hip.x,sh.y-hip.y)*.95),vertical={x:hip.x+up.x*len,y:hip.y+up.y*len},value=sprintOfflinePeakFormInsight(sprintOfflineLastResult)?.trunkFromVertical;evidenceLine(ctx,hip,vertical,"#00e5ff",Math.max(4,w/280),[12,8]);evidenceLine(ctx,hip,sh,"#ffd400",Math.max(6,w/230));evidenceDot(ctx,hip,"#ffd400");evidenceDot(ctx,sh,"#ffd400");if(Number.isFinite(value))evidenceAngleArc(ctx,hip,vertical,sh,value,"鉛直から","#ffd400");evidenceLabelPoint(ctx,hip,"腰中央","#fff");evidenceLabelPoint(ctx,sh,"肩中央","#fff");evidenceText(ctx,sprintEvidence.kind==="sprint-vmax"&&sprintOfflineLastResult?.valid?`Vmax ${sprintOfflineLastResult.vmax.toFixed(2)} m/s`:"最高速度付近の体幹",18,Math.max(34,h*.08),"#ffd400");return;
+        const shA=px(11),shB=px(12),hA=px(23),hB=px(24);if(!shA||!shB||!hA||!hB)return;const sh={x:(shA.x+shB.x)/2,y:(shA.y+shB.y)/2},hip={x:(hA.x+hB.x)/2,y:(hA.y+hB.y)/2},g=sceneGroundAxis("sprintoffline"),up={x:g.y,y:-g.x},len=Math.max(90,Math.hypot(sh.x-hip.x,sh.y-hip.y)*.95),vertical={x:hip.x+up.x*len,y:hip.y+up.y*len},value=sprintEvidence.kind==='sprint-trunk'?sprintOfflinePeakFormInsight(sprintOfflineLastResult)?.trunkFromVertical:null;evidenceLine(ctx,hip,vertical,"#00e5ff",Math.max(4,w/280),[12,8]);evidenceLine(ctx,hip,sh,"#ffd400",Math.max(6,w/230));evidenceDot(ctx,hip,"#ffd400");evidenceDot(ctx,sh,"#ffd400");if(Number.isFinite(value))evidenceAngleArc(ctx,hip,vertical,sh,value,"鉛直から","#ffd400");evidenceLabelPoint(ctx,hip,"腰中央","#fff");evidenceLabelPoint(ctx,sh,"肩中央","#fff");evidenceText(ctx,sprintEvidence.kind==="sprint-vmax"&&sprintOfflineLastResult?.valid?`Vmax ${sprintOfflineLastResult.vmax.toFixed(2)} m/s`:"最高速度付近の体幹",18,Math.max(34,h*.08),"#ffd400");return;
     }
     const c=Number.isInteger(sprintEvidence.eventIndex)?sprintOfflineContacts[sprintEvidence.eventIndex]:sprintNearestContactToPeak();if(!c)return;const side=c.side,hi=side==="left"?23:24,ki=side==="left"?25:26,ai=side==="left"?27:28,heelI=side==="left"?29:30,toeI=side==="left"?31:32,H=px(hi),K=px(ki),A=px(ai),heel=px(heelI),toe=px(toeI),hip=sprintOfflineHipPoint(l),foot=sprintOfflineFootPoint(l,side);
-    if(H&&K&&A){const ang=startOfflineJointAngle(l[hi],l[ki],l[ai]);evidenceLine(ctx,H,K,"#ffd400",Math.max(6,w/230));evidenceLine(ctx,K,A,"#ffd400",Math.max(6,w/230));if(Number.isFinite(ang))evidenceAngleArc(ctx,K,H,A,ang,"支持脚膝","#ffd400");evidenceLabelPoint(ctx,H,`${sprintSideLabel(side)} 股関節`,"#fff");evidenceLabelPoint(ctx,K,"膝","#fff");evidenceLabelPoint(ctx,A,"足首","#fff");}
+    if(H&&K&&A){const ang=sprintOfflineJointAngle57(l[hi],l[ki],l[ai]);evidenceLine(ctx,H,K,"#ffd400",Math.max(6,w/230));evidenceLine(ctx,K,A,"#ffd400",Math.max(6,w/230));if(Number.isFinite(ang))evidenceAngleArc(ctx,K,H,A,ang,"支持脚膝","#ffd400");evidenceLabelPoint(ctx,H,`${sprintSideLabel(side)} 股関節`,"#fff");evidenceLabelPoint(ctx,K,"膝","#fff");evidenceLabelPoint(ctx,A,"足首","#fff");}
     if(heel&&toe){evidenceLine(ctx,heel,toe,"#00e5ff",Math.max(6,w/240));evidenceDot(ctx,heel,"#00e5ff");evidenceDot(ctx,toe,"#00e5ff");evidenceLabelPoint(ctx,heel,"踵","#fff");evidenceLabelPoint(ctx,toe,"つま先","#fff");}
     if(hip&&foot){const axis=sceneGroundAxis("sprintoffline"),dir=sprintOfflinePositions.length>2?Math.sign(sprintOfflinePositions[sprintOfflinePositions.length-1].groundS-sprintOfflinePositions[0].groundS)||1:1,fwd={x:axis.x*dir,y:axis.y*dir},project={x:hip.x+fwd.x*180,y:hip.y+fwd.y*180};evidenceLine(ctx,hip,project,"#ff9f1a",Math.max(3,w/300),[10,7]);evidenceLine(ctx,hip,foot,"#ff9f1a",Math.max(3,w/300),[6,6]);evidenceLabelPoint(ctx,hip,"腰中央","#fff");}
     evidenceText(ctx,`${sprintSideLabel(side)} 接地 / ${Math.round((c.confidence||0)*100)}%${c.manualAnchor?" ✓手動":""}`,18,Math.max(34,h*.08),c.confidence<.55?"#ff6b6b":"#ffd400");
@@ -7938,8 +7938,8 @@ function sprintEvidenceKindFromText(text){if(/体幹|腰の上下動|最高速�
 function sprintEnhanceEvaluationLinks(){const root=document.getElementById("sprint-offline-evaluation-detail");if(!root)return;/* 日本語評価内の個別リンクは廃止し、4つの解析根拠パネルへ集約 */root.querySelectorAll(".analysis-evidence-inline").forEach(b=>b.remove());}
 function sprintRenderEventsEnhanced(){
     const el=document.getElementById("sprint-offline-events"),form=document.getElementById("sprint-offline-form-evidence");if(!el)return;const events=(sprintOfflineContacts||[]).slice(0,18),low=events.filter(e=>(e.confidence||0)<.55&&!e.manualAnchor).length;
-    if(!events.length)el.innerHTML="接地イベント：検出できませんでした。";else el.innerHTML=`<div class="evidence-event-summary">接地イベント ${sprintOfflineContacts.length}件${low?` ／ <b style="color:#b42318;">⚠ 低信頼度 ${low}件</b>（優先確認）`:" ／ 低信頼度イベントなし"}</div><table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>信頼度</th><th>根拠</th></tr>${events.map((e,i)=>`<tr class="${(e.confidence||0)<.55&&!e.manualAnchor?"evidence-low-confidence":""}"><td>${i+1}</td><td>${sprintSideLabel(e.side)}${e.manualAnchor?" ✓":""}</td><td>F${e.frame??e.index??"--"}<br>${(e.t/1000).toFixed(3)}s</td><td>${Number.isFinite(e.duration)?e.duration.toFixed(0)+" ms":"--"}${e.manualLiftoff?" ✓":""}</td><td>${Math.round((e.confidence||0)*100)}%${(e.confidence||0)<.55&&!e.manualAnchor?" ⚠":""}</td><td><button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" data-sprint-event-index="${i}" aria-label="接地イベント${i+1}の根拠を見る">!</button></td></tr>`).join("")}</table>`;
-    if(form&&sprintOfflineLastResult?.valid){const km=sprintOfflineKneeMetrics(sprintOfflineLastResult).filter(x=>x.confidence>=.32),medK=offlineMedianPositive(km.map(x=>x.contactAngle)),pf=sprintOfflinePeakFormInsight(sprintOfflineLastResult),pl=sprintOfflineContactPlacementInsight(sprintOfflineLastResult);form.innerHTML=`<table class="metric-table"><tr><td>支持脚膝角（最高速度付近中央値）</td><td>${Number.isFinite(medK)&&medK?medK.toFixed(1)+"°":"--"} <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-knee" aria-label="支持脚膝角の根拠を見る">!</button></td></tr><tr><td>体幹傾斜（鉛直から）</td><td>${Number.isFinite(pf?.trunkFromVertical)?pf.trunkFromVertical.toFixed(1)+"°":"--"} <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-trunk" aria-label="体幹傾斜の根拠を見る">!</button></td></tr><tr><td>接地点（腰に対する前後）</td><td>${Number.isFinite(pl?.median)?(pl.median*100).toFixed(0)+" cm":"--"} <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact-placement" aria-label="接地点の根拠を見る">!</button></td></tr></table><div class="evidence-definition-note">［!］で該当フレームへ移動し、支持脚は股関節-膝-足首、体幹は腰中央-肩中央と鉛直基準、接地点は腰中央と足部中心の前後関係を表示します。</div>`;}
+    if(!events.length)el.innerHTML="接地イベント：検出できませんでした。";else el.innerHTML=`<div class="evidence-event-summary">接地イベント ${sprintOfflineContacts.length}件${low?` ／ <b style="color:#b42318;">⚠ 低信頼度 ${low}件</b>（優先確認）`:" ／ 低信頼度イベントなし"}</div><table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>信頼度</th><th>根拠</th></tr>${events.map((e,i)=>`<tr class="${(e.confidence||0)<.55&&!e.manualAnchor?"evidence-low-confidence":""}"><td>${i+1}</td><td>${sprintSideLabel(e.side)}${e.manualAnchor?" ✓":""}</td><td>F${e.frame??e.index??"--"}<br>${(e.t/1000).toFixed(3)}s</td><td>${Number.isFinite(e.duration)?e.duration.toFixed(0)+" ms":"--"}${e.manualLiftoff?" ✓":""}</td><td>${Math.round((e.confidence||0)*100)}%${(e.confidence||0)<.55&&!e.manualAnchor?" ⚠":""}</td><td><button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" data-sprint-event-index="${i}" aria-label="接地イベント${i+1}の根拠を見る">根拠</button></td></tr>`).join("")}</table>`;
+    if(form&&sprintOfflineLastResult?.valid){const km=sprintOfflineKneeMetrics(sprintOfflineLastResult).filter(x=>x.confidence>=.32),medK=offlineMedianPositive(km.map(x=>x.contactAngle)),pf=sprintOfflinePeakFormInsight(sprintOfflineLastResult),pl=sprintOfflineContactPlacementInsight(sprintOfflineLastResult);form.innerHTML=`<table class="metric-table"><tr><td>支持脚膝角（最高速度付近中央値）</td><td>${Number.isFinite(medK)&&medK?medK.toFixed(1)+"°":"--"} <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-knee" aria-label="支持脚膝角の根拠を見る">根拠</button></td></tr><tr><td>体幹傾斜（鉛直から）</td><td>${Number.isFinite(pf?.trunkFromVertical)?pf.trunkFromVertical.toFixed(1)+"°":"--"} <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-trunk" aria-label="体幹傾斜の根拠を見る">根拠</button></td></tr><tr><td>接地点（腰に対する前後）</td><td>${Number.isFinite(pl?.median)?(pl.median*100).toFixed(0)+" cm":"--"} <button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact-placement" aria-label="接地点の根拠を見る">根拠</button></td></tr></table><div class="evidence-definition-note">［根拠を見る］でこの場所に映像を表示します。中央値などの集計値は、集計対象の接地も確認できます。</div>`;}
     sprintEnhanceEvaluationLinks();sprintRenderManualUi();
 }
 const sprintRenderBase=sprintOfflineRenderResults;sprintOfflineRenderResults=function(result){sprintRenderBase(result);sprintRenderEventsEnhanced();};
@@ -7954,6 +7954,11 @@ document.getElementById("sprint-offline-evidence-liftoff")?.addEventListener("cl
 /* 解析・初期指定後に手動UIも即更新 */
 const sprintTrackingRenderBase=sprintOfflineRenderTrackingUi;sprintOfflineRenderTrackingUi=function(){sprintTrackingRenderBase();sprintRenderManualUi();};
 
+window.__sprintReviewBridgeV61={
+  manual:window.__sprintManualStateV55,sideLabel:sprintSideLabel,mappedSide:sprintPrefMappedSide,
+  addContact:sprintAddManualContact,addLiftoff:sprintAddManualLiftoff,undo:sprintUndoManual,clear:sprintClearManual,
+  setEvidence(kind,frame,eventIndex){sprintEvidence={kind,frame,eventIndex};}
+};
 /* ---------- 固定プレビュー：結果閲覧時だけコンパクト ---------- */
 function updateCompactPreviews(){
     const startWrap=document.getElementById("start-offline-video-wrap"),startToggle=document.getElementById("start-offline-sticky-toggle"),startResults=document.getElementById("start-offline-results-grid");if(startWrap&&startToggle&&startResults){const r=startResults.getBoundingClientRect(),evidence=!!startEvidence.kind,compact=startToggle.checked&&!evidence&&r.top<window.innerHeight*.88&&r.bottom>0;startWrap.classList.toggle("offline-sticky-compact",compact);}
@@ -8014,6 +8019,7 @@ function mandatoryRenderStartHub(){
     hub.classList.add("active");
 }
 function mandatoryRenderSprintHub(){
+    if(window.__sprintFlowV61?.renderHub)return window.__sprintFlowV61.renderHub();
     const hub=document.getElementById("sprint-offline-evidence-hub"),root=document.getElementById("sprint-offline-evaluation-detail");if(!hub)return;
     mandatoryRemoveInlineEvalLinks(root);
     if(!mandatorySprintConfirmed()||!sprintOfflinePoseFrames?.length){hub.classList.remove("active");hub.innerHTML="";return;}
@@ -8027,6 +8033,13 @@ function mandatoryRenderSprintHub(){
     hub.classList.add("active");
 }
 
+window.__sprintGateBridgeV61={
+  confirmed:mandatorySprintConfirmed,
+  invalidate(){mandatorySprintConfirmedSignature='';},
+  clearReview(){mandatorySprintReview={index:null,frame:null};},
+  refresh(){mandatoryRenderSprintSequence();mandatoryApplySprintGate();},
+  confirm(){const s=mandatorySprintSignature();if(!s)return;mandatorySprintConfirmedSignature=s;mandatoryRenderSprintSequence();mandatoryApplySprintGate();}
+};
 function mandatoryApplyStartGate(){
     const have=!!startOfflinePoseFrames?.length,ok=mandatoryStartConfirmed(),summary=document.getElementById("start-offline-evaluation-summary"),detail=document.getElementById("start-offline-evaluation-detail"),quality=document.getElementById("start-offline-evaluation-quality")?.parentElement,lock=document.getElementById("start-offline-evaluation-lock");
     if(!have){if(lock)lock.classList.remove("active");if(summary)summary.style.display="";if(detail)detail.style.display="";if(quality)quality.style.display="";mandatoryRenderStartHub();return;}
@@ -10550,7 +10563,7 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
 
   document.addEventListener("click",e=>{const b=e.target.closest("[data-v36-goto-sequence]");if(!b)return;const p=b.dataset.v36GotoSequence;document.getElementById(p==="start"?"start-offline-sequence-panel":"sprint-offline-sequence-panel")?.scrollIntoView({behavior:"smooth",block:"center"});});
   document.getElementById("start-offline-sequence-confirm")?.addEventListener("click",()=>setTimeout(()=>{updateFlow("start");document.getElementById("start-offline-evaluation-summary")?.scrollIntoView({behavior:"smooth",block:"center"});},50));
-  document.getElementById("sprint-offline-sequence-confirm")?.addEventListener("click",()=>setTimeout(()=>{updateFlow("sprint");document.getElementById("sprint-offline-evaluation-summary")?.scrollIntoView({behavior:"smooth",block:"center"});},50));
+  /* v61 owns Sprint confirmation navigation. */
 
   document.addEventListener("DOMContentLoaded",()=>{
     setupStartModes();setupFlow("start");setupSprintVideoOnly();setupSprintFlow();ensureDiag("start");ensureDiag("sprint");updateDiag("start");updateDiag("sprint");installTableObserver("start");installTableObserver("sprint");installLockObserver("start");installLockObserver("sprint");
@@ -10718,7 +10731,7 @@ for(const p of ['start','sprint']){v32InstallTap(p);v32InstallReading(p);}v32Ens
     const {toggle,panel,close}=localIds(prefix);if(!toggle||!panel)return;toggle.textContent='▶ この下に動画を表示';
     toggle.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(panel.hidden)openLocalReview(prefix);else closeLocalReview(prefix);},{capture:true});
     close?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();closeLocalReview(prefix);},{capture:true});
-    const confirm=document.getElementById(prefix==='start'?'start-offline-sequence-confirm':'sprint-offline-sequence-confirm');confirm?.addEventListener('click',()=>setTimeout(()=>openLocalReview(prefix),90));
+    const confirm=document.getElementById(prefix==='start'?'start-offline-sequence-confirm':'sprint-offline-sequence-confirm');if(prefix!=='sprint')confirm?.addEventListener('click',()=>setTimeout(()=>openLocalReview(prefix),90));
   }
 
   /* -------------------------------------------------------------
@@ -13640,7 +13653,7 @@ ensureUi53();renderDiag53();
 
 const $54=id=>document.getElementById(id);
 const clamp54=(v,a,b)=>Math.max(a,Math.min(b,v));
-const finite54=v=>Number.isFinite(Number(v));
+const finite54=v=>v!==null&&v!==undefined&&typeof v!=='boolean'&&!(typeof v==='string'&&!v.trim())&&Number.isFinite(Number(v));
 
 /* ---------- 1. Numeric contact-frame resolver ---------- */
 function nearestSprintFrame54(tSec){
@@ -13652,10 +13665,10 @@ function nearestSprintFrame54(tSec){
 }
 function sprintResolveContactFrame54(c){
   if(!c)return null;
-  const direct=[c.frameIndex,c.index,typeof c.frame==='number'?c.frame:null,c.frame?.index];
-  for(const v of direct){const n=Number(v);if(Number.isFinite(n))return Math.max(0,Math.round(n));}
-  const ms=Number(c.t);
-  if(Number.isFinite(ms))return nearestSprintFrame54(ms/1000);
+  const direct=[c.frameIndex,c.index,typeof c.frame==='object'?null:c.frame,c.frame?.index,c.frameRecord?.index];
+  for(const v of direct){if(finite54(v)){const n=Math.round(Number(v));if(n>=0&&n<sprintOfflineFrameTimes.length)return n;}}
+  const ms=finite54(c.t)?Number(c.t):null;
+  if(ms!==null)return nearestSprintFrame54(ms/1000);
   return null;
 }
 window.sprintResolveContactFrame54=sprintResolveContactFrame54;
@@ -13847,10 +13860,11 @@ sprintOfflineDetectContacts=function(...args){
 function sideLabel54(c){try{return sprintSideLabel(c.side);}catch(_){return c.side==='left'?'左':'右';}}
 function confidence54(c){try{return mandatoryConfidence(c);}catch(_){return Number(c?.confidence)||0;}}
 function refreshContactTables54(){
+  if(window.__sprintFlowV61){normalizeAllContacts54();window.__sprintFlowV61.render();return;}
   normalizeAllContacts54();const a=Array.isArray(sprintOfflineContacts)?sprintOfflineContacts:[];
   const events=$54('sprint-offline-events');if(events){events.classList.add('v54-all-events');if(!a.length)events.innerHTML='接地イベント：検出できませんでした。';else{
     const low=a.filter(e=>confidence54(e)<.55&&!e.manualAnchor).length;
-    events.innerHTML=`<div class="evidence-event-summary">接地イベント ${a.length}件${low?` ／ <b style="color:#b42318;">⚠ 低信頼度 ${low}件</b>`:' ／ 低信頼度イベントなし'} ／ <b>全件表示</b></div><table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>信頼度</th><th>根拠</th></tr>${a.map((e,i)=>{const f=sprintResolveContactFrame54(e);return `<tr class="${confidence54(e)<.55&&!e.manualAnchor?'evidence-low-confidence':''}"><td>${i+1}</td><td>${sideLabel54(e)}${e.manualAnchor?' ✓':''}</td><td>F${Number.isFinite(f)?f:'--'}<br>${Number.isFinite(e.t)?(e.t/1000).toFixed(3):'--'}s</td><td>${Number.isFinite(e.duration)?e.duration.toFixed(0)+' ms':'--'}${e.manualLiftoff?' ✓':''}</td><td>${Math.round(confidence54(e)*100)}%${confidence54(e)<.55&&!e.manualAnchor?' ⚠':''}</td><td><button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" data-sprint-event-index="${i}" aria-label="接地イベント${i+1}の根拠を見る">!</button></td></tr>`;}).join('')}</table>`;
+    events.innerHTML=`<div class="evidence-event-summary">接地イベント ${a.length}件${low?` ／ <b style="color:#b42318;">⚠ 低信頼度 ${low}件</b>`:' ／ 低信頼度イベントなし'} ／ <b>全件表示</b></div><table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>信頼度</th><th>根拠</th></tr>${a.map((e,i)=>{const f=sprintResolveContactFrame54(e);return `<tr class="${confidence54(e)<.55&&!e.manualAnchor?'evidence-low-confidence':''}"><td>${i+1}</td><td>${sideLabel54(e)}${e.manualAnchor?' ✓':''}</td><td>F${Number.isFinite(f)?f:'--'}<br>${Number.isFinite(e.t)?(e.t/1000).toFixed(3):'--'}s</td><td>${Number.isFinite(e.duration)?e.duration.toFixed(0)+' ms':'--'}${e.manualLiftoff?' ✓':''}</td><td>${Math.round(confidence54(e)*100)}%${confidence54(e)<.55&&!e.manualAnchor?' ⚠':''}</td><td><button type="button" class="analysis-evidence-btn" data-sprint-evidence="sprint-contact" data-sprint-event-index="${i}" aria-label="接地イベント${i+1}の根拠を見る">根拠</button></td></tr>`;}).join('')}</table>`;
   }}
   const table=$54('sprint-offline-sequence-table');if(table&&a.length&&sprintOfflinePoseFrames?.length){table.classList.add('v54-all-events');table.innerHTML=`<table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>信頼度</th><th>確認</th></tr>${a.map((c,i)=>{const f=sprintResolveContactFrame54(c),cf=confidence54(c);return `<tr class="${cf<.55&&!c.manualAnchor?'evidence-low-confidence':''}"><td>C${i+1}</td><td>${sideLabel54(c)}${c.manualAnchor?' ✓手動':''}</td><td>F${Number.isFinite(f)?f:'--'}<br>${Number.isFinite(c.t)?(c.t/1000).toFixed(3):'--'}s</td><td>${Number.isFinite(c.duration)?c.duration.toFixed(0)+' ms':'--'}${c.manualLiftoff?' ✓':''}</td><td>${Math.round(cf*100)}%${cf<.55?' ⚠':''}${c.v54Recovered?'<br><small>系列再探索</small>':''}</td><td><button type="button" class="analysis-evidence-btn sequence-contact-view" data-mandatory-sprint-contact="${i}" aria-label="C${i+1}を見る">!</button></td></tr>`;}).join('')}</table>`;}
   const q=$54('sprint-offline-evaluation-quality');if(q&&sprintOfflineGroundModel?.valid&&(sprintOfflineGroundModel.confidence||0)<.35&&!q.querySelector('.v54-field-note')){
@@ -13865,7 +13879,7 @@ async function openSprintEvidence54(kind,eventIndex=null){
   if(!sprintOfflineFrameTimes?.length||!sprintOfflineVideo?.src)return;
   normalizeAllContacts54();let c=null,frame=null,title='SPRINTPEAK測定根拠';const r=sprintOfflineLastResult;
   if(kind==='sprint-vmax'||kind==='sprint-trunk'){
-    const raw=r?.maxSample?.frame;frame=Number.isFinite(Number(raw))?Math.round(Number(raw)):Number.isFinite(Number(raw?.index))?Math.round(Number(raw.index)):sprintOfflineNearestPoseFrameByMs(r?.peakT??0,160)?.index??null;
+    const raw=r?.maxSample?.frame;frame=finite54(raw)?Math.round(Number(raw)):finite54(raw?.index)?Math.round(Number(raw.index)):sprintOfflineNearestPoseFrameByMs(r?.peakT??0,160)?.index??null;
     title=kind==='sprint-trunk'?'最高速度付近の体幹角':'最高速度';
   }else{
     c=Number.isInteger(eventIndex)?sprintOfflineContacts[eventIndex]:sprintNearestContactToPeak();frame=sprintResolveContactFrame54(c);
@@ -13888,6 +13902,7 @@ function openSequence54(){
   requestAnimationFrame(()=>requestAnimationFrame(()=>panel?.scrollIntoView({behavior:'smooth',block:'center'})));
 }
 document.addEventListener('click',e=>{
+  if(window.__sprintFlowV61)return;
   const seqNav=e.target.closest("[data-mandatory-scroll='sprint-sequence'],[data-v36-goto-sequence='sprint'],.v36-goto-sequence");
   if(seqNav&&seqNav.closest('#sprint-offline-analysis-area')){e.preventDefault();e.stopImmediatePropagation();openSequence54();return;}
   const sb=e.target.closest('[data-mandatory-sprint-contact]');
@@ -14784,7 +14799,7 @@ function playbackDraw(){if(!review||!looping)return;drawStartOfflineOverlay();dr
 startOfflineVideo.addEventListener('play',()=>{if(looping){if(startOfflineVideo.requestVideoFrameCallback)startOfflineVideo.requestVideoFrameCallback(playbackDraw);else requestAnimationFrame(playbackDraw);}});
 const resetBase=startOfflineResetAnalysisState;
 startOfflineResetAnalysisState=function(...args){closeReview();invalidate();latestRejected=[];manualOnly=false;const r=resetBase(...args);scheduleRender();return r;};
-window.__SPRINT_TIMER_V60={build:'20261002-v60-contact-interval-inline-review',detector:'START foot contact intervals',poseUnchanged:true,
+window.__SPRINT_TIMER_V60={build:'20261002-v61-sprintpeak-guided-review',detector:'START foot contact intervals',poseUnchanged:true,
   features:['observed-foot AIR-CONTACT-AIR','manual interval merge','separate landing/liftoff confirmation','inline sequence review','manual-only mode']};
 window.__startV60Refresh=refresh;
 window.addEventListener('DOMContentLoaded',scheduleRender);if(document.readyState!=='loading')scheduleRender();
@@ -14792,5 +14807,330 @@ window.addEventListener('DOMContentLoaded',scheduleRender);if(document.readyStat
 
 </script>
 
+
+<style id="v61-sprint-flow-style">
+#sprint-offline-analysis-area.v61-flow{padding:12px;overflow:visible}
+.v61-hidden,#sprint-offline-analysis-area [hidden]{display:none!important}
+#sprint-offline-analysis-area.v61-flow .offline-collapse-body{display:block!important}
+#sprint-offline-analysis-area.v61-flow .offline-collapse-toggle{display:none!important}
+.v61-intro{display:flex;flex-direction:column;gap:5px;margin:0 0 14px;font-size:16px}.v61-intro span{font-size:12px;color:#526170}
+.v61-stage{border:1px solid #cbd5e1;border-radius:12px;margin:10px 0;background:#fff;overflow:visible;scroll-margin-top:12px}
+.v61-stage>summary{list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center;padding:13px 11px;background:#f1f5f9;border-radius:12px;font-weight:700;cursor:pointer;font-size:15px}
+.v61-stage>summary::-webkit-details-marker{display:none}.v61-stage>summary:before{content:'▶';font-size:10px}.v61-stage[open]>summary:before{content:'▼'}
+.v61-stage>summary>span:first-child{flex:1}.v61-stage-state{color:#526170;font-size:11px;max-width:38%;font-weight:500}.v61-stage-body{padding:10px}
+.v61-stage-body>.settings-card{padding:10px 0!important;margin:8px 0!important;box-shadow:none!important}
+.v61-options,.v61-diagnostics{padding:8px 0;margin:8px 0;font-size:13px}.v61-options>summary,.v61-diagnostics>summary{padding:9px 0;cursor:pointer;font-weight:600}.v61-options .small{padding-top:8px;line-height:1.7}
+.v61-brief{font-size:12px;line-height:1.6;color:#475569;margin:8px 0;overflow-wrap:anywhere}.v61-error{color:#b42318;background:#fff1f0;padding:8px;border-radius:8px}
+#sprint-offline-analysis-area.v61-flow #sprint-offline-video-wrap{position:relative!important;top:auto!important;left:auto!important;right:auto!important;width:100%!important;max-width:none!important;z-index:1!important;margin:0 0 7px!important;box-shadow:none!important;transform:none!important}
+.v61-media{width:100%;max-width:620px;margin:0 auto 8px}.v61-media .action-btn{font-size:13px!important;padding:10px 5px!important;margin-bottom:0}.v61-media .setting-header{font-size:12px}.v61-media .setting-value{font-size:12px}.v61-media #sprint-offline-frame-label{overflow-wrap:anywhere}
+.v61-review{border:1px solid #93c5fd;border-radius:10px;background:#f8fbff;padding:9px;margin:10px 0;scroll-margin-top:12px}
+.v61-review-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;margin-bottom:8px}.v61-close{background:#e2e8f0;border:0;padding:8px;border-radius:6px;white-space:nowrap;cursor:pointer}
+.v61-review .button-row{margin-bottom:7px}.v61-review .action-btn{font-size:13px!important;padding:10px 5px!important;margin-bottom:0;min-height:42px}
+.v61-edit-row{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:12px;margin-bottom:8px}.v61-edit-row select,.v61-options select{max-width:100%;font-size:13px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;background:white}
+.v61-small-btn{font-size:12px;border:1px solid #94a3b8;background:#fff;color:#1e293b;border-radius:6px;padding:8px;cursor:pointer}
+.v61-contributors{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:12px}
+#sprint-offline-sequence-table{display:grid!important;grid-template-columns:1fr;gap:7px;max-height:none!important;overflow:visible!important}
+.v61-contact-card{display:grid;grid-template-columns:1fr auto;gap:5px 8px;width:100%;border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:10px;text-align:left;color:#334155;font-size:12px;cursor:pointer;overflow-wrap:anywhere}
+.v61-contact-card>span{grid-column:1}.v61-contact-card .v61-card-action{grid-column:2;grid-row:1/4;align-self:center;color:#2563eb}.v61-contact-card.selected{border-color:#2563eb;background:#eff6ff}
+.v61-priorities{font-size:13px;line-height:1.7;margin:10px 0}.v61-priorities ol{padding-left:22px}
+#sprint-offline-analysis-area.v61-flow .evidence-hub-grid{grid-template-columns:1fr!important}#sprint-offline-analysis-area.v61-flow .evidence-hub-card{min-width:0}
+#sprint-offline-analysis-area.v61-flow .analysis-evidence-btn{width:auto!important;height:auto!important;padding:5px 7px!important;border-radius:5px!important;font-size:11px!important}
+#sprint-v61-diagnostics{border-top:1px solid #e2e8f0;color:#64748b}#sprint-v61-diagnostic-body{overflow-wrap:anywhere;font-size:12px}
+#sprint-offline-analysis-area.v61-flow #sprint-offline-fps-info{font-size:12px}
+#sprint-offline-analysis-area.v61-flow .offline-sticky-compact{width:100%!important}
+@media(max-width:420px){.v61-stage-body{padding:8px}.v61-contact-card{grid-template-columns:1fr}.v61-contact-card .v61-card-action{grid-column:1;grid-row:auto}.v61-stage>summary{font-size:14px}.v61-review{padding:7px}}
+
+</style>
+<script id="v61-sprint-review-core">
+(function(root){
+  'use strict';
+  const number=v=>!['number','string'].includes(typeof v)||(typeof v==='string'&&!v.trim())?null:Number.isFinite(Number(v))?Number(v):null;
+  function frame(v,count){
+    const n=number(v&&typeof v==='object'?(v.index??v.frameIndex):v);
+    const i=n===null?null:Math.round(n);
+    return i===null||n<0||!count||n>=count||i>=count?null:i;
+  }
+  function nearest(times,sec){
+    const t=number(sec);if(t===null||!times.length)return null;
+    let lo=0,hi=times.length-1;while(lo<hi){const m=(lo+hi)>>1;if(times[m]<t)lo=m+1;else hi=m;}
+    return lo&&Math.abs(times[lo-1]-t)<=Math.abs(times[lo]-t)?lo-1:lo;
+  }
+  function contactFrame(c,times){
+    if(!c)return null;
+    for(const v of [c.frameIndex,c.index,c.frame,c.frameRecord]){const f=frame(v,times.length);if(f!==null)return f;}
+    const ms=number(c.t);return ms===null?null:nearest(times,ms/1000);
+  }
+  function key(c){return `${c.side||'unknown'}:${number(c.t)}:${c.frameIndex??c.index??''}`;}
+  function matches(c,record,times){
+    if(record.key===key(c))return true;
+    const a=number(c.t),b=number(record.t);if(a===null||b===null||c.side!==record.side)return false;
+    const f=contactFrame(c,times),step=f!==null?(times[f+1]-times[f]||times[f]-times[f-1]||1/60):1/60;
+    return Math.abs(a-b)<Math.abs(step)*550;
+  }
+  function applyEdits(contacts,edits,times){
+    if(!edits.excluded.length&&!edits.pinned.length)return contacts;
+    const out=contacts.filter(c=>!edits.excluded.some(x=>matches(c,x,times))).map(c=>({...c}));
+    for(const pin of edits.pinned){
+      const i=out.findIndex(c=>Math.abs(c.t-pin.t)<.5*(1000/Math.max(1,edits.fps||60))&&c.side===pin.side);
+      if(i>=0)out[i]={...out[i],...pin};else out.push({...pin});
+    }
+    return out.sort((a,b)=>a.t-b.t);
+  }
+  const api={number,frame,nearest,contactFrame,key,matches,applyEdits};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  root.SprintReviewV61Core=api;
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<script id="v61-sprint-guided-flow">
+(()=>{
+'use strict';
+const C=window.SprintReviewV61Core,$=id=>document.getElementById(id),B=window.__sprintReviewBridgeV61,G=window.__sprintGateBridgeV61;
+const state={index:null,kind:'sprint-contact',busy:false,loading:false,revision:0,request:0,queue:Promise.resolve(),reviewed:new Set(),signature:'',edits:{excluded:[],pinned:[],fps:60},undo:[],completed:false,stale:false};
+const stages={},titles=['動画を選ぶ','解析の準備','自動解析','接地を確認・修正','結果・改善ポイント'];
+function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text)n.textContent=text;return n;}
+function esc(v){return String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));}
+function stage(n,parent){const d=el('details','v61-stage');d.id=`sprint-v61-step-${n}`;d.open=n<4;const s=el('summary');s.innerHTML=`<span>${n}. ${titles[n-1]}</span><span class="v61-stage-state"></span>`;const body=el('div','v61-stage-body');d.append(s,body);parent.append(d);stages[n]={d,body,s};return body;}
+function button(text,action,cls='btn-blue'){const b=el('button',`action-btn ${cls}`,text);b.type='button';b.dataset.v61Action=action;return b;}
+function move(id,parent){const n=$(id);if(n)parent.append(n);return n;}
+function nearestContact(){const ms=C.number(sprintOfflineLastResult?.peakT);if(ms===null)return null;return sprintOfflineContacts.reduce((a,c)=>!a||Math.abs(c.t-ms)<Math.abs(a.t-ms)?c:a,null);}
+function signature(){return sprintOfflineContacts.map(c=>`${C.key(c)}:${c.liftoff??''}:${c.duration??''}`).join('|');}
+function side(c){return c?B.sideLabel(c.side):'不明';}
+function record(c){return {key:C.key(c),t:c.t,side:c.side};}
+function addExcluded(c){if(c&&!state.edits.excluded.some(x=>x.key===C.key(c)))state.edits.excluded.push(record(c));}
+function busy(on){state.busy=on;$('sprint-v61-review')?.querySelectorAll('button,select').forEach(x=>x.disabled=on);if(!on)renderReview();}
+function message(text,error=false){const m=$('sprint-v61-message');if(m){m.textContent=text;m.classList.toggle('v61-error',error);}}
+function ready(){if(state.stale){message('解析の準備が変更されています。再解析してから確認してください。',true);return false;}if(sprintOfflineAnalyzing||state.busy){message('処理が終わるまでお待ちください。',true);return false;}return true;}
+function snapshot(){state.undo.push({edits:JSON.parse(JSON.stringify(state.edits)),contacts:B.manual.contacts.map(a=>({...a})),liftoffs:B.manual.liftoffs.map(a=>({...a})),index:state.index});if(state.undo.length>30)state.undo.shift();}
+function invalidate(){state.reviewed.clear();G.invalidate();state.completed=true;render();}
+function derive(){if(!state.edits.excluded.length&&!state.edits.pinned.length)return;state.edits.fps=sprintOfflineEffectiveFps();sprintOfflineContacts=C.applyEdits(sprintOfflineContacts,state.edits,sprintOfflineFrameTimes);sprintOfflineContactDurations=sprintOfflineContacts.filter(c=>Number.isFinite(c.duration)&&c.duration>=35&&c.duration<=500).map(c=>({side:c.side,start:c.t,end:c.liftoff??c.t+c.duration,duration:c.duration,confidence:c.confidence||0,manual:!!(c.manualAnchor||c.manualLiftoff)}));}
+function recompute(){G.invalidate();sprintOfflineRecomputeDerived();B.manual.render();G.refresh();render();}
+
+function build(){
+  const area=$('sprint-offline-analysis-area'),work=$('sprint-offline-workspace');if(!area||!work||$('sprint-v61-step-1'))return;
+  area.classList.add('v61-flow');
+  const top=el('div','v61-intro');top.innerHTML='<b>SPRINTPEAK 動画解析</b><span>動画 → 準備 → 解析 → 接地確認 → 結果</span>';
+  area.insertBefore(top,area.firstChild);
+  $('sprint-video-only-banner')?.classList.add('v61-hidden');$('sprint-analysis-flow')?.classList.add('v61-hidden');
+  const heading=area.querySelector(':scope > h3');if(heading)heading.classList.add('v61-hidden');
+  area.querySelectorAll(':scope > .notice').forEach(n=>n.classList.add('v61-hidden'));
+  const one=stage(1,area);area.insertBefore(stages[1].d,work);
+  const filming=el('details','v61-options');filming.innerHTML='<summary>撮影条件・使い方</summary><div class="small">固定カメラで走者をできるだけ真横から撮影してください。足先まで映る明るい映像を使用し、60fps以上・1080p以上、120fpsを推奨します。動画を選択し、対象選手と解析範囲を確認してから解析します。</div>';one.append(filming);
+  const file=$('sprint-offline-file-input')?.closest('.setting-item');if(file)one.append(file);move('sprint-offline-file-row',one);
+  const fileBrief=el('div','v61-brief','動画を選択してください。');fileBrief.id='sprint-v61-file-brief';one.append(fileBrief);
+  const two=stage(2,work),three=stage(3,work),four=stage(4,work),five=stage(5,work);
+  const dock=el('div','v61-media');dock.id='sprint-v61-media';
+  const wrap=$('sprint-offline-video-wrap'),seek=$('sprint-offline-seek'),header=seek?.nextElementSibling,frameInfo=$('sprint-offline-fps-info'),play=$('sprint-offline-play')?.closest('.button-row');
+  if(wrap)dock.append(wrap);if(seek)dock.append(seek);if(header)dock.append(header);if(play)dock.append(play);
+  two.append(dock);move('sprint-offline-roi-card',two);
+  const bodyCard=$('sprint-calibration-mode')?.closest('.settings-card');if(bodyCard)two.append(bodyCard);
+  const range=$('sprint-offline-source-fps')?.closest('.settings-card'),analyze=$('sprint-offline-analyze')?.closest('.button-row'),status=$('sprint-offline-analysis-status'),progress=$('sprint-offline-progress')?.parentElement;
+  if(analyze)three.append(analyze);if(status)three.append(status);if(progress)three.append(progress);
+  const completion=el('div','v61-brief');completion.id='sprint-v61-completion';completion.setAttribute('aria-live','polite');three.append(completion);
+  const go=button('接地の確認へ進む','review');go.id='sprint-v61-go-review';go.hidden=true;three.append(go);
+  const rangeButtons=$('sprint-offline-range-start')?.closest('.button-row');if(rangeButtons)two.append(rangeButtons);move('sprint-offline-range-info',two);
+  $('sprint-offline-quick-analysis-card')?.classList.add('v61-hidden');
+  if(range){const h=range.querySelector('h3'),help=h?.querySelector('button');if(h){h.textContent='FPS・解析密度';if(help)h.append(help);}range.querySelectorAll('.small').forEach(n=>{if(n.textContent.includes('解析範囲と解析開始は動画直下'))n.remove();});const options=el('details','v61-options');options.innerHTML='<summary>FPS・解析密度（通常は変更不要）</summary>';options.append(range);two.append(options);}
+  const calibration=$('sprintoffline-scene-mode')?.closest('.settings-card');if(calibration){const d=el('details','v61-options');d.innerHTML='<summary>実物を使った距離校正（任意）</summary>';d.append(calibration);two.append(d);}
+  move('sprint-offline-tracking-details',two);two.append(button('準備完了・解析へ進む','prepare-done'));
+  const review=el('section','v61-review');review.id='sprint-v61-review';review.innerHTML='<div class="v61-review-heading"><b id="sprint-v61-review-title">接地の確認</b><button type="button" class="v61-close" data-v61-action="close-evidence">閉じる</button></div><div id="sprint-v61-viewer-host"></div><div class="v61-brief" id="sprint-v61-provenance"></div><div id="sprint-v61-contact-controls"><div class="button-row"><button type="button" class="action-btn btn-gray" data-v61-action="previous">◀ 前の接地</button><button type="button" class="action-btn btn-gray" data-v61-action="next">次の接地 ▶</button></div><div class="button-row"><button type="button" class="action-btn btn-orange" data-v61-action="landing">接地を見る</button><button type="button" class="action-btn btn-blue" data-v61-action="liftoff">離地を見る</button></div><div class="button-row"><button type="button" class="action-btn btn-orange" data-v61-action="set-landing">表示中を接地に修正</button><button type="button" class="action-btn btn-blue" data-v61-action="set-liftoff">表示中を離地に修正</button></div><div class="v61-edit-row"><label>脚 <select id="sprint-v61-side"><option value="auto">自動判定</option><option value="near">手前脚</option><option value="far">奥脚</option></select></label><button type="button" class="v61-small-btn" data-v61-action="delete">この接地を削除</button><button type="button" class="v61-small-btn" data-v61-action="undo">修正を戻す</button></div><details class="v61-options"><summary>重複した接地を統合</summary><label>残す接地は表示中の接地です。統合する相手 <select id="sprint-v61-merge-target"></select></label><button type="button" class="action-btn btn-gray" data-v61-action="merge">表示中の接地へ統合</button></details><button type="button" class="action-btn btn-green" data-v61-action="checked-next">確認して次の接地へ</button></div><div id="sprint-v61-contributors" class="v61-contributors"></div><div id="sprint-v61-message" class="v61-brief" role="status" aria-live="polite"></div>';
+  review.hidden=true;
+  const seq=move('sprint-offline-sequence-panel',four);if(seq){const intro=seq.querySelector(':scope > .small');if(intro)intro.textContent='各接地を映像で確認してください。ずれがある箇所だけ修正し、最後に系列を確定します。';seq.insertBefore(review,$('sprint-offline-sequence-table'));}
+  four.append(button('映像から接地を追加する','manual-video','btn-gray'));move('sprint-offline-manual-details',four);
+  const results=$('sprint-offline-results-grid')?.closest('.settings-card');if(results)five.append(results);
+  const detail=$('sprint-offline-evaluation-detail');if(detail){const all=el('details','v61-options');all.id='sprint-v61-full-evaluation';all.innerHTML='<summary>詳しいフォーム評価を読む</summary>';detail.before(all);all.append(detail);}
+  const priorities=el('div','v61-priorities');priorities.id='sprint-v61-priorities';$('sprint-offline-evidence-hub')?.before(priorities);
+  $('sprint-offline-evaluation-video-review')?.classList.add('v61-hidden');$('sprint-offline-evidence-panel')?.classList.add('v61-hidden');$('sprint-offline-required-details')?.classList.add('v61-hidden');
+  const sticky=$('sprint-offline-sticky-toggle');if(sticky){sticky.checked=false;sticky.closest('.checkbox-row')?.classList.add('v61-hidden');}wrap?.classList.remove('offline-sticky-enabled','offline-sticky-compact');
+  const diagnostics=el('details','v61-diagnostics');diagnostics.id='sprint-v61-diagnostics';diagnostics.innerHTML='<summary>詳細・開発用診断</summary><div id="sprint-v61-diagnostic-body"></div>';area.append(diagnostics);
+  if(frameInfo)$('sprint-v61-diagnostic-body').append(frameInfo);
+  const userStatus=el('div','v61-brief');userStatus.id='sprint-v61-user-warning';two.prepend(userStatus);
+  relocateDiagnostics();
+  new MutationObserver(relocateDiagnostics).observe(area,{childList:true,subtree:true});
+  for(const n of [1,2])stages[n].d.addEventListener('toggle',()=>{if(n===2&&stages[n].d.open&&!state.busy&&!sprintOfflineAnalyzing){state.request++;B.setEvidence(null,null,null);two.prepend(dock);review.hidden=true;}});
+  new MutationObserver(updateProcess).observe($('sprint-offline-analysis-status'),{childList:true,subtree:true,characterData:true});
+  new MutationObserver(updateProcess).observe($('sprint-offline-analyze'),{attributes:true,attributeFilter:['disabled']});
+  for(const evt of ['seeked','timeupdate','loadedmetadata'])sprintOfflineVideo.addEventListener(evt,()=>{renderReview();if(evt==='loadedmetadata'){if(sprintOfflineVideo.src){stages[1].d.open=false;stages[2].d.open=true;}updateProcess();}});
+  // Mark results outdated when input settings change, preserving the original handlers.
+  two.addEventListener('change',e=>{if(e.target.closest('#sprint-v61-media'))return;markStale();});
+  two.addEventListener('click',e=>{if(e.target.closest('#sprint-offline-range-start,#sprint-offline-range-end,#sprint-offline-range-reset,#sprint-offline-roi-reset,#sprintoffline-baton-reset,#sprint-offline-tracking-reset'))markStale();});
+  let editingSelection=false;
+  two.addEventListener('pointerdown',()=>{editingSelection=!!(window.__sprintV49Selecting||sprintOfflineTrackingActive||sceneCalibration.sprintoffline.activeTarget);},{capture:true});
+  two.addEventListener('pointerup',()=>{if(editingSelection){editingSelection=false;setTimeout(markStale,0);}},{capture:true});
+  $('sprint-offline-analyze')?.addEventListener('click',()=>{if(sprintOfflineAnalyzing){state.stale=false;state.completed=false;state.reviewed.clear();state.signature='';G.invalidate();state.request++;B.setEvidence(null,null,null);two.prepend(dock);review.hidden=true;stages[3].d.open=true;stages[4].d.open=false;stages[5].d.open=false;render();}},false);
+  render();updateProcess();
+}
+const diagnosticIds=['sprint-offline-file-info','sprint-offline-quality-warning','sprint-v53-shooting-guide','sprint-v36-video-diagnostic','sprint-v53-target-diagnostics','sprint-v54-field-diagnostics','sprint-v57-sol-diagnostics','sprint-v55-local-note','sprint-athlete-track-diagnostics','sprint-offline-data-quality','sprint-offline-confidence','sprint-offline-events','sprint-offline-analysis-status'];
+function relocateDiagnostics(){const body=$('sprint-v61-diagnostic-body');if(!body)return;for(const id of diagnosticIds){const n=$(id);if(n&&!body.contains(n))body.append(n);}const quality=$('sprint-offline-evaluation-quality')?.closest('details');if(quality&&!body.contains(quality))body.append(quality);}
+function markStale(){if(!state.completed&&!sprintOfflinePoseFrames.length)return;state.stale=true;G.invalidate();G.refresh();state.reviewed.clear();stages[5].d.open=false;render();updateProcess();}
+function updateProcess(){
+  if(!stages[1])return;
+  const video=sprintOfflineVideo,selected=sprintOfflineFiles[sprintOfflineFileIndex],fps=sprintOfflineEffectiveFps();
+  $('sprint-v61-file-brief').textContent=video.src?`${selected?.name||'選択した動画'} ／ ${video.videoWidth||'--'}×${video.videoHeight||'--'} ／ ${Number.isFinite(video.duration)?video.duration.toFixed(3):'--'}秒 ／ 約${fps.toFixed(1)}fps`:'動画を選択してください。';
+  const loaded=!!video.src;stages[1].s.querySelector('.v61-stage-state').textContent=loaded?'選択済み・変更可':'';
+  const text=$('sprint-offline-analysis-status')?.textContent||'';
+  const running=sprintOfflineAnalyzing||!!window.__sprintAnalysisState57?.running;
+  const done=!running&&(/解析完了|解析終了|検出できません|解析を中止/.test(text)||state.completed);
+  if(done&&!state.completed){state.completed=true;stages[1].d.open=false;stages[2].d.open=false;stages[3].d.open=false;stages[4].d.open=true;stages[5].d.open=false;}
+  const pct=parseFloat($('sprint-offline-progress')?.style.width)||0;
+  $('sprint-v61-completion').textContent=running?`解析中：${Math.round(pct)}%`:/解析を中止/.test(text)?'解析を中止しました。途中までの接地は確認できます。':state.completed?`解析完了：接地${sprintOfflineContacts.length}件${state.stale?' ／ 準備の変更により再解析が必要':''}`:/エラー|失敗/.test(text)?text:'準備ができたら「動画を高精度解析」を押してください。';
+  $('sprint-v61-go-review').hidden=!state.completed||running;
+  const warning=$('sprint-v61-user-warning');warning.textContent=state.stale?'解析の準備が変更されました。再解析して結果を更新してください。':state.completed&&!sprintOfflinePoseFrames.length?'走者の姿勢を取得できませんでした。選手を囲い直すか、解析範囲を変更してください。':!sprintOfflineParsedFps&&sprintOfflineFrameTimesSource.includes('推定')?'FPSを自動取得できない動画です。撮影時のFPSを確認してください。':'';warning.hidden=!warning.textContent;
+  stages[3].s.querySelector('.v61-stage-state').textContent=running?'解析中':state.completed?'完了':'';
+  render();
+}
+function render(){
+  if(!stages[4])return;
+  const sig=signature();if(state.signature!==sig){state.signature=sig;state.reviewed.clear();}
+  const a=sprintOfflineContacts,ok=G.confirmed(),table=$('sprint-offline-sequence-table');
+  const cards=a.map((c,i)=>{const f=C.contactFrame(c,sprintOfflineFrameTimes),needs=(c.confidence||0)<.55||c.sideSequenceWarning;return `<button type="button" class="v61-contact-card ${state.index===i?'selected':''}" data-mandatory-sprint-contact="${i}"><span><b>C${i+1}</b> ${esc(side(c))}${c.manualAnchor?'・手動':''}${state.reviewed.has(C.key(c))?' ✓確認済み':''}</span><span>F${f??'--'} ／ ${Number.isFinite(c.t)?(c.t/1000).toFixed(3):'--'}秒</span><span>接地時間 ${Number.isFinite(c.duration)?c.duration.toFixed(0)+'ms':'離地未確定'}${needs?' ／ 要確認':''}</span><span class="v61-card-action">映像を見る ›</span></button>`;}).join('');
+  if(table&&table.innerHTML!==cards)table.innerHTML=cards||'<div class="v61-brief">接地はまだありません。解析後に確認してください。必要なら手動で接地を追加できます。</div>';
+  const status=$('sprint-offline-sequence-status');if(status)status.textContent=state.stale?'準備変更後の再解析が必要です。':ok?`確認済み：${a.length}接地`:`${a.length}接地 ／ 個別確認 ${state.reviewed.size}/${a.length}件。各接地を映像で確認してください。`;
+  stages[4].s.querySelector('.v61-stage-state').textContent=ok?'確認済み':a.length?`${a.length}件・確認待ち`:'';
+  stages[5].s.querySelector('.v61-stage-state').textContent=state.stale?'再解析が必要':ok?'確認後の結果':'接地確認後に表示';
+  const confirm=$('sprint-offline-sequence-confirm');if(confirm)confirm.disabled=!a.length||state.busy||state.stale||sprintOfflineAnalyzing;
+  renderHub();renderReview();
+}
+function renderHub(){
+  const hub=$('sprint-offline-evidence-hub'),detail=$('sprint-offline-evaluation-detail'),priorities=$('sprint-v61-priorities');if(!hub)return;
+  const ok=G.confirmed()&&!state.stale&&!!sprintOfflinePoseFrames.length;hub.classList.toggle('active',ok);
+  if(!ok){if(hub.contains($('sprint-v61-review'))){stages[4]?.body.prepend($('sprint-v61-review'));$('sprint-v61-review').hidden=true;}if(hub.childNodes.length)hub.replaceChildren();delete hub.dataset.v61Content;if(priorities)priorities.replaceChildren();return;}
+  const r=sprintOfflineLastResult,km=r?.valid?sprintOfflineKneeMetrics(r).filter(x=>x.confidence>=.32):[],k=sprintOfflineMedian(km.map(x=>x.contactAngle)),pf=r?.valid?sprintOfflinePeakFormInsight(r):null,pl=r?.valid?sprintOfflineContactPlacementInsight(r):null;
+  const data=[['① 最高速度・体幹姿勢',`最高推定速度 ${r?.valid?r.vmax.toFixed(2)+'m/s':'算出不可'} ／ 体幹 ${Number.isFinite(pf?.trunkFromVertical)?pf.trunkFromVertical.toFixed(1)+'°':'算出不可'}`,'sprint-vmax'],['② 支持脚膝角',`接地時の膝角・中央値 ${Number.isFinite(k)&&km.length?k.toFixed(1)+'°':'算出不可'} ／ 対象${km.length}接地`,'sprint-knee'],['③ 接地点・腰との前後関係',`中央値 ${Number.isFinite(pl?.median)?(pl.median*100).toFixed(0)+'cm':'算出不可'} ／ 対象${pl?.count||0}接地`,'sprint-contact-placement'],['④ 接地時間・ピッチ・左右リズム',`${sprintOfflineContacts.length}接地の系列を映像で確認`,'sprint-sequence']];
+  const html='<div class="evidence-hub-title">根拠をその場で確認</div><div class="evidence-hub-grid">'+data.map(([title,text,kind])=>`<div class="evidence-hub-card"><b>${title}</b><div class="v61-brief">${text}</div><button type="button" ${kind==='sprint-sequence'?'data-mandatory-scroll="sprint-sequence"':`data-sprint-evidence="${kind}"`}>根拠を見る</button>${kind==='sprint-vmax'?'<button type="button" data-sprint-evidence="sprint-trunk">体幹の根拠を見る</button>':''}</div>`).join('')+'</div>';
+  // Keep the mounted video/reviewer intact while other result fields update.
+  if(hub.dataset.v61Content!==html){if(hub.contains($('sprint-v61-review'))){stages[4]?.body.prepend($('sprint-v61-review'));$('sprint-v61-review').hidden=true;}hub.innerHTML=html;hub.dataset.v61Content=html;}
+  if(priorities){const section=[...(detail?.querySelectorAll('b')||[])].find(b=>b.textContent.includes('優先して確認'))?.parentElement;const items=[...(section?.querySelectorAll('li')||[])].slice(0,3).map(x=>x.textContent.replace(/該当フレームを見る/g,'').trim());const p=items.length?'<b>優先して確認するポイント</b><ol>'+items.map(x=>`<li>${esc(x)}</li>`).join('')+'</ol>':'';if(priorities.innerHTML!==p)priorities.innerHTML=p;}
+}
+function evidenceTarget(kind,index){
+  const r=sprintOfflineLastResult,times=sprintOfflineFrameTimes;let c=Number.isInteger(index)?sprintOfflineContacts[index]:nearestContact(),f=null,contributors=[],note='',poseFrame=null;
+  if(kind==='sprint-vmax'){
+    if(!r?.valid)return {error:'最高速度の根拠はまだ算出できていません。'};
+    f=C.frame(r.maxSample?.frame,times.length)??C.frame(r.maxSample?.frameIndex,times.length)??C.nearest(times,C.number(r.maxSample?.t??r.peakT)===null?null:(r.maxSample?.t??r.peakT)/1000);
+    const peak=C.number(r.peakT);note='最高推定速度はピーク付近の速度を集計した値です。表示はピークの代表フレームです。'+(peak===null?'':` 集計区間：${Math.max(0,peak/1000-.12).toFixed(3)}〜${(peak/1000+.12).toFixed(3)}秒。`);c=null;
+  }else if(kind==='sprint-trunk'){
+    if(!r?.valid)return {error:'体幹の根拠はまだ算出できていません。'};
+    const pf=sprintOfflinePeakFormInsight(r);f=C.frame(pf?.frame,times.length);note='表示した体幹角の算出に使用したフレームです。';c=null;
+  }else if(kind==='sprint-knee'){
+    const metrics=r?.valid?sprintOfflineKneeMetrics(r).filter(x=>x.confidence>=.32):[];
+    contributors=metrics.map(m=>({c:sprintOfflineContacts.find(x=>x.side===m.side&&Math.abs(x.t-m.t)<1),pose:sprintOfflineNearestPoseFrameByMs(m.t,100),label:`${m.contactAngle.toFixed(1)}°`})).filter(x=>x.c&&x.pose);
+    const median=sprintOfflineMedian(metrics.map(x=>x.contactAngle));contributors.sort((a,b)=>Math.abs(parseFloat(a.label)-median)-Math.abs(parseFloat(b.label)-median));
+    const chosen=Number.isInteger(index)?contributors.find(x=>x.c===c):contributors[0];if(!chosen)return {error:'支持脚膝角に使える姿勢データがありません。'};
+    c=chosen.c;poseFrame=chosen.pose;f=C.frame(poseFrame.index,times.length);note=`数値は${metrics.length}接地の中央値です。表示は${chosen.label}の個別根拠です。接地F${C.contactFrame(c,times)}／姿勢F${f}。`;
+  }else if(kind==='sprint-contact-placement'){
+    // Reproduce the existing placement metric's eligibility, without changing its calculation.
+    for(const x of r?.nearby||[]){const p=sprintOfflineNearestPoseFrameByMs(x.t,100),l=p?sprintOfflineTrackedLandmarks(p):null,hip=l?sprintOfflineHipPoint(l):null,foot=l?sprintOfflineFootPoint(l,x.side):null;if(!p||!hip||!foot)continue;const sc=sceneFusedScaleAtPoint('sprintoffline',foot.x,foot.y,sprintOfflineBodyStateAtFrame(p));if(!sc?.pxPerMeter||sc.confidence<.25||Math.min(x.confidence||0,sc.confidence,p.poseQuality||0)<.3)continue;contributors.push({c:sprintOfflineContacts.find(y=>y===x||(y.side===x.side&&Math.abs(y.t-x.t)<1)),pose:p,label:'対象接地'});}
+    contributors=contributors.filter(x=>x.c);const chosen=Number.isInteger(index)?contributors.find(x=>x.c===c):contributors[0];if(!chosen)return {error:'接地点の計測に使える姿勢・縮尺データがありません。'};
+    c=chosen.c;poseFrame=chosen.pose;f=C.frame(poseFrame.index,times.length);note=`数値は${contributors.length}接地の中央値です。表示は選択した接地の個別根拠です。接地F${C.contactFrame(c,times)}／姿勢F${f}。`;
+  }else if(kind==='sprint-liftoff'){const ms=C.number(c?.liftoff);f=ms===null?null:C.nearest(times,ms/1000);note='選択した接地と同じ脚の離地です。';}
+  else{f=C.contactFrame(c,times);note='表示フレームを映像で確認し、ずれがある場合だけ修正してください。';}
+  if(f===null)return {error:'この項目の根拠フレームを確定できません。接地・離地または解析結果を確認してください。'};
+  return {frame:f,c,note,contributors,kind,poseFrame};
+}
+function mount(anchor){const review=$('sprint-v61-review');review.hidden=false;const card=anchor?.closest('.evidence-hub-card,.data-card')||anchor?.closest('#sprint-offline-form-evidence');if(card){card.append(review);stages[5].d.open=true;}else{const panel=$('sprint-offline-sequence-panel');panel.insertBefore(review,$('sprint-offline-sequence-table'));stages[4].d.open=true;}$('sprint-v61-viewer-host').append($('sprint-v61-media'));}
+function openEvidence(kind,index=null,anchor=null){
+  if(!ready())return Promise.resolve();if(!sprintOfflineVideo.src||!sprintOfflineFrameTimes.length)return Promise.resolve();
+  stages[2].d.open=false;mount(anchor);const req=++state.request;state.loading=true;renderReview();
+  // Serialized seeks keep rapid taps from leaving a frame from an older request visible.
+  const task=async()=>{if(req!==state.request)return;const target=evidenceTarget(kind,index);if(target.error){state.loading=false;message(target.error,true);$('sprint-v61-media').hidden=true;$('sprint-v61-contact-controls').hidden=true;$('sprint-v61-provenance').textContent='';$('sprint-v61-contributors').replaceChildren();$('sprint-v61-review-title').textContent='根拠を表示できません';return;}
+    $('sprint-v61-media').hidden=false;state.kind=kind;state.index=target.c?sprintOfflineContacts.indexOf(target.c):null;
+    message('根拠フレームを読み込んでいます…');sprintOfflineVideo.pause();B.setEvidence(kind==='sprint-liftoff'?'sprint-contact':kind,target.frame,state.index);
+    G.clearReview();await sprintOfflineSeekToFrame(target.frame);if(req!==state.request)return;
+    await new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res)));if(req!==state.request)return;
+    const actual=sprintOfflineCurrentFrameIndex();if(actual!==target.frame){state.loading=false;message(`F${target.frame}への移動を確認できませんでした（現在F${actual}）。もう一度「根拠を見る」を押してください。`,true);return;}
+    sprintOfflineDrawOverlay();$('sprint-v61-provenance').textContent=target.note;
+    $('sprint-v61-contributors').innerHTML=target.contributors.length?'<span>集計対象：</span>'+target.contributors.map(x=>{const i=sprintOfflineContacts.indexOf(x.c);return `<button type="button" class="v61-small-btn" data-v61-contributor="${i}" data-v61-kind="${kind}">C${i+1} ${esc(x.label)}</button>`;}).join(''):'';
+    state.loading=false;message('');renderReview();render();};
+  state.queue=state.queue.catch(()=>{}).then(task).catch(e=>{if(req===state.request){state.loading=false;message(`映像を表示できませんでした：${e.message}`,true);}});return state.queue;
+}
+function renderReview(){
+  const r=$('sprint-v61-review');if(!r||r.hidden)return;const c=Number.isInteger(state.index)?sprintOfflineContacts[state.index]:null;
+  const names={'sprint-vmax':'最高速度の根拠','sprint-trunk':'体幹角の根拠','sprint-knee':'支持脚膝角の個別根拠','sprint-contact-placement':'接地点の個別根拠','sprint-contact':'接地確認','sprint-liftoff':'離地確認'};
+  $('sprint-v61-review-title').textContent=(c?`C${state.index+1} ${side(c)} ／ `:'')+(names[state.kind]||'根拠映像');
+  const controls=$('sprint-v61-contact-controls'),isContact=['sprint-contact','sprint-liftoff'].includes(state.kind);controls.hidden=!isContact;
+  for(const action of ['previous','next','landing','liftoff','set-landing','set-liftoff','delete','merge','checked-next']){const b=controls.querySelector(`[data-v61-action="${action}"]`);if(b)b.disabled=state.busy||(state.loading&&['set-landing','set-liftoff','delete','merge','checked-next'].includes(action))||!c||(action==='previous'&&state.index===0)||(action==='next'&&state.index===sprintOfflineContacts.length-1)||(action==='liftoff'&&C.number(c?.liftoff)===null)||(action==='merge'&&sprintOfflineContacts.length<2);}
+  const undo=controls.querySelector('[data-v61-action="undo"]');if(undo)undo.disabled=state.busy||!state.undo.length;
+  const target=$('sprint-v61-merge-target');const selected=target.value,html=sprintOfflineContacts.map((x,i)=>i===state.index?'':`<option value="${i}">C${i+1}・F${C.contactFrame(x,sprintOfflineFrameTimes)??'--'}</option>`).join('');if(target.innerHTML!==html){target.innerHTML=html;if([...target.options].some(o=>o.value===selected))target.value=selected;}
+}
+async function correct(kind){
+  if(!ready())return;if(state.loading){message('フレームの表示が終わってから修正してください。',true);return;}const old=sprintOfflineContacts[state.index];if(!old)return;snapshot();busy(true);
+  try{
+    const frame=sprintOfflineCurrentFrameIndex(),ms=sprintOfflineFrameTimes[frame]*1000,pref=$('sprint-v61-side').value||'auto';
+    if(kind==='landing'){
+      if(Number.isFinite(old.liftoff)&&ms>=old.liftoff)throw new Error('接地は離地より前のフレームを指定してください。');
+      addExcluded(old);state.edits.pinned=state.edits.pinned.filter(p=>!C.matches(p,record(old),sprintOfflineFrameTimes));
+      B.manual.contacts=B.manual.contacts.filter(a=>Math.abs(a.tSec*1000-old.t)>.6*(1000/sprintOfflineEffectiveFps()));
+      const mapped=pref==='auto'?old.side:B.mappedSide(pref);$('sprint-offline-manual-side').value=pref;
+      await B.addContact();
+      // Preserve the selected contact's verified timing, including a pre-existing liftoff.
+      const current=sprintOfflineContacts.find(c=>Math.abs(c.t-ms)<1),pin={...(current||old),t:ms,index:frame,frame,frameIndex:frame,side:mapped||current?.side||old.side,manualAnchor:true,source:'manual-v61-selected-contact',confidence:.98};
+      if(Number.isFinite(old.liftoff)){pin.liftoff=old.liftoff;pin.duration=old.liftoff-ms;}else{pin.liftoff=null;pin.duration=null;}
+      if(current)addExcluded(current);state.edits.pinned.push(pin);recompute();state.index=sprintOfflineContacts.findIndex(c=>Math.abs(c.t-ms)<1);state.kind='sprint-contact';
+    }else{
+      const duration=ms-old.t;if(duration<35||duration>500)throw new Error('離地は接地の35〜500ms後を指定してください。');
+      addExcluded(old);state.edits.pinned=state.edits.pinned.filter(p=>!C.matches(p,record(old),sprintOfflineFrameTimes));
+      state.edits.pinned.push({...old,liftoff:ms,duration,manualLiftoff:true,durationInvalid:false,durationInvalidReason:null,source:'manual-v61-selected-liftoff'});
+      B.manual.liftoffs=B.manual.liftoffs.filter(a=>!(a.tSec*1000>=old.t&&a.tSec*1000<=old.t+500&&(a.resolvedSide===old.side||a.sidePref==='auto')));
+      recompute();state.index=sprintOfflineContacts.findIndex(c=>c.t===old.t&&c.side===old.side);state.kind='sprint-liftoff';
+    }
+    invalidate();message('選択した接地を修正しました。系列をもう一度確認してください。');B.setEvidence('sprint-contact',frame,state.index);sprintOfflineDrawOverlay();
+  }catch(e){const prev=state.undo.pop();if(prev){state.edits=prev.edits;B.manual.contacts=prev.contacts;B.manual.liftoffs=prev.liftoffs;recompute();}message(e.message,true);}finally{busy(false);}
+}
+function removeContact(index,merging=false){
+  if(!ready())return;const c=sprintOfflineContacts[index],keep=sprintOfflineContacts[state.index];if(!c)return;snapshot();addExcluded(c);state.edits.pinned=state.edits.pinned.filter(p=>!C.matches(p,record(c),sprintOfflineFrameTimes));
+  B.manual.contacts=B.manual.contacts.filter(a=>Math.abs(a.tSec*1000-c.t)>.6*(1000/sprintOfflineEffectiveFps()));
+  B.manual.liftoffs=B.manual.liftoffs.filter(a=>!(Number.isFinite(c.liftoff)&&Math.abs(a.tSec*1000-c.liftoff)<1));
+  recompute();invalidate();state.index=merging?sprintOfflineContacts.findIndex(x=>x.t===keep.t&&x.side===keep.side):Math.min(index,sprintOfflineContacts.length-1);
+  message(merging?'統合しました。表示中の接地・離地を残し、相手の接地を除外しました。':'接地を削除しました。修正を戻すボタンで復元できます。');
+  if(state.index>=0)openEvidence('sprint-contact',state.index);else{$('sprint-v61-review').hidden=true;state.index=null;}
+}
+function undo(){if(!ready())return;const s=state.undo.pop();if(!s)return;state.edits=s.edits;B.manual.contacts=s.contacts;B.manual.liftoffs=s.liftoffs;state.index=s.index;recompute();invalidate();if(sprintOfflineContacts[state.index])openEvidence('sprint-contact',state.index);}
+function closeEvidence(){state.request++;state.loading=false;B.setEvidence(null,null,null);G.clearReview();$('sprint-v61-review').hidden=true;$('sprint-v61-media').hidden=false;stages[2].body.prepend($('sprint-v61-media'));sprintOfflineVideo.pause();sprintOfflineDrawOverlay();}
+function confirm(){if(!ready()||!sprintOfflineContacts.length)return;G.confirm();stages[4].d.open=false;stages[5].d.open=true;closeEvidence();render();stages[5].d.scrollIntoView({behavior:'smooth',block:'start'});}
+function action(name,b){
+  if(name==='prepare-done'){stages[1].d.open=false;stages[2].d.open=false;stages[3].d.open=true;stages[3].d.scrollIntoView({behavior:'smooth',block:'start'});return;}
+  if(name==='review'){stages[4].d.open=true;stages[4].d.scrollIntoView({behavior:'smooth',block:'start'});if(sprintOfflineContacts.length)openEvidence('sprint-contact',state.index??0);return;}
+  if(name==='close-evidence'){closeEvidence();return;}
+  if(name==='previous'||name==='next')return openEvidence('sprint-contact',state.index+(name==='previous'?-1:1));
+  if(name==='landing'||name==='liftoff')return openEvidence(name==='landing'?'sprint-contact':'sprint-liftoff',state.index);
+  if(name==='set-landing'||name==='set-liftoff')return correct(name==='set-landing'?'landing':'liftoff');
+  if(name==='delete')return removeContact(state.index);
+  if(name==='merge'){const target=parseInt($('sprint-v61-merge-target').value,10);if(Number.isInteger(target)&&target!==state.index)return removeContact(target,true);return;}
+  if(name==='undo')return undo();
+  if(name==='manual-video'){if(!ready())return;state.request++;state.loading=false;state.index=null;state.kind='sprint-contact';mount(null);$('sprint-v61-media').hidden=false;B.setEvidence(null,null,null);G.clearReview();sprintOfflineDrawOverlay();$('sprint-v61-provenance').textContent='コマ送りで接地または離地の瞬間に合わせ、下の手動修正欄から追加してください。';$('sprint-v61-contributors').replaceChildren();$('sprint-offline-manual-details').open=true;renderReview();return;}
+  if(name==='checked-next'){const c=sprintOfflineContacts[state.index];if(!c)return;state.reviewed.add(C.key(c));render();if(state.index<sprintOfflineContacts.length-1)return openEvidence('sprint-contact',state.index+1);message('最後の接地まで確認しました。下の「この接地系列を確認して確定」で結果へ進めます。');return;}
+}
+async function manualAction(id){
+  if(id==='sprint-offline-manual-undo')return undo();if(!ready()||state.loading)return;snapshot();busy(true);
+  try{if(id==='sprint-offline-manual-clear'){state.edits={excluded:[],pinned:[],fps:sprintOfflineEffectiveFps()};B.clear();}
+    else if(id==='sprint-offline-manual-contact')await B.addContact();else await B.addLiftoff();
+    invalidate();message('手動補正を反映しました。接地系列を確認してください。');
+  }catch(e){const prev=state.undo.pop();if(prev){state.edits=prev.edits;B.manual.contacts=prev.contacts;B.manual.liftoffs=prev.liftoffs;recompute();}message(e.message,true);}finally{busy(false);}
+}
+// One route owns all Sprint evidence clicks, before retired document handlers.
+window.addEventListener('click',e=>{
+  const target=e.target?.closest?.('button,[data-sprint-evidence],[data-mandatory-sprint-contact]');if(!target||!target.closest('#sprint-offline-analysis-area'))return;
+  const isNav=target.matches("[data-mandatory-scroll='sprint-sequence'],[data-v36-goto-sequence='sprint'],.v36-goto-sequence");
+  const manualId=['sprint-offline-manual-contact','sprint-offline-manual-liftoff','sprint-offline-manual-clear','sprint-offline-manual-undo'].includes(target.id);
+  const controlled=target.dataset.v61Action||target.dataset.sprintEvidence||target.dataset.mandatorySprintContact!==undefined||target.dataset.v61Contributor!==undefined||isNav||manualId||target.id==='sprint-offline-sequence-confirm';
+  if(!controlled)return;e.preventDefault();e.stopImmediatePropagation();
+  if(target.id==='sprint-offline-sequence-confirm')return confirm();
+  if(manualId)return manualAction(target.id);
+  if(target.dataset.v61Action)return action(target.dataset.v61Action,target);
+  if(target.dataset.v61Contributor!==undefined)return openEvidence(target.dataset.v61Kind,parseInt(target.dataset.v61Contributor,10),target.closest('.evidence-hub-card'));
+  if(isNav)return openEvidence('sprint-contact',state.index??0,target);
+  if(target.dataset.mandatorySprintContact!==undefined)return openEvidence('sprint-contact',parseInt(target.dataset.mandatorySprintContact,10));
+  const index=target.dataset.sprintEventIndex===undefined?null:parseInt(target.dataset.sprintEventIndex,10);return openEvidence(target.dataset.sprintEvidence,Number.isInteger(index)?index:null,target);
+},{capture:true});
+const detect=sprintOfflineDetectContacts;sprintOfflineDetectContacts=function(...args){const r=detect.apply(this,args);derive();return r;};
+const renderBase=sprintOfflineRenderResults;sprintOfflineRenderResults=function(...args){const r=renderBase.apply(this,args);render();return r;};
+const resetBase=sprintOfflineResetResults;sprintOfflineResetResults=function(...args){state.request++;state.completed=false;state.stale=false;state.index=null;state.signature='';state.reviewed.clear();state.edits={excluded:[],pinned:[],fps:sprintOfflineEffectiveFps()};state.undo=[];closeEvidenceIfBuilt();G.invalidate();const r=resetBase.apply(this,args);if(stages[1]){stages[1].d.open=true;stages[2].d.open=true;stages[3].d.open=true;stages[4].d.open=false;stages[5].d.open=false;}render();updateProcess();return r;};
+function closeEvidenceIfBuilt(){if($('sprint-v61-review'))closeEvidence();}
+window.__sprintFlowV61={renderHub,openEvidence,state,evidenceTarget,render,updateProcess};
+window.__SPRINT_TIMER_V61={build:'20261002-v61-sprintpeak-guided-review',scope:'SPRINTPEAK UI, evidence frame normalization, explicit manual edits; original Pose and automatic contact detection preserved'};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(build,0),{once:true});else setTimeout(build,0);
+})();
+
+</script>
 </body>
 </html>
