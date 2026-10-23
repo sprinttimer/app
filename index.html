@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="sprint-timer-version" content="2026.10.09.65">
-<meta name="sprint-timer-build" content="20261009-v65-start-guided-review">
+<meta name="sprint-timer-version" content="2026.10.23.66">
+<meta name="sprint-timer-build" content="20261023-v66-start-vbt-fixes">
 <script>
-window.SPRINT_TIMER_VERSION = "2026.10.09.65";
-window.SPRINT_TIMER_BUILD = "20261009-v65-start-guided-review";
+window.SPRINT_TIMER_VERSION = "2026.10.23.66";
+window.SPRINT_TIMER_BUILD = "20261023-v66-start-vbt-fixes";
 /* PWA install prompt is captured as early as possible so the in-app button can use it. */
 window.__sprintDeferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (event) => {
@@ -3807,6 +3807,7 @@ async function startOfflineAnalyze(){
     if(startOfflineAnalyzing||!startOfflineVideo.src||!startOfflineFrameTimes.length)return;
     startOfflineAnalyzing=true;startOfflineCancelRequested=false;document.getElementById("start-offline-analyze").disabled=true;document.getElementById("start-offline-cancel").disabled=false;
     startOfflinePoseFrames=[];startOfflinePoseMap=new Map();startOfflineInferredKnees=new Map();startOfflinePatchTracks=new Map();startOfflinePatchStats={enabled:false,points:0,frames:0,reanchored:0,failed:0,forward:0,backward:0};v37ResetStartAutoFootTracker();startOfflineGroundModel=null;startOfflineFootDetail=new Map();startOfflineFootDetailStats={left:0,right:0,total:0,ankle:0,heel:0,toe:0};startOfflineFootSignals={left:[],right:[]};startOfflineTrackingResolvedSeed=null;startOfflineTrackingStats={left:0,right:0,total:0,bidirectional:0,supportInterpolated:0,rejectedLongGap:0};
+    let v66Phase='analysis';window.__startV66PostprocessError=null;
     const fps=startOfflineEffectiveFps(),density=document.getElementById("start-offline-analysis-density").value,maxRate=density==="all"?Infinity:parseFloat(density),stride=maxRate===Infinity?1:Math.max(1,Math.ceil(fps/maxRate));
     const from=startOfflineRangeStart||0,to=(startOfflineRangeEnd??startOfflineVideo.duration??0),indices=[];for(let i=0;i<startOfflineFrameTimes.length;i+=stride){const t=startOfflineFrameTimes[i];if(t+1e-6>=from&&t-1e-6<=to)indices.push(i);}if(indices.length&&indices[indices.length-1]!==startOfflineFrameTimes.length-1&&startOfflineFrameTimes[startOfflineFrameTimes.length-1]<=to)indices.push(startOfflineFrameTimes.length-1);
     if(startOfflineTrackingSeed.frameIndex!==null){const ri=startOfflineTrackingSeed.frameIndex,rt=startOfflineFrameTimes[ri];if(Number.isFinite(rt)&&rt>=from-.001&&rt<=to+.001&&!indices.includes(ri))indices.push(ri);}indices.sort((a,b)=>a-b);
@@ -3825,6 +3826,7 @@ async function startOfflineAnalyze(){
             if(r?.poseLandmarks){try{v37StartAutoFootTrackerConsume(idx,t,r.poseLandmarks);}catch(e){console.warn("auto foot local tracking",e);}const l=startOfflineCloneLandmarks(r.poseLandmarks),scale=bodyCalibrationEstimate(l,startOfflineCanvas.width,startOfflineCanvas.height,bodyReadCalibrationProfile()),f={index:idx,t,landmarks:l,poseQuality:startOfflinePoseQuality(l),scale};startOfflinePoseFrames.push(f);startOfflinePoseMap.set(idx,f);}
             if(n%3===0||n===indices.length-1){const pct=(n+1)/Math.max(1,indices.length)*84;document.getElementById("start-offline-progress").style.width=pct.toFixed(1)+"%";document.getElementById("start-offline-analysis-status").innerText=`Pose解析 ${n+1}/${indices.length}（${((n+1)/Math.max(1,indices.length)*100).toFixed(1)}%） ／ 有効Pose ${startOfflinePoseFrames.length}`;await new Promise(r=>setTimeout(r,0));}
         }
+        v66Phase='postprocess';
         startOfflinePoseFrames.sort((a,b)=>a.t-b.t);
         if(!startOfflineCancelRequested&&offlineTrackPointCount(startOfflineTrackingSeed)>0&&startOfflinePoseFrames.length){
             startOfflineTrackingResolvedSeed=offlineTrackResolveSeed(startOfflineTrackingSeed,startOfflinePoseFrames,startOfflineCanvas.width,startOfflineCanvas.height);
@@ -3835,7 +3837,7 @@ async function startOfflineAnalyze(){
         if(!startOfflineCancelRequested){const clearance=startOfflineManualClearanceIndex??startOfflineAutoClearanceIndex,patchInfo=startOfflinePatchStats.enabled?` ／ 画像追跡 ${startOfflinePatchStats.frames}フレーム`:"",groundInfo=startOfflineGroundModel?.valid?` ／ 地面モデル ${Math.round(startOfflineGroundModel.confidence*100)}%`:"",st=document.getElementById("start-offline-analysis-status");if(!startOfflinePoseFrames.length){st.innerText=startOfflineContacts.length?`⚠ 人体Poseを検出できませんでした（0/${indices.length}フレーム）。自動の分割Crop探索でも人物を確定できませんでした。手動指定 ${startOfflineContacts.length}接地はタイミング系列として反映済みですが、距離・角度・姿勢はPoseが必要です。上の「選手を囲って追跡」で頭から足先まで囲って再解析してください。`:`⚠ 人体Poseを検出できませんでした（0/${indices.length}フレーム）。自動の分割Crop探索でも人物を確定できませんでした。上の「選手を囲って追跡」で頭から足先まで囲って再解析してください。接地時刻だけ必要な場合は手動接地も使用できます。`; }else if(clearance===null)st.innerText=`解析完了：有効Pose ${startOfflinePoseFrames.length}/${indices.length}フレーム${patchInfo}${groundInfo}。ブロッククリアランスは自動確定できませんでしたが、接地解析は独立して継続しました（接地 ${startOfflineContacts.length}件）。必要なら手動でブロッククリアランスを指定してください。`;else st.innerText=`解析完了：有効Pose ${startOfflinePoseFrames.length}/${indices.length}フレーム${patchInfo}${groundInfo}。自動候補を計算しました。`;}
         sceneRenderStatus("offline",startOfflineScaleSummary);await startOfflineSeekTime(from);
     }catch(e){
-        if(window.__startV64Controller)window.__startV64Controller.showGateFailure({ok:false,error:e,phase:'analysis'});
+        if(window.__startV64Controller)window.__startV64Controller.showGateFailure({ok:false,error:e,phase:v66Phase});
         else document.getElementById("start-offline-analysis-status").innerText='解析処理でエラーが発生しました：'+(e?.message||String(e));
     }finally{startOfflineAnalyzing=false;document.getElementById("start-offline-analyze").disabled=false;document.getElementById("start-offline-cancel").disabled=true;window.__startV64Controller?.analysisFinished?.();}
 }
@@ -5262,6 +5264,7 @@ function trackVbtTemplateAdvanced(now){
 }
 
 function vbtMetersPerPixel(){
+    if(vbtRunning&&window.__vbtV66?.recording?.calibration?.mpp>0)return window.__vbtV66.recording.calibration.mpp;
     if(vbtPixelsPerMeter>0)return 1/vbtPixelsPerMeter;
 
     /* プレート円周検出が失敗した場合のみ、既存の身長簡易補正を残す */
@@ -5270,6 +5273,7 @@ function vbtMetersPerPixel(){
 }
 
 document.getElementById("vbt-video").addEventListener("click",e=>{
+    if(vbtRunning)return; /* A recording keeps one target and one scale. */
     /* 前フレームの追跡線を混ぜず、現在の生映像からテンプレートを作る */
     if(vbtVideo.videoWidth){
         vbtCtx.drawImage(vbtVideo,0,0,vbtCanvas.width,vbtCanvas.height);
@@ -5430,6 +5434,7 @@ function renderVbt(){
 
 function startVbtRecording(){
     if(!vbtVideo.srcObject||typeof MediaRecorder==="undefined")return;
+    v66VbtBeginRecording();
     vbtChunks=[];
     let options={};
     if(MediaRecorder.isTypeSupported("video/webm;codecs=vp9"))options={mimeType:"video/webm;codecs=vp9"};
@@ -5446,20 +5451,12 @@ function startVbtRecording(){
     }
 }
 
-function showVbtReview(){
+async function showVbtReview(){
     if(!vbtChunks.length)return;
     const type=vbtRecorder&&vbtRecorder.mimeType?vbtRecorder.mimeType:"video/webm";
     const blob=new Blob(vbtChunks,{type});
-    if(vbtReviewUrl)URL.revokeObjectURL(vbtReviewUrl);
-    vbtReviewUrl=URL.createObjectURL(blob);
-
-    const review=document.getElementById("vbt-review-video");
-    review.src=vbtReviewUrl;
-    document.getElementById("vbt-review-area").style.display="block";
-    vbtReviewStart=null;
-    vbtReviewEnd=null;
-    vbtReviewAnchors=[];
-    resetVbtReviewWorkspace(true);
+    try{await v66VbtOpenMedia(blob,"VBT-recording."+(type.includes("mp4")?"mp4":"webm"),true);}
+    catch(e){document.getElementById('vbt-status').textContent='録画レビューを開けません：'+e.message;}
 }
 
 document.getElementById("vbt-start").addEventListener("click",async()=>{
@@ -5566,13 +5563,13 @@ vbtReviewSeek.addEventListener("input",()=>{
 });
 
 function vbtReviewFps(){
-    return Math.max(1,vbtMeasuredVideoFps||vbtActualFps||30);
+    return Math.max(1,window.__vbtV66?.media?.fps||30);
 }
 
 function updateVbtReviewTime(){
     const fps=vbtReviewFps();
-    const frame=Math.round(vbtReviewVideo.currentTime*fps);
-    document.getElementById("vbt-review-time").innerText=`${vbtReviewVideo.currentTime.toFixed(3)} s / Frame ${frame}`;
+    const frame=v66VbtFrameIndex(vbtReviewVideo.currentTime);
+    document.getElementById("vbt-review-time").innerText=`${v66VbtFrameTime(frame).toFixed(3)} s / Frame ${frame}`;
     const deleteBtn=document.getElementById("vbt-review-delete-nearest");
     if(deleteBtn)deleteBtn.disabled=!vbtReviewAnchors.length||vbtReviewBusy;
 }
@@ -5580,8 +5577,8 @@ function updateVbtReviewTime(){
 function vbtStepFrame(dir){
     if(vbtReviewBusy)return;
     vbtReviewVideo.pause();
-    const step=1/vbtReviewFps();
-    vbtReviewVideo.currentTime=clamp(vbtReviewVideo.currentTime+dir*step,0,vbtReviewVideo.duration||999);
+    const i=v66VbtFrameIndex(vbtReviewVideo.currentTime);
+    vbtReviewVideo.currentTime=v66VbtSeekTarget(v66VbtFrameTime(Math.max(0,i+dir)));
 }
 document.getElementById("vbt-prev-frame").addEventListener("click",()=>vbtStepFrame(-1));
 document.getElementById("vbt-next-frame").addEventListener("click",()=>vbtStepFrame(1));
@@ -5658,12 +5655,12 @@ function nearestVbtSample(timeSec){
         const s=nearestVbtSampleFrom(vbtReviewCorrectedSamples,timeSec,1.15/vbtReviewFps());
         return isVbtReviewValidSample(s)?s:null; /* 再解析後はライブ軌跡へ絶対にフォールバックしない */
     }
-    return nearestVbtSampleFrom(vbtSamples,timeSec);
+    const sample=nearestVbtSampleFrom(vbtSamples,timeSec,1.15/vbtReviewFps());
+    return isVbtReviewValidSample(sample)?sample:null;
 }
 
 function vbtReviewMetersPerPixel(){
-    if(vbtReviewPixelsPerMeter>0)return 1/vbtReviewPixelsPerMeter;
-    return vbtMetersPerPixel();
+    return v66VbtReviewScale().mpp;
 }
 
 function renderVbtReviewAnchors(){
@@ -5684,7 +5681,7 @@ function renderVbtReviewAnchors(){
         list.innerHTML=vbtReviewAnchors.map((a,i)=>{
             const radius=a.feature&&a.feature.radius?` ／ 外周≈${(a.feature.radius*2).toFixed(0)}px (${Math.round((a.feature.radiusConfidence||0)*100)}%)`:"";
             const mask=a.feature&&a.feature.circularCore?" ／ 円形固定特徴":"";
-            return `<div style="padding:3px 0">A${i+1}：${a.time.toFixed(3)} s / Frame ${Math.round(a.time*fps)}${radius}${mask}</div>`;
+            return `<div style="padding:3px 0">A${i+1}：${a.time.toFixed(3)} s / Frame ${v66VbtFrameIndex(a.time)}${radius}${mask}</div>`;
         }).join("");
     }
 }
@@ -5703,8 +5700,8 @@ function drawVbtReviewOverlay(){
         const conf=current.confidence===undefined?1:current.confidence;
         const color=conf>=.75?'#00ff66':conf>=.52?'#ffcf33':'#ff4444';
         vbtReviewCtx.strokeStyle=color;vbtReviewCtx.lineWidth=4;vbtReviewCtx.beginPath();
-        const r=(vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:vbtPlateDiameterPx)>0?
-            (vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:vbtPlateDiameterPx)/2:24;
+        const r=(vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:v66VbtReviewDiameterPx())>0?
+            (vbtReviewLastQuality&&vbtReviewLastQuality.reviewDiameterPx>0?vbtReviewLastQuality.reviewDiameterPx:v66VbtReviewDiameterPx())/2:24;
         vbtReviewCtx.arc(current.x,current.y,Math.max(10,r),0,Math.PI*2);vbtReviewCtx.stroke();
         vbtReviewCtx.font='bold 16px sans-serif';vbtReviewCtx.fillStyle=color;
         vbtReviewCtx.fillText(`${vbtReviewAnalysisApplied?'高信頼補正':'追従'} ${Math.round(clamp(conf,0,1)*100)}%`,Math.max(4,current.x-r),Math.max(18,current.y-r-6));
@@ -5780,7 +5777,7 @@ function vbtReviewEstimateRadius(frame,cx,cy,priorR){
     const boundary=Math.floor(Math.min(cx,w-cx,cy,h-cy)-5);
     if(boundary<14)return {radius:0,confidence:0};
     let minR,maxR;
-    if(priorR>10&&vbtPlateRadiusConfidence>=.45){minR=Math.max(10,priorR*.58);maxR=Math.min(boundary,priorR*1.48);}
+    if(priorR>10&&(window.__vbtV66?.media?.calibration?.confidence||0)>=.45){minR=Math.max(10,priorR*.58);maxR=Math.min(boundary,priorR*1.48);}
     else if(priorR>10){minR=Math.max(10,priorR*.42);maxR=Math.min(boundary,priorR*1.75);}
     else{minR=Math.max(10,Math.min(w,h)*.025);maxR=Math.min(boundary,Math.min(w,h)*.34);}
     if(maxR<minR+5)return {radius:0,confidence:0};
@@ -5867,7 +5864,7 @@ function captureVbtReviewAnchorFeature(cx,cy){
     const w=vbtReviewOffscreen.width,h=vbtReviewOffscreen.height;
     if(cx<12||cy<12||cx>w-12||cy>h-12)return null;
     const frame=vbtReviewOffCtx.getImageData(0,0,w,h);
-    const priorR=vbtPlateDiameterPx>0?vbtPlateDiameterPx/2:0;
+    const priorR=v66VbtReviewDiameterPx()>0?v66VbtReviewDiameterPx()/2:0;
     const radiusEstimate=vbtReviewEstimateRadius(frame,cx,cy,priorR);
     const radius=radiusEstimate.radius||priorR||0;
     const outerHalf=clamp(Math.round(radius>0?radius*.62:28),18,48);
@@ -5923,7 +5920,7 @@ vbtReviewCanvas.addEventListener("click",async e=>{
     const rect=vbtReviewCanvas.getBoundingClientRect();
     const x=(e.clientX-rect.left)*(vbtReviewCanvas.width/rect.width);
     const y=(e.clientY-rect.top)*(vbtReviewCanvas.height/rect.height);
-    const time=vbtReviewVideo.currentTime;
+    const time=v66VbtFrameTime(v66VbtFrameIndex(vbtReviewVideo.currentTime));
     setVbtReviewCorrectionMode(false);
     const status=document.getElementById("vbt-review-correct-status");
     if(status)status.innerText="このフレームから追跡特徴を取得しています…";
@@ -6077,7 +6074,7 @@ async function trackVbtReviewAnchorPass(startAnchor,endAnchor,dir,frameNumbers,g
 
     for(let n=0;n<ordered.length;n++){
         if(generation!==vbtReviewTrackGeneration)break;
-        const frameNo=ordered[n],time=frameNo/fps;
+        const frameNo=ordered[n],time=v66VbtFrameTime(frameNo);
         await seekVbtReviewForTracking(time);
         vbtReviewOffCtx.drawImage(vbtReviewVideo,0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
         const frame=vbtReviewOffCtx.getImageData(0,0,vbtReviewOffscreen.width,vbtReviewOffscreen.height);
@@ -6085,7 +6082,8 @@ async function trackVbtReviewAnchorPass(startAnchor,endAnchor,dir,frameNumbers,g
         const localRatio=dir>0?globalRatio:1-globalRatio;
         const guide={x:startAnchor.x+(endAnchor.x-startAnchor.x)*globalRatio,y:startAnchor.y+(endAnchor.y-startAnchor.y)*globalRatio};
 
-        const totalDt=Math.max(.001,to.time-from.time);
+        const signedDt=to.time-from.time;
+        const totalDt=Math.abs(signedDt)>=.001?signedDt:(signedDt<0?-.001:.001);
         let vx=(to.x-from.x)/totalDt,vy=(to.y-from.y)/totalDt;
         if(prev2&&Math.abs(prev.t-prev2.t)>.0005){
             const dtp=prev.t-prev2.t;
@@ -6127,7 +6125,7 @@ function vbtReviewPointEvidenceAt(frame,x,y,a,b,ratio){
 async function retrackVbtReviewBetweenAnchors(a,b,generation,onProgress){
     if(!a||!b||b.time<=a.time)return [];
     const fps=vbtReviewFps();
-    const startFrame=Math.round(a.time*fps),endFrame=Math.round(b.time*fps);
+    const startFrame=v66VbtFrameIndex(a.time),endFrame=v66VbtFrameIndex(b.time);
     const frames=[];
     for(let f=startFrame+1;f<endFrame;f++)frames.push(f);
     const anchorA={t:a.time*1000,x:a.x,y:a.y,v:0,confidence:1,valid:true,source:'manual-anchor'};
@@ -6144,7 +6142,7 @@ async function retrackVbtReviewBetweenAnchors(a,b,generation,onProgress){
 
     for(let i=0;i<frames.length;i++){
         if(generation!==vbtReviewTrackGeneration)break;
-        const frameNo=frames[i],time=frameNo/fps;
+        const frameNo=frames[i],time=v66VbtFrameTime(frameNo);
         const f=forward.get(frameNo),r=backward.get(frameNo);
         if(!f||!r){
             out.push(makeVbtReviewUnresolvedSample(time*1000,!f&&!r?'both-passes-lost':'single-direction-only'));
@@ -6191,7 +6189,8 @@ function dedupeVbtReviewSamples(samples){
 }
 
 function updateVbtReviewCalibrationFromAnchors(){
-    const diameterCm=parseFloat(document.getElementById("vbt-plate-diameter").value);
+    if(window.__vbtV66?.reviewCalibration?.source==='manual'){vbtReviewPixelsPerMeter=1/window.__vbtV66.reviewCalibration.mpp;v66VbtCalibrationText();return window.__vbtV66.reviewCalibration.pixelLength;}
+    const diameterCm=window.__vbtV66?.media?.diameterCm||45;
     const good=vbtReviewAnchors
         .filter(a=>a.feature&&a.feature.radius>8&&(a.feature.radiusConfidence||0)>=.34)
         .map(a=>a.feature.radius*2);
@@ -6202,7 +6201,7 @@ function updateVbtReviewCalibrationFromAnchors(){
         reviewDiameter=vbtMedian(filtered.length?filtered:good);
     }
     if(reviewDiameter>0&&diameterCm>0)vbtReviewPixelsPerMeter=reviewDiameter/(diameterCm/100);
-    else if(vbtPixelsPerMeter>0)vbtReviewPixelsPerMeter=vbtPixelsPerMeter;
+    else if(window.__vbtV66?.media?.calibration?.mpp>0)vbtReviewPixelsPerMeter=1/window.__vbtV66.media.calibration.mpp;
     else vbtReviewPixelsPerMeter=0;
 
     const el=document.getElementById("vbt-review-calibration");
@@ -6211,6 +6210,7 @@ function updateVbtReviewCalibrationFromAnchors(){
         else if(vbtPixelsPerMeter>0)el.innerText=`アンカー外周が不十分なためライブ校正 ${vbtPixelsPerMeter.toFixed(1)} px/m を使用`;
         else el.innerText="プレート外周校正なし：身長簡易補正を使用";
     }
+    v66VbtSetAutoReviewScale(reviewDiameter,diameterCm);
     return reviewDiameter;
 }
 
@@ -6281,7 +6281,7 @@ function detectVbtReviewReps(samples){
                 const peak=positive.length?vbtQuantile(positive,.95):distance/Math.max(.001,duration);
                 const meanConf=segment.reduce((a,p)=>a+(p.confidence===undefined?1:p.confidence),0)/segment.length;
                 if(duration>=.10&&duration<=4.0&&distance>=.015&&distance<=2.0&&distance/duration<=4.5){
-                    reps.push({mean:distance/duration,peak:Math.max(distance/duration,peak),distance,time:duration,startT:start.t/1000,endT:end.t/1000,startFrame:Math.round(start.t/1000*fps),endFrame:Math.round(end.t/1000*fps),source:'review-auto-high-confidence',quality:meanConf});
+                    reps.push({mean:distance/duration,peak:Math.max(distance/duration,peak),distance,time:duration,startT:start.t/1000,endT:end.t/1000,startFrame:v66VbtFrameIndex(start.t/1000),endFrame:v66VbtFrameIndex(end.t/1000),source:'review-auto-high-confidence',quality:meanConf});
                 }
                 reset();
             }
@@ -6317,7 +6317,7 @@ function calculateVbtReviewTrajectoryQuality(samples,reviewDiameterPx){
 }
 
 async function rerunVbtReviewAll(){
-    if(vbtReviewBusy||vbtReviewAnchors.length<2)return;
+    if(vbtRunning||vbtReviewBusy||vbtReviewAnchors.length<2)return;
     vbtReviewBusy=true;vbtReviewVideo.pause();setVbtReviewCorrectionMode(false);ensureVbtReviewOffscreen();
     vbtReviewTrackGeneration++;const generation=vbtReviewTrackGeneration,restoreTime=vbtReviewVideo.currentTime;
     const status=document.getElementById('vbt-review-correct-status'),btn=document.getElementById('vbt-review-retrack-all');
@@ -6341,7 +6341,7 @@ async function rerunVbtReviewAll(){
         recomputeVbtReviewVelocities(vbtReviewCorrectedSamples);
         const reps=detectVbtReviewReps(vbtReviewCorrectedSamples);
         vbtReviewLastQuality=calculateVbtReviewTrajectoryQuality(vbtReviewCorrectedSamples,reviewDiameter);
-        vbtReviewAnalysisApplied=true;
+        vbtReviewAnalysisApplied=true;window.__vbtV66.reviewDirty=false;
 
         /* 正式値は高信頼レビュー軌跡だけから再構築。追跡不能点はnullのまま保持し、測定に使わない。 */
         vbtSamples=vbtReviewCorrectedSamples.map(s=>({...s}));
@@ -6372,63 +6372,25 @@ async function rerunVbtReviewAll(){
 document.getElementById("vbt-review-retrack-all").addEventListener("click",rerunVbtReviewAll);
 
 /* ---------- 手動レップ指定：補正済み軌跡を必ず参照 ---------- */
-document.getElementById("vbt-mark-start").addEventListener("click",()=>{
-    const time=vbtReviewVideo.currentTime;
+document.getElementById("vbt-mark-start").addEventListener("click",()=>{if(vbtRunning||vbtReviewBusy)return;
+    const time=v66VbtFrameTime(v66VbtFrameIndex(vbtReviewVideo.currentTime));
     const sample=nearestVbtSample(time);
-    if(!sample)return;
-    vbtReviewStart={time,sample,frame:Math.round(time*vbtReviewFps())};
+    if(!sample){document.getElementById('v66-vbt-manual-status').textContent='このフレームに有効な軌跡がありません。前後に追跡アンカーを追加し、再追跡してください。';return;}
+    vbtReviewStart={time,sample,frame:v66VbtFrameIndex(time)};
     document.getElementById("vbt-review-start-label").innerText=`${time.toFixed(3)} s / Frame ${vbtReviewStart.frame}`;
     calculateVbtReviewRep();
 });
-document.getElementById("vbt-mark-end").addEventListener("click",()=>{
-    const time=vbtReviewVideo.currentTime;
+document.getElementById("vbt-mark-end").addEventListener("click",()=>{if(vbtRunning||vbtReviewBusy)return;
+    const time=v66VbtFrameTime(v66VbtFrameIndex(vbtReviewVideo.currentTime));
     const sample=nearestVbtSample(time);
-    if(!sample)return;
-    vbtReviewEnd={time,sample,frame:Math.round(time*vbtReviewFps())};
+    if(!sample){document.getElementById('v66-vbt-manual-status').textContent='このフレームに有効な軌跡がありません。前後に追跡アンカーを追加し、再追跡してください。';return;}
+    vbtReviewEnd={time,sample,frame:v66VbtFrameIndex(time)};
     document.getElementById("vbt-review-end-label").innerText=`${time.toFixed(3)} s / Frame ${vbtReviewEnd.frame}`;
     calculateVbtReviewRep();
 });
 
-function calculateVbtReviewRep(){
-    const addBtn=document.getElementById("vbt-add-review-rep");
-    if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time){
-        addBtn.disabled=true;return;
-    }
-    vbtReviewStart.sample=nearestVbtSample(vbtReviewStart.time)||vbtReviewStart.sample;
-    vbtReviewEnd.sample=nearestVbtSample(vbtReviewEnd.time)||vbtReviewEnd.sample;
-    const duration=vbtReviewEnd.time-vbtReviewStart.time;
-    const dy=vbtReviewStart.sample.y-vbtReviewEnd.sample.y;
-    const distance=Math.abs(dy)*vbtReviewMetersPerPixel();
-    const mean=duration>0?distance/duration:0;
-    document.getElementById("vbt-review-duration").innerText=duration.toFixed(3)+" s";
-    document.getElementById("vbt-review-distance").innerText=distance.toFixed(3)+" m";
-    document.getElementById("vbt-review-mean").innerText=mean.toFixed(3)+" m/s";
-    addBtn.disabled=!(duration>0&&distance>0);
-}
-
-document.getElementById("vbt-add-review-rep").addEventListener("click",()=>{
-    if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time)return;
-    vbtReviewStart.sample=nearestVbtSample(vbtReviewStart.time)||vbtReviewStart.sample;
-    vbtReviewEnd.sample=nearestVbtSample(vbtReviewEnd.time)||vbtReviewEnd.sample;
-    const duration=vbtReviewEnd.time-vbtReviewStart.time;
-    const distance=Math.abs(vbtReviewStart.sample.y-vbtReviewEnd.sample.y)*vbtReviewMetersPerPixel();
-    const segment=(vbtReviewAnalysisApplied?vbtReviewCorrectedSamples:vbtSamples).filter(s=>s.t>=vbtReviewStart.time*1000&&s.t<=vbtReviewEnd.time*1000);
-    const positive=segment.map(s=>s.v||0).filter(v=>v>0&&Number.isFinite(v));
-    const peak=positive.length?Math.max(distance/duration,vbtQuantile(positive,.95)):distance/duration;
-    vbtReps.push({
-        mean:distance/duration,peak,distance,time:duration,
-        startT:vbtReviewStart.time,endT:vbtReviewEnd.time,
-        startFrame:vbtReviewStart.frame,endFrame:vbtReviewEnd.frame,source:"review"
-    });
-    renderVbt();
-    vbtReviewStart=null;vbtReviewEnd=null;
-    document.getElementById("vbt-review-start-label").innerText="未指定";
-    document.getElementById("vbt-review-end-label").innerText="未指定";
-    document.getElementById("vbt-review-duration").innerText="0.000 s";
-    document.getElementById("vbt-review-distance").innerText="0.000 m";
-    document.getElementById("vbt-review-mean").innerText="0.000 m/s";
-    document.getElementById("vbt-add-review-rep").disabled=true;
-});
+function calculateVbtReviewRep(){return v66VbtCalculateManual();}
+document.getElementById("vbt-add-review-rep").addEventListener("click",()=>v66VbtAddManual());
 
 /* =========================
    MyJump 高精度CMJ解析
@@ -7038,13 +7000,13 @@ function trainingVbtBestAutoRep(start,end,reps){
 }
 /* 手動レップ区間も、既存追加処理の直前状態を capture phase で教師データ化。 */
 document.getElementById('vbt-add-review-rep').addEventListener('click',()=>{
-    if(!vbtReviewStart||!vbtReviewEnd||vbtReviewEnd.time<=vbtReviewStart.time)return;
+    if(!v66VbtManualMetrics().valid)return;
     const start=vbtReviewStart.time,end=vbtReviewEnd.time,fps=vbtReviewFps(),session=TrainingDataLogger.sessionForVideo(vbtReviewVideo,'vbt');
     const ss=nearestVbtSample(start),es=nearestVbtSample(end);if(!ss||!es)return;
     const duration=end-start,distance=Math.abs(ss.y-es.y)*vbtReviewMetersPerPixel(),mean=duration>0?distance/duration:null;
     const currentAuto=trainingVbtBestAutoRep(start,end,vbtReps),originalAuto=trainingVbtBestAutoRep(start,end,vbtReviewOriginalReps);
     const err=r=>r?{startSec:TrainingDataLogger.round(start-r.startT,5),endSec:TrainingDataLogger.round(end-r.endT,5),durationSec:TrainingDataLogger.round(duration-(r.endT-r.startT),5),distanceM:Number.isFinite(r.distance)?TrainingDataLogger.round(distance-r.distance,5):null,meanVelocity:Number.isFinite(r.mean)?TrainingDataLogger.round(mean-r.mean,5):null}:null;
-    TrainingDataLogger.record({module:'vbt',type:'manual_rep_interval',sessionId:session.sessionId,video:TrainingDataLogger.videoMeta(vbtReviewVideo,fps,'review-frame'),scene:TrainingDataLogger.sceneFingerprint(vbtReviewVideo),manual:{startSec:TrainingDataLogger.round(start,5),endSec:TrainingDataLogger.round(end,5),startFrame:Math.round(start*fps),endFrame:Math.round(end*fps),durationSec:TrainingDataLogger.round(duration,5),distanceM:TrainingDataLogger.round(distance,5),meanVelocity:TrainingDataLogger.round(mean,5)},currentAuto:currentAuto?safeVbtRepForTraining(currentAuto):null,originalAuto:originalAuto?safeVbtRepForTraining(originalAuto):null,currentError:err(currentAuto),originalAutoError:err(originalAuto),calibration:trainingVbtCalibrationMeta()});
+    TrainingDataLogger.record({module:'vbt',type:'manual_rep_interval',sessionId:session.sessionId,video:TrainingDataLogger.videoMeta(vbtReviewVideo,fps,'review-frame'),scene:TrainingDataLogger.sceneFingerprint(vbtReviewVideo),manual:{startSec:TrainingDataLogger.round(start,5),endSec:TrainingDataLogger.round(end,5),startFrame:v66VbtFrameIndex(start),endFrame:v66VbtFrameIndex(end),durationSec:TrainingDataLogger.round(duration,5),distanceM:TrainingDataLogger.round(distance,5),meanVelocity:TrainingDataLogger.round(mean,5)},currentAuto:currentAuto?safeVbtRepForTraining(currentAuto):null,originalAuto:originalAuto?safeVbtRepForTraining(originalAuto):null,currentError:err(currentAuto),originalAutoError:err(originalAuto),calibration:trainingVbtCalibrationMeta()});
 },true);
 function safeVbtRepForTraining(r){return {startT:TrainingDataLogger.round(r.startT,5),endT:TrainingDataLogger.round(r.endT,5),startFrame:Number.isFinite(r.startFrame)?r.startFrame:null,endFrame:Number.isFinite(r.endFrame)?r.endFrame:null,distance:TrainingDataLogger.round(r.distance,5),time:TrainingDataLogger.round(r.time,5),mean:TrainingDataLogger.round(r.mean,5),peak:TrainingDataLogger.round(r.peak,5),quality:TrainingDataLogger.round(r.quality,4),source:r.source||null};}
 
@@ -9515,6 +9477,7 @@ const sprintRecomputeV30=sprintOfflineRecomputeDerived;sprintOfflineRecomputeDer
 for(const id of ['sprint-offline-manual-contact','sprint-offline-manual-liftoff','sprint-offline-manual-undo','sprint-offline-manual-clear'])document.getElementById(id)?.addEventListener('click',()=>setTimeout(()=>{if(!sprintOfflinePoseFrames?.length)sprintOfflineRecomputeDerived();},0));
 
 /* SPRINTPEAK sequence table: allow manual timing sequence even when Pose is zero. */
+if(typeof mandatoryRenderSprintSequence==='function'){ /* v66: explicit closure availability guard */
 const mandatorySprintSequenceV30=mandatoryRenderSprintSequence;mandatoryRenderSprintSequence=function(){
   if(sprintOfflinePoseFrames?.length||!sprintOfflineContacts?.length)return mandatorySprintSequenceV30();const panel=document.getElementById('sprint-offline-sequence-panel'),status=document.getElementById('sprint-offline-sequence-status'),table=document.getElementById('sprint-offline-sequence-table'),btn=document.getElementById('sprint-offline-sequence-confirm');if(!panel||!status||!table||!btn)return;const a=sprintOfflineContacts,sig=mandatorySprintSignature(),ok=!!sig&&sig===mandatorySprintConfirmedSignature;panel.classList.toggle('sequence-confirmed',ok);btn.disabled=!a.length;btn.className=`action-btn ${ok?'btn-green':'btn-orange'}`;btn.textContent=ok?'✓ 接地系列を確認済み':'この接地系列を確認して確定';status.innerHTML=ok?`✓ 手動指定 ${a.length}接地のタイミング系列を確認済みです。`:`<b>手動接地の確認待ち：</b>${a.length}接地を時刻系列として採用しています。`;const side=c=>c.side==='near'?'手前脚':c.side==='far'?'奥脚':'脚未判定';table.innerHTML=`<table class="metric-table evidence-event-table"><tr><th>#</th><th>脚</th><th>Frame / 時刻</th><th>接地時間</th><th>情報</th><th>確認</th></tr>${a.slice(0,18).map((c,i)=>`<tr><td>C${i+1}</td><td>${side(c)} ✓手動</td><td>F${c.frame??c.index??'--'}<br>${Number.isFinite(c.t)?(c.t/1000).toFixed(3):'--'}s</td><td>${Number.isFinite(c.duration)?c.duration.toFixed(0)+' ms':'--'}</td><td>時刻のみ</td><td><button type="button" class="analysis-evidence-btn sequence-contact-view" data-mandatory-sprint-contact="${i}" aria-label="C${i+1}を見る">!</button></td></tr>`).join('')}</table>`;
 };
@@ -9589,6 +9552,7 @@ function v31InstallReadingMode(prefix){
 }
 for(const prefix of ['start','sprint']){v31InstallMainTap(prefix);v31InstallEvaluationReview(prefix);v31InstallReadingMode(prefix);}
 
+} /* v66: inactive legacy cross-closure tail */
 })();
 </script>
 <style id="validation-ux-v32-style">
@@ -10994,7 +10958,7 @@ function v40UpdateIntegrityUi(){
 }
 /* Run integrity validation before every derived-value recomputation. */
 const v40RecomputeBase=startOfflineRecomputeDerived;
-startOfflineRecomputeDerived=function(...args){v40SanitizeStartPose();const r=v40RecomputeBase(...args);v40UpdateIntegrityUi();v40EnhanceStepEvidence();return r;};
+startOfflineRecomputeDerived=function(...args){v40SanitizeStartPose();const r=v40RecomputeBase(...args);try{v40UpdateIntegrityUi();}catch(e){console.warn("START integrity display",e);}return r;};
 /* Auto contact duration sanity: keep the landing event, but do not present a 0.4–0.5 s auto duration as a valid sprint contact time. Manual liftoff remains authoritative. */
 const v40DetectBase=startOfflineDetectContacts;
 startOfflineDetectContacts=function(...args){const out=v40DetectBase(...args)||[];for(const c of out){const manual=!!(c.manualAnchor||c.manualLiftoff||String(c.source||'').includes('manual'));if(!manual&&Number.isFinite(c.duration)&&c.duration>.32){c.durationRaw=c.duration;c.duration=null;c.liftoffRaw=c.liftoff;c.liftoff=null;c.durationInvalid=true;c.durationInvalidReason='320ms超のため自動離地を異常値扱い（骨格/離地追跡を確認）';c.confidence=Math.max(.18,(c.confidence||0)*.62);c.source=String(c.source||'auto')+'-duration-caution';}const f=startOfflinePoseMap?.get?.(c.index??c.frame),bad=f?._v40Integrity?.bad||[];if(bad.length){const relevant=c.side==='left'?[25,27,29,31]:c.side==='right'?[26,28,30,32]:[];if(relevant.some(j=>bad.includes(j))){c.confidence=Math.max(.15,(c.confidence||0)*.68);c.integrityCaution=true;}}}return out;};
@@ -12478,6 +12442,7 @@ setTimeout(ensureUi42,0);
   /* Discovery reuses the realtime model-complexity-1 instance. Offline analysis
      suspends live START camera before discovery, so this lane is serialized and the
      original START onResults callback/options are restored before live use resumes. */
+if(typeof ensureAthleteDiscoveryPose==='function'){ /* v66: explicit closure availability guard */
   ensureAthleteDiscoveryPose=async function(){return pose;};
   athleteDiscoverySend=function(image){
     const run=()=>new Promise((resolve)=>{
@@ -12589,6 +12554,7 @@ setTimeout(ensureUi42,0);
     }
   };
 
+} /* v66: inactive legacy cross-closure tail */
 })();
 
 </script>
@@ -12988,7 +12954,7 @@ renderVbt=function(){
   try{baseRender47();}finally{checks.forEach((x,i)=>{if(x)x.checked=saved[i];});}
   if(!vbtReps.length)return;
   const current=vbtReps[vbtReps.length-1],best=bestRep47();
-  const currentReliable=Number.isFinite(current.mean)&&current.mean>0&&
+  const currentReliable=current.validForLoss!==false&&Number.isFinite(current.mean)&&current.mean>0&&
     (current.quality==null||current.quality>=.58)&&
     (!Number.isFinite(current._v47Coverage)||current._v47Coverage>=.64)&&
     (!Number.isFinite(current._v47Confidence)||current._v47Confidence>=.58);
@@ -15256,9 +15222,9 @@ const resetBase=sprintOfflineResetResults;sprintOfflineResetResults=function(...
 function closeEvidenceIfBuilt(){if($('sprint-v61-review'))closeEvidence(false);}
 window.__sprintFlowV61={renderHub,openEvidence,state,evidenceTarget,render,updateProcess};
 window.__sprintReviewV63={state,correct,manualAction,removeContact,undo,action,markChecked,checkState,startLoop,stopLoop,compareContacts,drawFootZoom};
-window.__SPRINT_TIMER_V63={build:'20261009-v65-start-guided-review',poseUnchanged:true,automaticContactsUnchanged:true,metricFormulasUnchanged:true,scope:'Frame-linked manual review and explicit contact edits only'};
-window.__SPRINT_TIMER_V62={build:'20261009-v65-start-guided-review',poseUnchanged:true,automaticContactsUnchanged:true,metricsUnchanged:true,scope:'Sprint inline evidence display and navigation'};
-window.__SPRINT_TIMER_V61={build:'20261009-v65-start-guided-review',scope:'SPRINTPEAK UI, evidence frame normalization, explicit manual edits; original Pose and automatic contact detection preserved'};
+window.__SPRINT_TIMER_V63={build:'20261023-v66-start-vbt-fixes',poseUnchanged:true,automaticContactsUnchanged:true,metricFormulasUnchanged:true,scope:'Frame-linked manual review and explicit contact edits only'};
+window.__SPRINT_TIMER_V62={build:'20261023-v66-start-vbt-fixes',poseUnchanged:true,automaticContactsUnchanged:true,metricsUnchanged:true,scope:'Sprint inline evidence display and navigation'};
+window.__SPRINT_TIMER_V61={build:'20261023-v66-start-vbt-fixes',scope:'SPRINTPEAK UI, evidence frame normalization, explicit manual edits; original Pose and automatic contact detection preserved'};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(build,0),{once:true});else setTimeout(build,0);
 })();
 
@@ -15528,11 +15494,14 @@ function clearAutomaticResults(){
   $('start-offline-workspace')?.classList.remove('v58-analysis-ready');
 }
 function showGateFailure(r){
-  clearAutomaticResults();state.cache.clear();state.previewPose=null;let text,kind;
+  const preserve=r.phase==='postprocess'&&startOfflinePoseFrames.length>0;
+  if(!preserve)clearAutomaticResults();
+  else{window.__startV66PostprocessError=String(r.error?.message||r.error||'結果処理エラー');window.__startGateBridgeV65?.invalidate?.();}
+  state.cache.clear();state.previewPose=null;let text,kind;
   if(r.cancelled||startOfflineCancelRequested){text='解析を中止しました。';kind='miss';}
-  else if(r.error){const d=recordError(r.error,r.phase||'preflight');text=`解析処理エラー：${d.message} 人体の検出失敗とは区別して停止しました。`;kind='error';}
+  else if(r.error){const d=recordError(r.error,r.phase||'preflight');text=preserve?`結果処理エラー：${d.message}。取得済み人体データ・接地候補・手動修正を保持しました。結果は未確定です。再解析または手動確認を行ってください。`:`解析処理エラー：${d.message} 人体の検出失敗とは区別して停止しました。`;kind='error';}
   else{text=r.reason||'開始付近で選手の骨格を確認できなかったため、解析を一時停止しました。選手を囲って再試行するか、別フレームで検出を試してください。';kind='miss';}
-  setAnalysisText(text);message(text,kind);$('start-offline-cancel').style.display='none';
+  setAnalysisText(text);message(text,kind);$('start-offline-cancel').style.display='none';window.v66StartDiagnostics?.();
   const diag=$('start-athlete-track-diagnostics');if(diag){const e=document.createElement('div');e.id='start-v64-last-failure';e.textContent=`事前確認：${state.preflight?.checked||0}F ／ 探索 ${state.variant}方式 ／ 処理エラー ${state.failures.length}件`;diag.querySelector('#start-v64-last-failure')?.remove();diag.appendChild(e);}
 }
 function analysisFinished(){state.cache.clear();$('start-offline-cancel').style.display='none';syncBox(api()?.displayRect());}
@@ -15548,7 +15517,7 @@ for(const id of ['start-offline-range-start','start-offline-range-end','start-of
 $('start-offline-source-fps')?.addEventListener('change',()=>{state.cache.clear();state.reference=null;state.preflight=null;});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.active){deactivate();api()?.refresh();message('範囲指定をキャンセルしました。');}});
 ensureUi();syncBox(api()?.selection());
-window.__SPRINT_TIMER_V64={build:'20261009-v65-start-guided-review',scope:'START offline acquisition and selection only',sprintPeakLogicPreserved:true,measurementThresholds:{detection:.55,tracking:.60},earlyFrames:5,manualSelection:['drag','two-tap'],errorClassification:true};
+window.__SPRINT_TIMER_V64={build:'20261023-v66-start-vbt-fixes',scope:'START offline acquisition and selection only',sprintPeakLogicPreserved:true,measurementThresholds:{detection:.55,tracking:.60},earlyFrames:5,manualSelection:['drag','two-tap'],errorClassification:true};
 })();
 </script>
 
@@ -15902,6 +15871,347 @@ const originalReset=startOfflineResetAnalysisState;
 startOfflineResetAnalysisState=function(...args){reset();const r=originalReset(...args);queueMicrotask(render);return r;};
 window.__SPRINT_TIMER_V65={build:window.SPRINT_TIMER_BUILD,scope:'START guided UI and evidence routing',measurementLogicPreserved:true,features:['five-step flow','local real-video evidence','explicit closure bridges','serial frame seeks','angle controls consolidated','advanced settings collapsed','all contacts visible']};
 })();
+</script>
+
+<style id="v66-start-vbt-style">
+.v66-panel{padding:12px;border:1px solid #cad7e5;border-radius:10px;margin:10px 0;background:#f8fafc;text-align:left;color:#23364d}
+.v66-panel h4{margin:0 0 8px;font-size:14px}.v66-panel p{font-size:12px;line-height:1.6;margin:7px 0}
+.v66-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.v66-actions button,.v66-actions label{font-size:12px;padding:9px;border:1px solid #b6c6d8;border-radius:7px;background:#fff;color:#204465;cursor:pointer;min-height:38px}
+.v66-actions input[type=file]{max-width:100%;font-size:12px}.v66-panel input[type=number]{width:90px;padding:6px;font-size:14px}.v66-note{font-size:12px;line-height:1.6;color:#475569}.v66-badge{font-size:11px;padding:2px 6px;border-radius:5px;background:#e4edf6}.v66-reference{background:#fff3cc;color:#6e5200}.v66-history-row{padding:9px 0;border-bottom:1px solid #dce4ef;line-height:1.6}.v66-history-row button{margin-left:10px;padding:5px 10px}.v66-cal-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:12}
+#v66-start-diagnostic{white-space:pre-line}#v66-vbt-io-status{overflow-wrap:anywhere}.v66-cal-pending{outline:3px solid #f59e0b;outline-offset:2px}
+</style>
+<script id="v66-start-vbt-fixes">
+/* v66. All measurement changes are confined to START result handling and VBT.
+   No SprintPeak detector, confidence threshold or contact engine is changed.
+   Missing measurements remain missing; manually selected endpoints do not prove
+   continuity. Timing source and spatial calibration are saved with each session. */
+'use strict';
+window.__vbtV66={
+ media:{fps:30,times:[],timingSource:'未読込',timingVerified:false,diameterCm:45,calibration:null},
+ blob:null,name:'',hash:null,recording:null,reviewCalibration:null,liveManual:null,
+ calibrationMode:null,pendingPoints:[],undo:[],loading:false,generation:0,reviewDirty:false
+};
+const v66Vbt=window.__vbtV66;
+const v66El=id=>document.getElementById(id);
+function v66VbtStatus(text){v66El('v66-vbt-io-status').textContent=text;}
+function v66VbtFrameIndex(t){
+ const a=v66Vbt.media.times;if(!a.length)return Math.max(0,Math.floor(t*vbtReviewFps()+1e-7));
+ let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<=t+1e-7)lo=m+1;else hi=m;}
+ return Math.max(0,lo-1); /* The active frame occupies [PTS[i], PTS[i+1]). */
+}
+function v66VbtFrameTime(i){
+ const a=v66Vbt.media.times;return a.length?a[clamp(Math.round(i),0,a.length-1)]:Math.max(0,i)/vbtReviewFps();
+}
+function v66VbtSeekTarget(t){
+ const i=v66VbtFrameIndex(t),pts=v66VbtFrameTime(i),a=v66Vbt.media.times;
+ const dt=a.length&&i+1<a.length?a[i+1]-pts:1/vbtReviewFps();
+ return Math.min(pts+dt*.40,Math.max(0,v66VbtDuration()-.0001));
+}
+seekVbtReviewForTracking=function(time){
+ return new Promise((resolve,reject)=>{
+  const target=v66VbtSeekTarget(time),video=vbtReviewVideo;
+  if(!video.seeking&&video.readyState>=2&&Math.abs(video.currentTime-target)<.00001){requestAnimationFrame(()=>resolve());return;}
+  let done=false;
+  const finish=err=>{if(done)return;done=true;clearTimeout(timer);video.removeEventListener('seeked',ready);video.removeEventListener('error',error);if(err)reject(err);else requestAnimationFrame(()=>resolve());};
+  const ready=()=>video.readyState>=2?finish():finish(new Error('動画フレームを取得できません'));
+  const error=()=>finish(new Error('動画フレームのデコードに失敗しました'));
+  const timer=setTimeout(()=>finish(new Error('フレーム移動がタイムアウトしました')),5000);
+  video.addEventListener('seeked',ready);video.addEventListener('error',error);video.currentTime=target;
+ });
+};
+function v66VbtDuration(){
+ const d=vbtReviewVideo.duration;
+ return Number.isFinite(d)&&d>0?d:(v66Vbt.media.duration||v66Vbt.media.times.at(-1)||1);
+}
+function v66VbtNearestGap(t){
+ const a=v66Vbt.media.times,i=v66VbtFrameIndex(t);
+ return a.length?Math.max(a[i]-a[Math.max(0,i-1)]||0,a[Math.min(a.length-1,i+1)]-a[i]||0,1/vbtReviewFps()):1/vbtReviewFps();
+}
+function v66VbtReviewDiameterPx(){
+ const c=v66Vbt.reviewCalibration||v66Vbt.media.calibration;return c?.pixelLength>0?c.pixelLength:0;
+}
+function v66VbtInvalidateReview(){
+ v66Vbt.reviewDirty=true;
+ for(const r of vbtReps){if(!String(r.source||'').includes('review'))continue;r.referenceOnly=true;r.validForBest=false;r.validForLoss=false;r.needsRetrack=true;r.referenceReasons=[...new Set([...(r.referenceReasons||[]),'アンカー変更後未再解析'])];}
+ v66El('vbt-review-quality').textContent='アンカー変更：再解析待ち';renderVbt();calculateVbtReviewRep();
+}
+const v66VbtAddAnchorBase=addVbtReviewAnchor;
+addVbtReviewAnchor=function(...args){const r=v66VbtAddAnchorBase(...args);v66VbtInvalidateReview();return r;};
+function v66VbtReviewScale(){
+ if(v66Vbt.reviewCalibration?.mpp>0)return v66Vbt.reviewCalibration;
+ if(v66Vbt.media.calibration?.mpp>0)return v66Vbt.media.calibration;
+ const height=(v66Vbt.media.heightCm||170)/100,h=v66Vbt.media.analysisHeight||vbtReviewCanvas.height||540;
+ return {mpp:height/(h*.92),source:'height-estimate',verified:false};
+}
+function v66VbtLiveScale(){
+ if(v66Vbt.liveManual?.mpp>0)return v66Vbt.liveManual;
+ return vbtPixelsPerMeter>0?{mpp:1/vbtPixelsPerMeter,source:'auto-rim',verified:false,pixelLength:vbtPlateDiameterPx,confidence:vbtPlateRadiusConfidence||0}:{mpp:vbtMetersPerPixel(),source:'height-estimate',verified:false};
+}
+function v66VbtCalibrationText(){
+ const c=v66VbtReviewScale(),name=c.source==='manual'?'手動2点校正':c.source==='auto-rim'?'外周自動校正（目視確認待ち）':'身長からの概算';
+ const label=`${name} ／ ${(1/c.mpp).toFixed(1)} px/m ／ ${c.verified?'距離基準確認済み':'参考値：距離基準未確認'}`;
+ v66El('vbt-review-calibration').textContent=label;
+ v66El('v66-vbt-review-scale').textContent=label;
+ const m=v66Vbt.media;
+ v66El('v66-vbt-timing').textContent=`時刻：${m.timingSource} ／ ${m.fps.toFixed(3)} fps${m.times.length?` ／ ${m.times.length}フレーム`:''} ／ ${m.timingVerified?'動画内時刻を採用':'FPSの確認が必要'}`;
+ v66El('v66-vbt-fps').value=Number(m.fps.toFixed(3));
+ v66El('v66-vbt-fps').disabled=!!m.times.length||vbtReviewBusy;
+ v66El('v66-vbt-confirm-fps').disabled=!!m.times.length||vbtReviewBusy;
+ v66El('v66-vbt-diameter').value=m.diameterCm||45;
+}
+function v66VbtSetAutoReviewScale(diameterPx,diameterCm){
+ if(diameterPx>0&&diameterCm>0){
+  v66Vbt.reviewCalibration={mpp:diameterCm/100/diameterPx,source:'auto-rim',verified:false,pixelLength:diameterPx,diameterCm};
+ }else v66Vbt.reviewCalibration=null;
+ const c=v66VbtReviewScale();vbtReviewPixelsPerMeter=1/c.mpp;v66VbtCalibrationText();
+}
+function v66VbtBeginRecording(){
+ const settings=vbtVideo.srcObject?.getVideoTracks?.()[0]?.getSettings?.()||{};
+ const scale={...v66VbtLiveScale()};
+ v66Vbt.recording={fps:Math.max(1,settings.frameRate||vbtMeasuredVideoFps||vbtActualFps||30),diameterCm:parseFloat(v66El('vbt-plate-diameter').value)||45,heightCm:parseFloat(v66El('vbt-height').value)||170,calibration:scale,analysisWidth:vbtCanvas.width,analysisHeight:vbtCanvas.height,settings,recordedAt:new Date().toISOString()};
+ v66Vbt.undo=[];v66Vbt.reviewCalibration=null;
+}
+// Minimal EBML reader for WebM video block presentation times. Audio is excluded;
+// laced video is rejected instead of assigning invented per-frame timestamps.
+async function v66VbtWebmTimes(blob){
+ if(blob.size>220*1024*1024)return null;
+ const u=new Uint8Array(await blob.arrayBuffer()),D=new DataView(u.buffer);
+ function vint(p,id=false){if(p>=u.length||!u[p])return null;let n=1,mask=128;while(!(u[p]&mask)&&n<8){n++;mask>>=1;}if(p+n>u.length||id&&n>4)return null;let v=id?u[p]:u[p]&(mask-1),unknown=!id&&v===mask-1;for(let i=1;i<n;i++){v=v*256+u[p+i];unknown=unknown&&u[p+i]===255;}return {n,v,unknown};}
+ function elements(lo,hi){const out=[];let p=lo,count=0;while(p<hi&&count++<300000){const id=vint(p,true);if(!id)break;const len=vint(p+id.n);if(!len)break;const data=p+id.n+len.n,end=len.unknown?hi:data+len.v;if(end>hi||end<=p||!Number.isSafeInteger(end))break;out.push({id:id.v,data,end,unknown:len.unknown});p=end;}return out;}
+ function uint(e){let n=0;for(let p=e.data;p<e.end;p++)n=n*256+u[p];return n;}
+ const top=elements(0,u.length),seg=top.find(e=>e.id===0x18538067);if(!seg)return null;
+ const parts=elements(seg.data,seg.end),info=parts.find(e=>e.id===0x1549A966),tracks=parts.find(e=>e.id===0x1654AE6B);
+ let scale=1e6,videoTrack=null;
+ if(info){const e=elements(info.data,info.end).find(x=>x.id===0x2AD7B1);if(e)scale=uint(e);}
+ if(tracks)for(const e of elements(tracks.data,tracks.end).filter(x=>x.id===0xAE)){const a=elements(e.data,e.end),type=a.find(x=>x.id===0x83),num=a.find(x=>x.id===0xD7);if(type&&num&&uint(type)===1){videoTrack=uint(num);break;}}
+ if(videoTrack===null)return null;let times=[],laced=false;
+ function block(e,base){const t=vint(e.data);if(!t||e.data+t.n+3>e.end||t.v!==videoTrack)return;const p=e.data+t.n,rel=D.getInt16(p),flags=u[p+2];if(flags&6){laced=true;return;}times.push((base+rel)*scale/1e9);}
+ for(const cl of parts.filter(e=>e.id===0x1F43B675)){
+  const a=elements(cl.data,cl.end),tc=a.find(e=>e.id===0xE7);if(!tc)continue;const base=uint(tc);
+  for(const e of a){if(e.id===0xA3)block(e,base);else if(e.id===0xA0)for(const b of elements(e.data,e.end))if(b.id===0xA1)block(b,base);}
+ }
+ if(laced||times.length<2)return null;
+ times.sort((a,b)=>a-b);const first=times[0];times=times.map(t=>t-first).filter((t,i,a)=>!i||t-a[i-1]>1e-7);
+ if(times.length<2||!times.every(Number.isFinite))return null;
+ return {times,fps:(times.length-1)/times.at(-1),source:'WebM内部フレーム時刻'};
+}
+async function v66VbtHash(blob){
+ // Full-file identity is used for session reloading; no image is transmitted.
+ if(!crypto.subtle||blob.size>220*1024*1024)return null;
+ const h=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());return [...new Uint8Array(h)].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+async function v66VbtOpenMedia(blob,name,live=false){
+ if(vbtRunning||vbtReviewBusy||v66Vbt.loading)throw new Error('計測・再追跡の終了後に読み込んでください');
+ v66Vbt.loading=true;v66Vbt.calibrationMode=null;v66Vbt.pendingPoints=[];const gen=++v66Vbt.generation;
+ try{
+  v66VbtStatus('動画と時刻情報を読み込んでいます…');vbtReviewVideo.pause();vbtReviewTrackGeneration++;
+  const file=blob instanceof File?blob:new File([blob],name,{type:blob.type});
+  const parsed=await startOfflineExtractIsoFrameTimes(file).catch(()=>null)||await v66VbtWebmTimes(blob).catch(()=>null);
+  const meta=live?v66Vbt.recording:null;
+  const next={fps:parsed?.fps||meta?.fps||30,times:parsed?.times||[],timingSource:parsed?.source||(meta?'録画開始時FPS固定（推定）':'30fps仮定'),timingVerified:!!parsed,diameterCm:meta?.diameterCm||45,heightCm:meta?.heightCm||170,calibration:meta?.calibration||null,analysisWidth:meta?.analysisWidth||0,analysisHeight:meta?.analysisHeight||0,liveAlignmentEstimated:live,recordedAt:meta?.recordedAt||null,cameraSettings:meta?.settings||null};
+  const url=URL.createObjectURL(blob),oldUrl=vbtReviewUrl;
+  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>finish(new Error('動画の読込がタイムアウトしました')),20000);const ok=()=>finish(),fail=()=>finish(new Error('この形式の映像を再生できません'));function finish(e){clearTimeout(timer);vbtReviewVideo.removeEventListener('loadeddata',ok);vbtReviewVideo.removeEventListener('error',fail);e?reject(e):resolve();}vbtReviewVideo.addEventListener('loadeddata',ok);vbtReviewVideo.addEventListener('error',fail);vbtReviewVideo.src=url;vbtReviewVideo.load();}).catch(e=>{URL.revokeObjectURL(url);if(oldUrl)vbtReviewVideo.src=oldUrl;throw e;});
+  if(gen!==v66Vbt.generation){URL.revokeObjectURL(url);return;}
+  if(oldUrl)URL.revokeObjectURL(oldUrl);vbtReviewUrl=url;
+  const size=vbtAnalysisSize(vbtReviewVideo.videoWidth,vbtReviewVideo.videoHeight);next.analysisWidth=size.width;next.analysisHeight=size.height;
+  next.duration=Number.isFinite(vbtReviewVideo.duration)?vbtReviewVideo.duration:(next.times.at(-1)||1)+1/next.fps;
+  if(next.times.length&&Number.isFinite(vbtReviewVideo.duration)&&Math.abs(next.duration-(next.times.at(-1)+1/next.fps))>Math.max(.1,3/next.fps)){next.times=[];next.timingVerified=false;next.timingSource='内部時刻と動画長が不一致（FPS要確認）';}
+  v66Vbt.media=next;v66Vbt.blob=blob;v66Vbt.name=name;v66Vbt.hash=await v66VbtHash(blob);v66Vbt.reviewCalibration=null;v66Vbt.undo=[];v66Vbt.reviewDirty=false;
+  if(!live){vbtSamples=[];vbtReps=[];}
+  resetVbtReviewWorkspace(true);vbtReviewStart=null;vbtReviewEnd=null;vbtReviewPixelsPerMeter=0;
+  v66El('vbt-review-area').style.display='block';vbtReviewSeek.max=v66VbtDuration();vbtReviewSeek.value=0;
+  ensureVbtReviewOffscreen();v66VbtCalibrationText();renderVbt();updateVbtReviewTime();drawVbtReviewOverlay();calculateVbtReviewRep();
+  v66VbtStatus(`${name} ／ ${vbtReviewVideo.videoWidth}×${vbtReviewVideo.videoHeight} ／ ${v66VbtDuration().toFixed(3)}秒。プレート直径を確認し、必要なら2点校正後に追跡アンカーを追加してください。`);
+ }finally{v66Vbt.loading=false;}
+}
+function v66VbtManualMetrics(){
+ const a=vbtReviewStart,b=vbtReviewEnd;
+ if(!a||!b||!(b.time>a.time))return {valid:false,reason:'上昇開始と、その後の上昇終了を指定してください。'};
+ const first=nearestVbtSample(a.time),last=nearestVbtSample(b.time);
+ if(!first||!last)return {valid:false,reason:'指定フレームの対象位置を取得できません。追跡アンカーを追加し再追跡してください。'};
+ const scale=v66VbtReviewScale(),duration=b.time-a.time,distance=(first.y-last.y)*scale.mpp;
+ if(!(distance>=.005))return {valid:false,reason:'上昇方向の移動が5mm未満です。下降区間や同じ位置はレップとして登録できません。'};
+ const rows=(vbtReviewAnalysisApplied?vbtReviewCorrectedSamples:vbtSamples).filter(s=>s.t>=a.time*1000-1e-4&&s.t<=b.time*1000+1e-4).sort((x,y)=>x.t-y.t);
+ const good=rows.filter(s=>isVbtReviewValidSample(s));let continuous=good.length>=3&&rows.every(s=>isVbtReviewValidSample(s));
+ const ts=good.map(s=>s.t/1000);let prev=a.time;
+ for(const t of [...ts,b.time]){if(t-prev>1.8*v66VbtNearestGap(prev)+1e-4)continuous=false;prev=t;}
+ let rise=0,fall=0;for(let i=1;i<good.length;i++){const dy=good[i-1].y-good[i].y;if(dy>0)rise+=dy;else fall-=dy;}
+ const directionOk=rise>0&&fall<=Math.max(2,rise*.10),durationOk=duration>=.105&&duration<=4.5;
+ const confidence=good.length?good.reduce((n,s)=>n+(s.confidence??1),0)/good.length:0;
+ const formal=!v66Vbt.reviewDirty&&continuous&&directionOk&&durationOk&&scale.verified&&v66Vbt.media.timingVerified&&(!v66Vbt.media.liveAlignmentEstimated||vbtReviewAnalysisApplied)&&confidence>=.62;
+ const mean=distance/duration,positive=continuous?rows.map(s=>s.v).filter(v=>Number.isFinite(v)&&v>0):[];
+ const peak=positive.length?Math.max(mean,vbtQuantile(positive,.95)):null;
+ const reasons=[];if(v66Vbt.reviewDirty)reasons.push('アンカー変更後未再解析');if(!continuous)reasons.push('途中の追跡欠損');if(!directionOk&&continuous)reasons.push('上昇区間に下降を含む');if(!durationOk)reasons.push('時間条件を要確認');if(!scale.verified)reasons.push('距離基準未確認');if(!v66Vbt.media.timingVerified)reasons.push('FPS未確認');if(v66Vbt.media.liveAlignmentEstimated&&!vbtReviewAnalysisApplied)reasons.push('録画とライブ軌跡の同期未確認');if(confidence<.62)reasons.push('追跡信頼度不足');
+ return {valid:true,start:a.time,end:b.time,duration,distance,mean,peak,continuous,directionOk,durationOk,confidence,formal,reasons,calibration:{...scale},timingSource:v66Vbt.media.timingSource};
+}
+function v66VbtOverlaps(start,end){
+ return vbtReps.map((r,i)=>({r,i})).filter(({r})=>Number.isFinite(r.startT)&&Number.isFinite(r.endT)&&Math.max(0,Math.min(end,r.endT)-Math.max(start,r.startT))>Math.min(end-start,r.endT-r.startT)*.50);
+}
+function v66VbtCalculateManual(){
+ const m=v66VbtManualMetrics(),btn=v66El('vbt-add-review-rep'),note=v66El('v66-vbt-manual-status');
+ btn.disabled=!m.valid||vbtReviewBusy||v66Vbt.loading||vbtRunning;
+ for(const [id,val,unit] of [['vbt-review-duration',m.duration,' s'],['vbt-review-distance',m.distance,' m'],['vbt-review-mean',m.mean,' m/s']])v66El(id).textContent=Number.isFinite(val)?val.toFixed(3)+unit:'--';
+ if(!m.valid){if(note)note.textContent=m.reason;btn.textContent='この上昇区間を登録';return m;}
+ const n=v66VbtOverlaps(m.start,m.end).length;
+ btn.textContent=`${n?`重複${n}件を置換して`:''}${m.formal?'確認済みレップを':'参考値を'}登録`;
+ if(note)note.textContent=m.formal?'連続軌跡・時刻・距離基準を確認済み。速度低下判定の対象です。':`参考値：${m.reasons.join('・')}。速度低下の基準・警告から除外します。${!m.continuous?'平均は両端変位÷時間の参考値、ピークは算出しません。':''}`;
+ return m;
+}
+function v66VbtSnapshotReps(){v66Vbt.undo.push(vbtReps.map(r=>({...r})));if(v66Vbt.undo.length>20)v66Vbt.undo.shift();}
+function v66VbtAddManual(){
+ const m=v66VbtCalculateManual();if(!m.valid||vbtReviewBusy||vbtRunning||v66Vbt.loading)return;
+ v66VbtSnapshotReps();const overlap=new Set(v66VbtOverlaps(m.start,m.end).map(x=>x.r));
+ vbtReps=vbtReps.filter(r=>!overlap.has(r));
+ vbtReps.push({mean:m.mean,peak:m.peak,distance:m.distance,time:m.duration,startT:m.start,endT:m.end,startFrame:v66VbtFrameIndex(m.start),endFrame:v66VbtFrameIndex(m.end),source:'review',quality:m.continuous?m.confidence:0,validForBest:m.formal,validForLoss:m.formal,referenceOnly:!m.formal,referenceReasons:m.reasons,calibration:m.calibration,timingSource:m.timingSource,_v66Classified:true,continuous:m.continuous,directionOk:m.directionOk,durationOk:m.durationOk,reviewTrajectory:vbtReviewAnalysisApplied});
+ vbtReps.sort((a,b)=>a.startT-b.startT);renderVbt();
+ vbtReviewStart=null;vbtReviewEnd=null;v66El('vbt-review-start-label').textContent='未指定';v66El('vbt-review-end-label').textContent='未指定';calculateVbtReviewRep();
+}
+function v66VbtClassifyReps(){
+ for(const r of vbtReps){
+  if(r._v66Classified)continue;
+  const review=String(r.source||'').includes('review'),cal=review?v66VbtReviewScale():(v66Vbt.recording?.calibration||v66VbtLiveScale());
+  const timing=review?v66Vbt.media.timingVerified:true;
+  r.calibration={...cal};r.timingSource=review?v66Vbt.media.timingSource:'camera-mediaTime';
+  r._v66BaseBest=r.validForBest!==false;r._v66BaseLoss=r.validForLoss!==false;
+  const reference=!cal.verified||!timing;r.referenceOnly=reference;r.referenceReasons=[];
+  if(!cal.verified)r.referenceReasons.push('距離基準未確認');if(!timing)r.referenceReasons.push('FPS未確認');
+  r.validForBest=r._v66BaseBest&&!reference;r.validForLoss=r._v66BaseLoss&&!reference;r._v66Classified=true;
+ }
+}
+const v66VbtRenderBase=renderVbt;
+renderVbt=function(...args){
+ v66VbtClassifyReps();const out=v66VbtRenderBase(...args);
+ if(!vbtReps.length){v66El('vbt-loss').innerHTML='-- <span class="unit">%</span>';return out;}
+ const current=vbtReps.at(-1);v66El('vbt-peak').innerHTML=(Number.isFinite(current.peak)?current.peak.toFixed(3):'--')+' <span class="unit">m/s</span>';
+ const history=v66El('vbt-history');history.replaceChildren();
+ vbtReps.forEach((r,i)=>{const row=document.createElement('div');row.className='v66-history-row';
+  const text=document.createElement('span');text.textContent=`${i+1}レップ：平均 ${r.mean.toFixed(3)} m/s ／ ピーク ${Number.isFinite(r.peak)?r.peak.toFixed(3):'--'} ／ ${r.distance.toFixed(3)} m ／ ${r.time.toFixed(3)} s `;row.append(text);
+  const badge=document.createElement('span');badge.className='v66-badge'+(r.referenceOnly?' v66-reference':'');badge.textContent=r.referenceOnly?'参考値':r.validForBest===false?'追跡品質を要確認':'確認済み基準';row.append(badge);
+  if(r.referenceReasons?.length){const reason=document.createElement('div');reason.className='v66-note';reason.textContent=r.referenceReasons.join('・');row.append(reason);}
+  const del=document.createElement('button');del.type='button';del.textContent='削除';del.disabled=vbtRunning||vbtReviewBusy;del.setAttribute('aria-label',`${i+1}レップを削除`);del.onclick=()=>{if(vbtRunning||vbtReviewBusy)return;v66VbtSnapshotReps();vbtReps.splice(i,1);renderVbt();calculateVbtReviewRep();};row.append(del);history.append(row);
+ });
+ return out;
+};
+function v66VbtRecalculateScale(){
+ v66Vbt.undo=[];
+ const scale=v66VbtReviewScale();vbtReviewPixelsPerMeter=1/scale.mpp;
+ if(vbtReviewAnalysisApplied){recomputeVbtReviewVelocities(vbtReviewCorrectedSamples);vbtSamples=vbtReviewCorrectedSamples.map(s=>({...s}));}
+ // Scale corrections update distances and velocities, never event times.
+ for(const r of vbtReps){if(!String(r.source||'').includes('review'))continue;
+  const old=r.calibration?.mpp;if(old>0){const factor=scale.mpp/old;r.mean*=factor;r.distance*=factor;if(Number.isFinite(r.peak))r.peak*=factor;}
+  r.calibration={...scale};r._v66Classified=false;
+  if(r.source==='review'){r._v66Classified=true;const ok=!r.needsRetrack&&r.continuous&&r.directionOk!==false&&r.durationOk!==false&&scale.verified&&v66Vbt.media.timingVerified&&(!v66Vbt.media.liveAlignmentEstimated||r.reviewTrajectory)&&(r.quality||0)>=.62;r.referenceOnly=!ok;r.validForBest=ok;r.validForLoss=ok;r.referenceReasons=(r.referenceReasons||[]).filter(x=>x!=='距離基準未確認'&&x!=='FPS未確認');if(!scale.verified)r.referenceReasons.push('距離基準未確認');if(!v66Vbt.media.timingVerified)r.referenceReasons.push('FPS未確認');}
+  else{r.validForBest=r._v66BaseBest;r.validForLoss=r._v66BaseLoss;}
+ }
+ v66VbtCalibrationText();renderVbt();calculateVbtReviewRep();
+}
+// Two points span a known diameter on the same plane as the tracked plate.
+function v66VbtStartCalibration(mode){
+ if(vbtRunning||vbtReviewBusy||v66Vbt.loading)return;
+ const video=mode==='live'?vbtVideo:vbtReviewVideo;if(!video.videoWidth){v66VbtStatus('先にカメラまたは動画を開いてください。');return;}
+ if(mode==='review')video.pause();v66Vbt.calibrationMode=mode;v66Vbt.pendingPoints=[];v66VbtDrawCalibration(mode,[]);
+ if(mode==='review')setVbtReviewCorrectionMode(false);
+ video.parentElement.classList.add('v66-cal-pending');
+ v66VbtStatus('直径の端を2回タップしてください。プレートと同じ奥行きで、歪みの少ない直径を指定します。');
+}
+function v66VbtDrawCalibration(mode,points){
+ const video=mode==='live'?vbtVideo:vbtReviewVideo,ref=mode==='live'?vbtCanvas:vbtReviewCanvas;
+ let cv=video.parentElement.querySelector('.v66-cal-overlay');if(!cv){cv=document.createElement('canvas');cv.className='v66-cal-overlay';video.parentElement.append(cv);}cv.width=ref.width;cv.height=ref.height;const c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);c.strokeStyle='#ffcc00';c.fillStyle='#ffcc00';c.lineWidth=3;
+ for(const p of points){c.beginPath();c.arc(p.x,p.y,6,0,Math.PI*2);c.stroke();}
+ if(points.length===2){c.beginPath();c.moveTo(points[0].x,points[0].y);c.lineTo(points[1].x,points[1].y);c.stroke();}
+}
+async function v66VbtCalibrationClick(e,mode){
+ if(v66Vbt.calibrationMode!==mode)return;
+ e.preventDefault();e.stopImmediatePropagation();if(vbtRunning||vbtReviewBusy)return;
+ const video=mode==='live'?vbtVideo:vbtReviewVideo,ref=mode==='live'?vbtCanvas:vbtReviewCanvas,rect=video.getBoundingClientRect();
+ const p={x:(e.clientX-rect.left)/rect.width*ref.width,y:(e.clientY-rect.top)/rect.height*ref.height};
+ if(p.x<0||p.y<0||p.x>ref.width||p.y>ref.height)return;
+ v66Vbt.pendingPoints.push(p);v66VbtDrawCalibration(mode,v66Vbt.pendingPoints);
+ if(v66Vbt.pendingPoints.length<2){v66VbtStatus('直径のもう一方の端をタップしてください。');return;}
+ const [a,b]=v66Vbt.pendingPoints,d=Math.hypot(a.x-b.x,a.y-b.y),cm=Number(v66El(mode==='live'?'vbt-plate-diameter':'v66-vbt-diameter').value);
+ if(!(d>=12&&cm>0&&cm<=200)){v66Vbt.pendingPoints=[];v66VbtStatus('直径が短すぎるか、実直径の入力が不正です。2点を指定し直してください。');return;}
+ const cal={source:'manual',mpp:cm/100/d,pixelLength:d,diameterCm:cm,points:[a,b],frame:mode==='review'?v66VbtFrameIndex(video.currentTime):null,verified:true,width:ref.width,height:ref.height};
+ if(mode==='live'){v66Vbt.liveManual=cal;vbtPixelsPerMeter=1/cal.mpp;v66El('vbt-calibration-info').textContent=`手動2点校正：${d.toFixed(1)}px ／ ${cm}cm ／ ${vbtPixelsPerMeter.toFixed(1)}px/m。対象を指定し直した場合は再校正してください。`;}
+ else{v66Vbt.reviewCalibration=cal;v66Vbt.media.diameterCm=cm;v66VbtRecalculateScale();}
+ v66Vbt.calibrationMode=null;v66Vbt.pendingPoints=[];video.parentElement.classList.remove('v66-cal-pending');v66VbtStatus('2点校正を反映しました。カメラ位置・ズーム・対象の奥行きを変えた場合は再校正してください。');
+}
+function v66VbtEncode(key,value){return ArrayBuffer.isView(value)?Array.from(value):value;}
+function v66VbtSession(){
+ return {schema:'SprintTimerPro.VBT.session',schemaVersion:1,appVersion:window.SPRINT_TIMER_VERSION,savedAt:new Date().toISOString(),video:{name:v66Vbt.name,size:v66Vbt.blob?.size||0,type:v66Vbt.blob?.type||'',sha256:v66Vbt.hash,width:vbtReviewVideo.videoWidth,height:vbtReviewVideo.videoHeight,duration:v66VbtDuration()},media:v66Vbt.media,reviewCalibration:v66Vbt.reviewCalibration,settings:{weight:v66El('vbt-weight').value,height:v66El('vbt-height').value,diameter:v66El('vbt-plate-diameter').value,alerts:[10,15,20].map(n=>v66El('vbt-alert'+n).checked)},anchors:vbtReviewAnchors,correctedSamples:vbtReviewCorrectedSamples,originalSamples:vbtReviewOriginalSamples,originalReps:vbtReviewOriginalReps,samples:vbtSamples,reps:vbtReps,analysisApplied:vbtReviewAnalysisApplied,reviewDirty:v66Vbt.reviewDirty,lastQuality:vbtReviewLastQuality,markers:{start:vbtReviewStart,end:vbtReviewEnd},currentTime:vbtReviewVideo.currentTime};
+}
+function v66VbtDownload(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+async function v66VbtRestore(file){
+ if(vbtRunning||vbtReviewBusy||v66Vbt.loading)throw new Error('計測・再追跡を終了してください');
+ if(!v66Vbt.blob)throw new Error('先に保存時と同じ動画を読み込んでください');
+ if(file.size>40*1024*1024)throw new Error('JSONが大きすぎます（上限40MB）');
+ const s=JSON.parse(await file.text());
+ if(s.schema!=='SprintTimerPro.VBT.session'||s.schemaVersion!==1)throw new Error('対応していない解析データ形式です');
+ if(!s.video?.sha256||!v66Vbt.hash||s.video.sha256!==v66Vbt.hash)throw new Error('動画が一致しないか、動画の一致を検証できません。同じ動画を読み込んでください');
+ if(s.video.width!==vbtReviewVideo.videoWidth||s.video.height!==vbtReviewVideo.videoHeight)throw new Error('動画の解像度が一致しません');
+ const m=s.media;
+ if(!m||!(m.fps>=1&&m.fps<=1000)||!Array.isArray(m.times)||m.times.length>200000||m.times.some((t,i,a)=>!Number.isFinite(t)||t<0||(i&&t<=a[i-1]))||!(m.diameterCm>0)||!(m.analysisWidth>0&&m.analysisHeight>0))throw new Error('時刻・校正データが不正です');
+ const duration=v66VbtDuration(),sampleLists=['samples','correctedSamples','originalSamples'];
+ for(const key of sampleLists){if(!Array.isArray(s[key])||s[key].length>200000||s[key].some(p=>!p||!Number.isFinite(p.t)||p.t<0||p.t>(duration+1)*1000||p.valid!==false&&(!Number.isFinite(p.x)||!Number.isFinite(p.y))))throw new Error('軌跡データが不正です');}
+ for(const key of ['reps','originalReps'])if(!Array.isArray(s[key])||s[key].length>10000||s[key].some(r=>!r||![r.mean,r.distance,r.time,r.startT,r.endT].every(Number.isFinite)||r.mean<0||r.distance<0||r.time<=0||r.endT<=r.startT||r.startT<0||r.endT>duration+1||r.peak!=null&&!Number.isFinite(r.peak)))throw new Error('レップデータが不正です');
+ if(!Array.isArray(s.anchors)||s.anchors.length>5000||s.anchors.some(a=>!a||![a.time,a.x,a.y].every(Number.isFinite)||a.time<0||a.time>duration+.1||!a.feature?.center||!a.feature?.outer))throw new Error('アンカーデータが不正です');
+ if(s.reviewCalibration&&!(Number.isFinite(s.reviewCalibration.mpp)&&s.reviewCalibration.mpp>0))throw new Error('校正値が不正です');
+ vbtReviewTrackGeneration++;v66VbtSnapshotReps();v66Vbt.media=m;v66Vbt.reviewCalibration=s.reviewCalibration||null;
+ vbtReviewAnchors=s.anchors;vbtReviewCorrectedSamples=s.correctedSamples;vbtReviewOriginalSamples=s.originalSamples;vbtReviewOriginalReps=s.originalReps;vbtSamples=s.samples;vbtReps=s.reps;vbtReviewAnalysisApplied=!!s.analysisApplied;v66Vbt.reviewDirty=!!s.reviewDirty;vbtReviewLastQuality=s.lastQuality;
+ vbtReviewStart=s.markers?.start||null;vbtReviewEnd=s.markers?.end||null;vbtReviewPixelsPerMeter=1/v66VbtReviewScale().mpp;
+ if(s.settings){v66El('vbt-weight').value=s.settings.weight;v66El('vbt-height').value=s.settings.height;v66El('vbt-plate-diameter').value=s.settings.diameter;[10,15,20].forEach((n,i)=>v66El('vbt-alert'+n).checked=!!s.settings.alerts?.[i]);}
+ vbtReviewVideo.currentTime=clamp(Number(s.currentTime)||0,0,duration);v66VbtCalibrationText();renderVbtReviewAnchors();renderVbt();updateVbtReviewTime();calculateVbtReviewRep();drawVbtReviewOverlay();
+ v66El('vbt-review-start-label').textContent=vbtReviewStart?`${vbtReviewStart.time.toFixed(3)} s / Frame ${v66VbtFrameIndex(vbtReviewStart.time)}`:'未指定';v66El('vbt-review-end-label').textContent=vbtReviewEnd?`${vbtReviewEnd.time.toFixed(3)} s / Frame ${v66VbtFrameIndex(vbtReviewEnd.time)}`:'未指定';
+ v66VbtStatus('同じ動画で解析データを復元しました。校正・時刻・追跡アンカー・欠損・レップを保持しています。');
+}
+function v66StartDiagnostics(){
+ const el=v66El('v66-start-diagnostic');if(!el)return;
+ if(!startOfflinePoseFrames.length){el.textContent='接地の診断：人体解析後に、足部の観測と接地候補の状態を表示します。';return;}
+ const E=window.SprintContactIntervalsV60,signals=startOfflineFootSignals||{},counts={};
+ for(const side of ['left','right']){const rows=signals[side]||[];counts[side]={total:rows.length,observed:rows.filter(q=>E.foot(q).valid).length};}
+ const an=window.__startV60ContactAnalysis,events=an?.events||[],manual=startOfflineContacts.filter(c=>c.manualAnchor||String(c.source||'').includes('manual')).length;
+ let reason;
+ if(window.__startV66PostprocessError)reason='結果処理が途中で停止しています。取得済みデータを保持しましたが、結果は未確定です。';
+ else if(!counts.left.observed&&!counts.right.observed)reason='足先・踵の有効な観測が不足しています。足全体が見えるフレームで足部を修正し、地面設定を確認してください。';
+ else if(!startOfflineGroundModel?.valid)reason='地面モデルを確定できていません。地面の基準線を指定して再計算してください。';
+ else if(!events.length)reason='有効な足部はありますが、空中→接地の連続観測条件を満たす自動候補がありません。接地前後の足先・踵と地面を確認し、必要な接地を手動指定してください。';
+ else reason='自動候補があります。接地瞬間と離地を動画で確認して確定してください。候補数だけでは正確性を保証しません。';
+ el.textContent=`接地の診断：人体 ${startOfflinePoseFrames.length}F ／ 有効足部 左${counts.left.observed}/${counts.left.total}・右${counts.right.observed}/${counts.right.total}F\n自動候補 ${events.length}件 ／ 手動接地 ${manual}件 ／ 地面 ${startOfflineGroundModel?.valid?Math.round((startOfflineGroundModel.confidence||0)*100)+'%':'未確定'}\n${reason}`;
+}
+(function v66Initialize(){
+ const review=v66El('vbt-review-area'),start=v66El('vbt-offline-analysis-area')||v66El('vbt-start').parentElement;
+ const io=document.createElement('div');io.className='v66-panel';io.id='v66-vbt-io';io.innerHTML=`<h4>VBT v66：動画を読み込んで検証</h4><p>① 対象を指定 → ② 実直径を校正 → ③ 計測・再追跡 → ④ 上昇区間を確認。カメラを固定し、プレートと同じ奥行きで校正してください。</p><div class="v66-actions"><label>動画を読み込む<input id="v66-vbt-import" type="file" accept="video/*,.mp4,.mov,.webm"></label><button type="button" id="v66-vbt-save-video">動画を保存</button><button type="button" id="v66-vbt-save-session">解析JSONを保存</button><label>解析JSONを再読込<input type="file" id="v66-vbt-load-session" accept=".json,application/json"></label></div><div id="v66-vbt-io-status" class="v66-note">解析JSONと動画は別々に保存します。再開するときは同じ動画を先に読み込んでください。</div>`;
+ review.insertAdjacentElement('beforebegin',io);
+ const live=document.createElement('div');live.className='v66-panel';live.innerHTML='<h4>計測前の距離校正</h4><p>設定の実プレート直径（cm）を確認後、映像の直径の両端を2点指定します。身長の概算や未確認の外周自動校正は参考値として扱います。</p><div class="v66-actions"><button type="button" id="v66-vbt-live-calibrate">映像で直径を2点指定</button><button type="button" id="v66-vbt-cancel-calibrate">2点指定を中止</button></div>';
+ v66El('vbt-calibration-info').insertAdjacentElement('afterend',live);
+ const controls=document.createElement('div');controls.className='v66-panel';controls.innerHTML=`<h4>レビューの距離・時刻基準</h4><label>実プレート直径 <input type="number" id="v66-vbt-diameter" min="1" max="200" step=".1" value="45"> cm</label><div class="v66-actions"><button type="button" id="v66-vbt-review-calibrate">直径の両端を2点指定</button><button type="button" id="v66-vbt-review-confirm-scale">外周自動校正を目視確認済みにする</button></div><div class="v66-note" id="v66-vbt-review-scale"></div><p id="v66-vbt-timing"></p><label>内部時刻を取得できない動画のFPS <input type="number" id="v66-vbt-fps" min="1" max="1000" step=".001" value="30"></label><div class="v66-actions"><button type="button" id="v66-vbt-confirm-fps">FPSを確認して採用・解析をリセット</button></div><p>FPSを変更すると以前の軌跡・アンカー・レップをリセットします。元動画の撮影情報を確認して指定してください。</p>`;
+ v66El('vbt-review-wrap').insertAdjacentElement('afterend',controls);
+ const status=document.createElement('p');status.id='v66-vbt-manual-status';status.className='v66-note';v66El('vbt-add-review-rep').insertAdjacentElement('beforebegin',status);
+ const undo=document.createElement('button');undo.type='button';undo.className='action-btn btn-gray';undo.textContent='最後のレップ追加・置換・削除を戻す';undo.id='v66-vbt-undo';v66El('vbt-history').insertAdjacentElement('beforebegin',undo);
+ undo.onclick=()=>{if(vbtRunning||vbtReviewBusy||!v66Vbt.undo.length)return;vbtReps=v66Vbt.undo.pop();renderVbt();calculateVbtReviewRep();};
+ v66El('v66-vbt-import').onchange=async e=>{const file=e.target.files[0];try{if(file)await v66VbtOpenMedia(file,file.name,false);}catch(err){v66VbtStatus(err.message);}finally{e.target.value='';}};
+ v66El('v66-vbt-save-video').onclick=()=>{if(v66Vbt.blob)v66VbtDownload(v66Vbt.blob,v66Vbt.name||'VBT.webm');else v66VbtStatus('先に録画を終了するか、動画を読み込んでください。');};
+ v66El('v66-vbt-save-session').onclick=()=>{if(vbtRunning||vbtReviewBusy||v66Vbt.loading){v66VbtStatus('計測・再追跡を終了してから保存してください。');return;}if(!v66Vbt.blob){v66VbtStatus('保存する動画レビューがありません。');return;}v66VbtDownload(new Blob([JSON.stringify(v66VbtSession(),v66VbtEncode,2)],{type:'application/json'}),'VBT-session-v66.json');v66VbtStatus('解析JSONを保存しました。動画も保存すると同じ状態から再開できます。');};
+ v66El('v66-vbt-load-session').onchange=async e=>{try{if(e.target.files[0])await v66VbtRestore(e.target.files[0]);}catch(err){v66VbtStatus(err.message);}finally{e.target.value='';}};
+ v66El('v66-vbt-live-calibrate').onclick=()=>v66VbtStartCalibration('live');v66El('v66-vbt-review-calibrate').onclick=()=>v66VbtStartCalibration('review');
+ v66El('v66-vbt-cancel-calibrate').onclick=()=>{v66Vbt.calibrationMode=null;v66Vbt.pendingPoints=[];document.querySelectorAll('.v66-cal-pending').forEach(e=>e.classList.remove('v66-cal-pending'));v66VbtStatus('2点指定を中止しました。');};
+ vbtVideo.addEventListener('click',e=>v66VbtCalibrationClick(e,'live'),true);
+ vbtReviewVideo.parentElement.addEventListener('click',e=>{if(v66Vbt.calibrationMode==='review')v66VbtCalibrationClick(e,'review');},true);
+ vbtVideo.addEventListener('click',()=>{if(vbtRunning||v66Vbt.calibrationMode)return;v66Vbt.liveManual=null;},true);
+ v66El('vbt-camera-toggle').addEventListener('click',()=>{if(!vbtRunning)v66Vbt.liveManual=null;},true);
+ v66El('vbt-plate-diameter').addEventListener('input',()=>{if(vbtRunning)return;if(v66Vbt.liveManual){const cm=Number(v66El('vbt-plate-diameter').value);if(cm>0){v66Vbt.liveManual={...v66Vbt.liveManual,mpp:cm/100/v66Vbt.liveManual.pixelLength,diameterCm:cm};vbtPixelsPerMeter=1/v66Vbt.liveManual.mpp;}}});
+ v66El('v66-vbt-diameter').onchange=()=>{if(vbtReviewBusy||vbtRunning)return;const cm=Number(v66El('v66-vbt-diameter').value);if(!(cm>0&&cm<=200)){v66VbtCalibrationText();return;}v66Vbt.media.diameterCm=cm;const c=v66Vbt.reviewCalibration||v66Vbt.media.calibration;if(c?.pixelLength>0){v66Vbt.reviewCalibration={...c,diameterCm:cm,mpp:cm/100/c.pixelLength};v66VbtRecalculateScale();}};
+ v66El('v66-vbt-review-confirm-scale').onclick=()=>{if(vbtReviewBusy||vbtRunning)return;const c=v66VbtReviewScale();if(c.source!=='auto-rim'||!(c.pixelLength>0)){v66VbtStatus('外周自動校正がありません。直径を2点指定してください。');return;}v66Vbt.reviewCalibration={...c,verified:true};v66VbtRecalculateScale();v66VbtStatus('表示された外周と実直径の目視確認を反映しました。');};
+ v66El('v66-vbt-confirm-fps').onclick=()=>{if(vbtReviewBusy||vbtRunning||v66Vbt.media.times.length)return;const fps=Number(v66El('v66-vbt-fps').value);if(!(fps>=1&&fps<=1000))return;v66Vbt.media.fps=fps;v66Vbt.media.timingSource='手動確認FPS';v66Vbt.media.timingVerified=true;vbtSamples=[];vbtReps=[];resetVbtReviewWorkspace(true);v66Vbt.undo=[];renderVbt();v66VbtCalibrationText();calculateVbtReviewRep();v66VbtStatus('FPSを採用しました。アンカーを再指定して再追跡してください。');};
+ // Calibration and saved media may not be modified during an active operation.
+ window.addEventListener('click',e=>{if(vbtRunning&&e.target.closest('#vbt-review-area')||vbtReviewBusy&&e.target.closest('#vbt-review-wrap')){e.preventDefault();e.stopImmediatePropagation();return;}if(!vbtRunning&&!vbtReviewBusy)return;if(e.target.closest('#v66-vbt-io,#v66-vbt-undo,#v66-vbt-review-calibrate,#v66-vbt-live-calibrate,#v66-vbt-review-confirm-scale,#v66-vbt-confirm-fps')){e.preventDefault();e.stopImmediatePropagation();}},true);
+ const d=document.createElement('div');d.id='v66-start-diagnostic';d.className='v66-panel v66-note';v66El('start-offline-analysis-status').insertAdjacentElement('afterend',d);
+ const render=startOfflineRenderResults;startOfflineRenderResults=function(...args){try{return render(...args);}finally{queueMicrotask(v66StartDiagnostics);}};
+ const reset=startOfflineResetAnalysisState;startOfflineResetAnalysisState=function(...args){window.__startV66PostprocessError=null;const r=reset(...args);queueMicrotask(v66StartDiagnostics);return r;};
+ v66El('vbt-review-delete-nearest').addEventListener('click',()=>{if(!vbtReviewBusy)v66VbtInvalidateReview();});
+ v66El('vbt-review-reset').addEventListener('click',()=>{if(!vbtReviewBusy)v66Vbt.reviewDirty=false;});
+ v66VbtCalibrationText();v66StartDiagnostics();
+})();
+window.__SPRINT_TIMER_V66={build:window.SPRINT_TIMER_BUILD,scope:['START result recovery and diagnostics','VBT signed tracking, review validation, per-media timing, calibration and session IO'],sprintPeakDetectionUnchanged:true};
 </script>
 
 </body>
