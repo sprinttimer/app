@@ -6607,13 +6607,14 @@ function myJumpResetAnalysisForNewClip(){myPoseFrames=[];myPoseFrameMap.clear();
 
 document.getElementById("myjump-start").addEventListener("click",async()=>{
     if(myRecording||myAnalysisRunning)return;if(!myStream)await startMyJumpCamera();if(!myLive.srcObject){alert("カメラを起動できませんでした。");return;}
+    if(!(await mj67WaitReady()))return;
     myJumpResetAnalysisForNewClip();const status=document.getElementById("myjump-status"),duration=parseInt(document.getElementById("myjump-duration").value,10)*1000,recStream=myLive.srcObject;
     let mime="";for(const m of ["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"]){if(MediaRecorder.isTypeSupported(m)){mime=m;break;}}
-    try{myRecorder=mime?new MediaRecorder(recStream,{mimeType:mime}):new MediaRecorder(recStream);}catch(e){console.error(e);alert("この端末では動画録画を開始できませんでした。");return;}
+    try{myRecorder=mime?new MediaRecorder(recStream,{mimeType:mime}):new MediaRecorder(recStream);}catch(e){console.error(e);mj67Done();alert("この端末では動画録画を開始できませんでした。");return;}
     myChunks=[];myRecording=true;myRecorder.ondataavailable=e=>{if(e.data.size)myChunks.push(e.data);};
-    myRecorder.onstop=()=>{myJumpStopCaptureClock();const blob=new Blob(myChunks,{type:myRecorder.mimeType||"video/webm"});if(myBlobUrl)URL.revokeObjectURL(myBlobUrl);myBlobUrl=URL.createObjectURL(blob);myPreview.src=myBlobUrl;document.getElementById("myjump-preview-area").style.display="block";myRecording=false;status.innerText="撮影終了。高精度自動解析またはコマ送り手動校正を行ってください。";};
+    myRecorder.onstop=()=>{myJumpStopCaptureClock();const blob=new Blob(myChunks,{type:myRecorder.mimeType||"video/webm"});if(myBlobUrl)URL.revokeObjectURL(myBlobUrl);myBlobUrl=URL.createObjectURL(blob);myPreview.src=myBlobUrl;document.getElementById("myjump-preview-area").style.display="block";myRecording=false;mj67Done();status.innerText="撮影終了。高精度自動解析またはコマ送り手動校正を行ってください。";};
     myRecorder.start(200);myJumpStartCaptureClock();
-    for(const n of [3,2,1]){status.innerText=n;beep(700,.12);await wait(1000);}
+    for(const n of [3,2,1]){if(!(await mj67CountdownCheck())){mj67Abort();return;}status.innerText=n;beep(700,.12);await wait(1000);}if(!(await mj67CountdownCheck())){mj67Abort();return;}mj67Jump();
     status.innerText="START";playGunshot();await wait(duration);if(myRecorder&&myRecorder.state!=="inactive")myRecorder.stop();
 });
 
@@ -6648,12 +6649,12 @@ async function myJumpPoseSend(){const pose=await myJumpEnsurePose();return new P
 async function myJumpAnalyze(){
     if(myAnalysisRunning)return;if(!myPreview.src||!myPreview.videoWidth){alert("先にMyJump動画を撮影してください。");return;}myJumpWriteProfile();myJumpSaveBatonSettings();myAnalysisRunning=true;myAnalysisCancel=false;document.getElementById("myjump-analyze").disabled=true;document.getElementById("myjump-cancel-analysis").disabled=false;myPreview.pause();myPoseFrames=[];myPoseFrameMap.clear();myJumpSmoothed=[];
     const status=document.getElementById("myjump-analysis-status"),times=myFrameTimes.length?myFrameTimes:[...Array(Math.max(2,Math.round((myPreview.duration||0)*myJumpEffectiveFps())+1))].map((_,i)=>i/myJumpEffectiveFps()).filter(t=>t<=(myPreview.duration||0));
-    try{const pose=await myJumpEnsurePose();try{pose.reset?.();}catch(_){}
+    try{const pose=await myJumpEnsurePose();await pose.reset?.();await mj67Prepare(times);
         const profile=myJumpReadProfile();for(let i=0;i<times.length;i++){
             if(myAnalysisCancel)break;const t=times[i];await myJumpSeekPromise(t);const r=await myJumpPoseSend();if(r?.poseLandmarks){const l=myJumpCloneLandmarks(r.poseLandmarks),scale=bodyCalibrationEstimate(l,myCanvas.width,myCanvas.height,profile),f={index:i,t,landmarks:l,poseQuality:myJumpPoseQuality(l),bodyScale:scale};myPoseFrames.push(f);myPoseFrameMap.set(i,f);}if(i%5===0||i===times.length-1){status.innerText=`高精度解析中 ${i+1} / ${times.length} frames (${Math.round((i+1)/times.length*100)}%)`;await wait(0);}}
-        if(myAnalysisCancel){status.innerText="解析をキャンセルしました。取得済みフレームだけ保持しています。";}else status.innerText=`Pose解析完了：${myPoseFrames.length}/${times.length} frames。イベント・距離・姿勢を再計算しました。`;
+        if(myAnalysisCancel){status.innerText="解析をキャンセルしました。取得済みフレームだけ保持しています。";}else status.innerText=myPoseFrames.length?`Pose解析完了：${myPoseFrames.length}/${times.length} frames。接地と離地を動画で確認してください。`:`人体取得0/${times.length}F。全身が映るコマで選手を囲んで再解析してください。自動の姿勢・角度は計測不能です。`;
         myJumpRecomputeDerived(true);
-    }catch(e){console.error(e);status.innerText="高精度解析中にエラーが発生しました。動画形式または端末負荷を確認してください。";}
+    }catch(e){console.error(e);status.innerText="MyJump解析処理エラー："+(e?.message||e)+"。取得済み人体データを保持しました。人体未検出とは別のエラーです。";}
     finally{myAnalysisRunning=false;myAnalysisCancel=false;document.getElementById("myjump-analyze").disabled=false;document.getElementById("myjump-cancel-analysis").disabled=true;myJumpDrawOverlay();}
 }
 document.getElementById("myjump-analyze").addEventListener("click",myJumpAnalyze);document.getElementById("myjump-cancel-analysis").addEventListener("click",()=>{myAnalysisCancel=true;});
@@ -16212,6 +16213,75 @@ function v66StartDiagnostics(){
  v66VbtCalibrationText();v66StartDiagnostics();
 })();
 window.__SPRINT_TIMER_V66={build:window.SPRINT_TIMER_BUILD,scope:['START result recovery and diagnostics','VBT signed tracking, review validation, per-media timing, calibration and session IO'],sprintPeakDetectionUnchanged:true};
+</script>
+
+<script id="myjump-v67">
+/* MyJump-only acquisition; no shared Pose configuration is mutated. */
+(()=>{'use strict';
+const $=id=>document.getElementById(id),S={ticket:0,armed:false,phase:'idle',goodAt:0,lastGood:0,roi:null,manual:null,errors:0,miss:0,processed:0},channels={};
+window.__myJumpV67=S;
+const cv=document.createElement('canvas'),ctx=cv.getContext('2d');cv.className='overlay-canvas';cv.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';myLive.parentElement.append(cv);
+const note=document.createElement('div');note.className='info';note.textContent='MyJump V67（基盤 V66）：計測開始 → 全身が映る位置へ → 緑の骨格を確認 → 自動カウント。合図後は録画を優先します。';myLive.parentElement.insertAdjacentElement('afterend',note);
+$('myjump-start').textContent='全身を確認して計測開始';
+const cancel=document.createElement('button');cancel.type='button';cancel.className='action-btn btn-gray';cancel.textContent='検出待機・カウントを中止';cancel.hidden=true;$('myjump-status').after(cancel);
+function stop(){S.ticket++;S.armed=false;S.phase='idle';S.goodAt=0;cancel.hidden=true;$('myjump-start').disabled=myRecording;ctx.clearRect(0,0,cv.width,cv.height);if(myRecording&&myRecorder?.state!=='inactive')myRecorder.stop();}
+cancel.onclick=()=>{stop();$('myjump-status').textContent='計測を中止しました。';};
+function geometry(l,strict=false){
+ if(!l)return null;const ids=[11,12,23,24,27,28];if(ids.some(i=>!l[i]||!Number.isFinite(l[i].x)||!Number.isFinite(l[i].y)||(l[i].visibility||0)<(strict?.55:.30)))return null;
+ const pts=l.filter(p=>(p.visibility||0)>.35&&Number.isFinite(p.x)&&Number.isFinite(p.y)),xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+ let x=Math.min(...xs),y=Math.min(...ys),r=Math.max(...xs),b=Math.max(...ys);if(b-y<.20||r-x<.04)return null;
+ if(strict&&(x<.025||r>.975||y<.025||b>.95))return null;
+ const padX=(r-x)*.45,padY=(b-y)*.25;x=Math.max(0,x-padX);y=Math.max(0,y-padY);r=Math.min(1,r+padX);b=Math.min(1,b+padY);return{x,y,w:r-x,h:b-y};
+}
+S.geometry=geometry;
+async function channel(key){if(channels[key])return channels[key];const pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});pose.setOptions({modelComplexity:key==='live'?1:2,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.55,minTrackingConfidence:.60});const c={pose,pending:null};pose.onResults(r=>{const p=c.pending;if(p){c.pending=null;p.resolve(r);}});channels[key]=c;return c;}
+async function send(key,video,rect=null){
+ const c=await channel(key);if(c.pending)throw new Error('MyJump推論が重複しました');
+ const w=video.videoWidth||video.width,h=video.videoHeight||video.height;if(!w||!h)throw new Error('映像を取得できません');
+ const r=rect||{x:0,y:0,w:1,h:1},image=document.createElement('canvas'),k=Math.min(1,960/Math.max(w*r.w,h*r.h));image.width=Math.max(2,Math.round(w*r.w*k));image.height=Math.max(2,Math.round(h*r.h*k));image.getContext('2d').drawImage(video,r.x*w,r.y*h,r.w*w,r.h*h,0,0,image.width,image.height);
+ const out=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>fail(new Error('MyJump推論タイムアウト')),10000);function fail(e){if(c.pending){c.pending=null;delete channels[key];try{c.pose.close();}catch(_){}clearTimeout(timer);reject(e);}}c.pending={resolve:r=>{clearTimeout(timer);resolve(r);}};Promise.resolve(c.pose.send({image})).catch(fail);});
+ if(out?.poseLandmarks&&rect)out.poseLandmarks=out.poseLandmarks.map(p=>({...p,x:r.x+p.x*r.w,y:r.y+p.y*r.h,z:p.z*r.w}));return out;
+}
+function draw(l,good){cv.width=myLive.videoWidth;cv.height=myLive.videoHeight;cv.style.transform=getComputedStyle(myLive).transform;ctx.clearRect(0,0,cv.width,cv.height);if(!l)return;ctx.strokeStyle=ctx.fillStyle=good?'#15d96d':'#ffd14a';ctx.lineWidth=Math.max(3,cv.width/220);for(const [a,b]of [[11,12],[11,23],[12,24],[23,24],[11,13],[13,15],[12,14],[14,16],[23,25],[25,27],[24,26],[26,28],[27,31],[28,32]]){if((l[a]?.visibility||0)<.35||(l[b]?.visibility||0)<.35)continue;ctx.beginPath();ctx.moveTo(l[a].x*cv.width,l[a].y*cv.height);ctx.lineTo(l[b].x*cv.width,l[b].y*cv.height);ctx.stroke();}for(const p of l){if((p.visibility||0)<.35)continue;ctx.beginPath();ctx.arc(p.x*cv.width,p.y*cv.height,Math.max(3,cv.width/180),0,7);ctx.fill();}}
+window.mj67WaitReady=async()=>{
+ const ticket=++S.ticket;S.armed=true;S.phase='waiting';S.goodAt=0;S.lastGood=0;cancel.hidden=false;$('myjump-start').disabled=true;
+ if(!myLive.srcObject)await startMyJumpCamera();
+ while(ticket===S.ticket&&S.armed){
+  if(myAnalysisRunning||CameraLease43.activeTab()!=='myjump'||!myLive.srcObject){stop();return false;}
+  try{const r=await send('live',myLive),good=!!geometry(r?.poseLandmarks,true),now=performance.now();if(ticket!==S.ticket)return false;draw(r?.poseLandmarks,good);
+   if(good){if(!S.goodAt)S.goodAt=now;S.lastGood=now;}else S.goodAt=0;
+   if(S.phase==='waiting')$('myjump-status').textContent=good?'✓ 全身を確認しています…':'全身・両足と頭上の余白が映る位置に立ってください。';
+   if(S.phase==='waiting'&&good&&now-S.goodAt>=500){S.phase='countdown';return true;}
+  }catch(e){S.errors++;$('myjump-status').textContent='人体検出の処理エラー：'+e.message+'。再試行中です。';}
+  await wait(160);
+ }return false;
+};
+window.mj67CountdownCheck=async()=>{
+ if(!S.armed||S.phase!=='countdown'||CameraLease43.activeTab()!=='myjump')return false;
+ try{const r=await send('live',myLive),ok=!!geometry(r?.poseLandmarks,true);draw(r?.poseLandmarks,ok);return ok;}catch(e){S.errors++;return false;}
+};
+window.mj67Jump=()=>{S.phase='jump';ctx.clearRect(0,0,cv.width,cv.height);};
+window.mj67Done=()=>{S.armed=false;S.phase='idle';cancel.hidden=true;$('myjump-start').disabled=false;};
+window.mj67Abort=()=>{stop();$('myjump-status').textContent='全身の確認が途切れたためカウントを中止しました。位置を確認して再開してください。';};
+// Manual selection is two taps in displayed video coordinates, never fabricated joints.
+const panel=document.createElement('div');panel.className='info';panel.innerHTML='<b>MyJump 人体検出</b><div>全身が映るコマで選手の左上・右下を2回タップすると、その範囲から再探索します。</div><button type="button" id="mj67-select">選手を2点で囲む</button> <button type="button" id="mj67-clear">範囲を解除</button><div id="mj67-roi">範囲：自動</div><div id="mj67-diag">人体取得：未解析</div>';$('myjump-analyze').parentElement.before(panel);
+let taps=[];
+$('mj67-select').onclick=()=>{if(myAnalysisRunning||myRecording)return;myPreview.pause();taps=[];S.selecting=true;myJumpBaton.activeTarget=null;myCanvas.style.pointerEvents='auto';myCanvas.style.touchAction='none';$('mj67-roi').textContent='選手の左上、右下を順にタップしてください。';};
+$('mj67-clear').onclick=()=>{if(myAnalysisRunning)return;S.manual=null;S.roi=null;S.selecting=false;myCanvas.style.pointerEvents='none';$('mj67-roi').textContent='範囲：自動';};
+myCanvas.addEventListener('pointerdown',e=>{if(!S.selecting)return;e.preventDefault();e.stopImmediatePropagation();const b=myCanvas.getBoundingClientRect();taps.push({x:Math.max(0,Math.min(1,(e.clientX-b.left)/b.width)),y:Math.max(0,Math.min(1,(e.clientY-b.top)/b.height))});if(taps.length===2){const[a,b]=taps;const r={x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)};taps=[];if(r.w<.08||r.h<.2){$('mj67-roi').textContent='範囲が小さすぎます。全身を囲み直してください。';return;}S.manual=r;S.selecting=false;myCanvas.style.pointerEvents='none';$('mj67-roi').textContent='手動範囲を指定済み。高精度自動解析を押してください。';const c=myCanvas.getContext('2d');c.strokeStyle='#00d8ff';c.lineWidth=4;c.strokeRect(r.x*myCanvas.width,r.y*myCanvas.height,r.w*myCanvas.width,r.h*myCanvas.height);}},true);
+myJumpEnsurePose=async()=>{return(await channel('measure')).pose;};
+window.mj67Prepare=async times=>{S.errors=0;S.processed=0;S.miss=0;S.roi=S.manual;const restore=myPreview.currentTime;for(let n=0;n<9&&!myAnalysisCancel;n++){const i=Math.round((times.length-1)*n/8);await myJumpSeekPromise(times[i]);const r=await send('measure',myPreview,S.manual);const g=geometry(r?.poseLandmarks);if(g){S.roi=S.manual||g;break;}}await myJumpSeekPromise(restore);};
+myJumpPoseSend=async()=>{try{let r=await send('measure',myPreview,S.roi);if(!r?.poseLandmarks&&S.roi&&!S.manual){r=await send('measure',myPreview);}
+ if(r?.poseLandmarks){S.miss=0;if(!S.manual)S.roi=geometry(r.poseLandmarks)||S.roi;}else S.miss++;
+ S.processed++;$('mj67-diag').textContent=`処理 ${S.processed}F ／ 人体取得 ${myPoseFrames.length+(r?.poseLandmarks?1:0)}F ／ 処理エラー ${S.errors}件`;return r;
+ }catch(e){S.errors++;$('mj67-diag').textContent='処理エラー：'+e.message;throw e;}};
+const oldConfidence=myJumpComputeConfidence;
+myJumpComputeConfidence=function(){const c=oldConfidence(),m=myJumpMetrics||{};if(!Number.isFinite(m.heightFlight))c.height=null;if(!Number.isFinite(m.heightFlight)||!Number.isFinite(m.videoHeight)){c.agreement=null;c.overall=null;c.height=null;}if(!myPoseFrames.length){c.pose=null;c.joint=null;c.distance=null;c.overall=null;c.height=null;}return c;};
+myJumpRenderConfidence=function(){const c=myJumpComputeConfidence();for(const [id,k]of [['height','height'],['timing','timing'],['distance','distance'],['joints','joint'],['pose','pose']])$('myjump-confidence-'+id).textContent=Number.isFinite(c[k])?myJumpConfidenceText(c[k]):'算出不可';$('myjump-confidence-overall').textContent=`Overall：${Number.isFinite(c.overall)?myJumpConfidenceText(c.overall):'算出不可'} ／ 映像との整合：${Number.isFinite(c.agreement)?Math.round(c.agreement*100)+'%':'比較不可'}${!myPoseFrames.length?' ／ 人体未取得：手動指定の滞空時間のみ利用可能':''}`;};
+const reset=myJumpResetAnalysisForNewClip;myJumpResetAnalysisForNewClip=function(){S.manual=null;S.roi=null;S.selecting=false;$('mj67-roi').textContent='範囲：自動';return reset();};
+const analyze=$('myjump-analyze');analyze.addEventListener('click',e=>{if(S.armed||myRecording){e.stopImmediatePropagation();$('myjump-status').textContent='撮影を終了してから解析してください。';}},true);
+window.addEventListener('pagehide',stop);
+})();
 </script>
 
 </body>
